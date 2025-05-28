@@ -1,0 +1,13 @@
+# 编译输出
+target/
+*.class
+*.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# 日志
+logs/
+*.log
