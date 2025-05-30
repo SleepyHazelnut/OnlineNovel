@@ -13,4 +13,22 @@
         ORDER BY id DESC
     </select>
 
+    <select id="selectByUsername" resultType="com.inkisle.entity.UserInfo">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM user_info
+        WHERE username = #{username}
+    </select>
+
+    <select id="countByUsername" resultType="int">
+        SELECT COUNT(*)
+        FROM user_info
+        WHERE username = #{username}
+    </select>
+
+    <insert id="insert" parameterType="com.inkisle.entity.UserInfo" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO user_info (username, password, nick_name, phone, email, avatar, create_time, update_time)
+        VALUES (#{username}, #{password}, #{nickName}, #{phone}, #{email}, #{avatar}, #{createTime}, #{updateTime})
+    </insert>
+
 </mapper>
