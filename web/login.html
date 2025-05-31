@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>登录 - 墨屿小说</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-role="reader">
+
+<div class="auth-box">
+    <h2>墨屿小说</h2>
+    <div class="sub">登录后可以收藏、评论、签到</div>
+
+    <div class="form-item">
+        <input type="text" id="username" placeholder="用户名" autocomplete="username">
+    </div>
+    <div class="form-item">
+        <input type="password" id="password" placeholder="密码" autocomplete="current-password">
+    </div>
+    <div class="form-item captcha-row">
+        <input type="text" id="captcha" placeholder="验证码" maxlength="4" autocomplete="off">
+        <img id="captchaImg" alt="验证码" title="看不清，点一下换一张" onclick="refreshCaptcha()">
+    </div>
+    <div class="form-error" id="tip"></div>
+
+    <button class="btn btn-primary btn-block" id="submitBtn" onclick="doLogin()">登 录</button>
+
+    <div class="foot">还没有账号？<a href="register.html">去注册</a></div>
+    <div class="foot" style="margin-top:8px;font-size:12px">
+        <a href="author-login.html">作者入口</a> · <a href="admin-login.html">管理端</a>
+    </div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+    // 已登录时直接放行，无需重复登录
+    if (Auth.logged()) {
+        location.replace(param('redirect') || 'index.html');
+    }
+
+    /**
+     * 刷新验证码
+     * 必须拼接时间戳：src 不变时浏览器会直接使用缓存，点击多少次图片都不会更新
+     */
+    function refreshCaptcha() {
+        document.getElementById('captchaImg').src = 'captcha/image?t=' + Date.now();
+    }
+    refreshCaptcha();
+
+    async function doLogin() {
+        const tip = document.getElementById('tip');
+        const btn = document.getElementById('submitBtn');
+        const username = document.getElementById('username').value.trim();
+        const password = document.getElementById('password').value;
+        const captcha = document.getElementById('captcha').value.trim();
+
+        if (!username || !password || !captcha) {
+            tip.textContent = '账号、密码、验证码都要填';
+            return;
+        }
+
+        btn.disabled = true;
+        tip.textContent = '';
+        try {
+            const data = await post('/user/login', { username: username, password: password, captcha: captcha });
+            Auth.save(data.token, data.user);
+            toast('欢迎回来，' + (data.user.nickName || data.user.username));
+            setTimeout(function () {
+                location.href = param('redirect') || 'index.html';
+            }, 400);
+        } catch (e) {
+            tip.textContent = e.message;
+            // 验证码在后端一次性有效，无论对错，登录失败后必须刷新，否则第二次提交仍会失败
+            refreshCaptcha();
+            btn.disabled = false;
+        }
+    }
+
+    document.getElementById('password').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') doLogin();
+    });
+</script>
+</body>
+</html>

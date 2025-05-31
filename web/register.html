@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>注册 - 墨屿小说</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-role="reader">
+
+<div class="auth-box">
+    <h2>注册</h2>
+    <div class="sub">注册后即可收藏、评论、签到</div>
+
+    <div class="form-item">
+        <input type="text" id="username" placeholder="用户名（4-20 位）">
+    </div>
+    <div class="form-item">
+        <input type="password" id="password" placeholder="密码（6-20 位）">
+    </div>
+    <div class="form-item">
+        <input type="password" id="password2" placeholder="再输一遍密码">
+    </div>
+    <div class="form-error" id="tip"></div>
+
+    <button class="btn btn-primary btn-block" id="submitBtn" onclick="doRegister()">注 册</button>
+
+    <div class="foot">已有账号？<a href="login.html">去登录</a></div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+    async function doRegister() {
+        const tip = document.getElementById('tip');
+        const btn = document.getElementById('submitBtn');
+        const username = document.getElementById('username').value.trim();
+        const password = document.getElementById('password').value;
+        const password2 = document.getElementById('password2').value;
+
+        if (!username || !password) {
+            tip.textContent = '账号和密码都要填';
+            return;
+        }
+        // 前端先校验长度、两次密码等规则，可减少必然失败的请求；
+        // 后端仍会用相同规则再校验一次，不能只依赖前端
+        if (username.length < 4 || username.length > 20) {
+            tip.textContent = '用户名长度要在 4 到 20 之间';
+            return;
+        }
+        if (password.length < 6 || password.length > 20) {
+            tip.textContent = '密码长度要在 6 到 20 之间';
+            return;
+        }
+        if (password !== password2) {
+            tip.textContent = '两次输的密码不一样';
+            return;
+        }
+
+        btn.disabled = true;
+        tip.textContent = '';
+        try {
+            await post('/user/register', { username: username, password: password });
+            alert('注册成功，去登录吧');
+            location.href = 'login.html';
+        } catch (e) {
+            tip.textContent = e.message;
+            btn.disabled = false;
+        }
+    }
+
+    document.getElementById('password2').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') doRegister();
+    });
+</script>
+</body>
+</html>
