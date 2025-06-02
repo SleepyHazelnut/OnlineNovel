@@ -6,16 +6,27 @@
         id, book_name, author_name, category_id, book_desc, cover_url, status, create_time, update_time
     </sql>
 
+    <!-- 按分类筛选和查全部走同一条 SQL，categoryId 为空时 where 不生效 -->
+    <sql id="Category_Where">
+        <where>
+            <if test="categoryId != null">
+                category_id = #{categoryId}
+            </if>
+        </where>
+    </sql>
+
     <select id="selectPage" resultType="com.inkisle.entity.BookInfo">
         SELECT
         <include refid="Base_Column_List"/>
         FROM book_info
+        <include refid="Category_Where"/>
         ORDER BY create_time DESC
         LIMIT #{offset}, #{pageSize}
     </select>
 
-    <select id="countAll" resultType="int">
+    <select id="countByCategory" resultType="int">
         SELECT COUNT(*) FROM book_info
+        <include refid="Category_Where"/>
     </select>
 
     <select id="selectById" resultType="com.inkisle.entity.BookInfo">

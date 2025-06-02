@@ -17,13 +17,13 @@ public class BookServiceImpl implements BookService {
     private BookInfoMapper bookInfoMapper;
 
     @Override
-    public Map<String, Object> page(Integer pageNum, Integer pageSize) {
+    public Map<String, Object> page(Integer pageNum, Integer pageSize, Long categoryId) {
         int offset = (pageNum - 1) * pageSize;
-        List<BookInfo> list = bookInfoMapper.selectPage(offset, pageSize);
+        List<BookInfo> list = bookInfoMapper.selectPage(offset, pageSize, categoryId);
 
         Map<String, Object> data = new HashMap<>();
         data.put("list", list);
-        data.put("total", bookInfoMapper.countAll());
+        data.put("total", bookInfoMapper.countByCategory(categoryId));
         return data;
     }
 

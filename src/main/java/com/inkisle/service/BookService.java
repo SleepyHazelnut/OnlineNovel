@@ -7,13 +7,10 @@ import java.util.Map;
 public interface BookService {
 
     /**
-     * 分页查询书籍
+     * 书籍分页列表，categoryId 为空时返回全部
      */
-    Map<String, Object> page(Integer pageNum, Integer pageSize);
+    Map<String, Object> page(Integer pageNum, Integer pageSize, Long categoryId);
 
-    /**
-     * 查询书籍详情
-     */
     BookInfo getById(Long id);
 
 }

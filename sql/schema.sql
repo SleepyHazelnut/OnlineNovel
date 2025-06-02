@@ -42,6 +42,7 @@ DROP TABLE IF EXISTS `book_category`;
 CREATE TABLE `book_category` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
   `category_name` varchar(50) DEFAULT NULL COMMENT '分类名',
+  `parent_id` bigint DEFAULT '0' COMMENT '父级分类ID，0 表示一级分类',
   `sort` int DEFAULT '0' COMMENT '排序',
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='书籍分类表';

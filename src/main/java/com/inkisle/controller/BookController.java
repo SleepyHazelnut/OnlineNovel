@@ -19,12 +19,13 @@ public class BookController {
     private BookService bookService;
 
     /**
-     * 书籍列表，分页返回
+     * 书籍列表，分页返回；传了 categoryId 就按分类筛
      */
     @GetMapping("/list")
     public Map<String, Object> list(@RequestParam(defaultValue = "1") Integer pageNum,
-                                    @RequestParam(defaultValue = "10") Integer pageSize) {
-        return bookService.page(pageNum, pageSize);
+                                    @RequestParam(defaultValue = "10") Integer pageSize,
+                                    @RequestParam(required = false) Long categoryId) {
+        return bookService.page(pageNum, pageSize, categoryId);
     }
 
     /**

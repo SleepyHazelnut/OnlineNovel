@@ -10,11 +10,13 @@ import java.util.List;
 public interface BookInfoMapper {
 
     /**
-     * 分页查询，由上层算出 offset 传进来
+     * 分页查询，由上层算出 offset 传进来；categoryId 为空时查全部
      */
-    List<BookInfo> selectPage(@Param("offset") int offset, @Param("pageSize") int pageSize);
+    List<BookInfo> selectPage(@Param("offset") int offset,
+                              @Param("pageSize") int pageSize,
+                              @Param("categoryId") Long categoryId);
 
-    int countAll();
+    int countByCategory(@Param("categoryId") Long categoryId);
 
     BookInfo selectById(@Param("id") Long id);
 
