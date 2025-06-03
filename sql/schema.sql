@@ -61,3 +61,18 @@ CREATE TABLE `book_chapter` (
   PRIMARY KEY (`id`),
   KEY `idx_book_id` (`book_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='章节表';
+
+-- ----------------------------
+-- 阅读记录表
+-- ----------------------------
+DROP TABLE IF EXISTS `user_read_history`;
+CREATE TABLE `user_read_history` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `user_id` bigint NOT NULL COMMENT '用户ID',
+  `book_id` bigint NOT NULL COMMENT '书籍ID',
+  `chapter_id` bigint NOT NULL COMMENT '章节ID',
+  `chapter_num` int DEFAULT NULL COMMENT '章节序号',
+  `update_time` datetime DEFAULT NULL COMMENT '最近阅读时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_user_book` (`user_id`, `book_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='阅读记录表';

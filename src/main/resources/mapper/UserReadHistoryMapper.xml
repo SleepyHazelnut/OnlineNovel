@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.inkisle.mapper.UserReadHistoryMapper">
+
+    <!-- update_time 使用数据库的 NOW()，与评论表写法一致 -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO user_read_history (user_id, book_id, chapter_id, chapter_num, update_time)
+        VALUES (#{userId}, #{bookId}, #{chapterId}, #{chapterNum}, NOW())
+    </insert>
+
+    <update id="update">
+        UPDATE user_read_history
+        SET chapter_id = #{chapterId}, chapter_num = #{chapterNum}, update_time = NOW()
+        WHERE user_id = #{userId} AND book_id = #{bookId}
+    </update>
+
+    <select id="selectByUserAndBook" resultType="com.inkisle.entity.UserReadHistory">
+        SELECT id, user_id, book_id, chapter_id, chapter_num, update_time
+        FROM user_read_history
+        WHERE user_id = #{userId} AND book_id = #{bookId}
+    </select>
+
+    <!-- 阅读表仅存 book_id，历史列表需显示书名，故联 book_info 取出 -->
+    <select id="selectByUserId" resultType="com.inkisle.entity.UserReadHistory">
+        SELECT h.id, h.user_id, h.book_id, h.chapter_id, h.chapter_num, h.update_time,
+               b.book_name
+        FROM user_read_history h
+        LEFT JOIN book_info b ON b.id = h.book_id
+        WHERE h.user_id = #{userId}
+        ORDER BY h.update_time DESC
+    </select>
+
+</mapper>
