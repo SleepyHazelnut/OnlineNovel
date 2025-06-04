@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.inkisle.mapper.UserBookshelfMapper">
+
+    <!-- 收藏前先统计，结果为 0 才允许插入，Service 层据此防重复收藏 -->
+    <select id="countByUserAndBook" resultType="int">
+        SELECT COUNT(*)
+        FROM user_bookshelf
+        WHERE user_id = #{userId} AND book_id = #{bookId}
+    </select>
+
+    <insert id="insert" parameterType="com.inkisle.entity.UserBookshelf" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO user_bookshelf (user_id, book_id, create_time)
+        VALUES (#{userId}, #{bookId}, NOW())
+    </insert>
+
+    <delete id="deleteByUserAndBook">
+        DELETE FROM user_bookshelf
+        WHERE user_id = #{userId} AND book_id = #{bookId}
+    </delete>
+
+    <!-- 收藏表仅存 book_id，书架需显示书名与封面，故联 book_info -->
+    <select id="selectByUserId" resultType="com.inkisle.entity.UserBookshelf">
+        SELECT s.id, s.user_id, s.book_id, s.create_time,
+               b.book_name, b.author_name, b.cover_url
+        FROM user_bookshelf s
+        LEFT JOIN book_info b ON b.id = s.book_id
+        WHERE s.user_id = #{userId}
+        ORDER BY s.create_time DESC
+    </select>
+
+</mapper>

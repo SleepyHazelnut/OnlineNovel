@@ -76,3 +76,31 @@ CREATE TABLE `user_read_history` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_user_book` (`user_id`, `book_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='阅读记录表';
+
+-- ----------------------------
+-- 书籍评论表
+-- ----------------------------
+DROP TABLE IF EXISTS `book_comment`;
+CREATE TABLE `book_comment` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `book_id` bigint NOT NULL COMMENT '书籍ID',
+  `user_id` bigint NOT NULL COMMENT '评论人ID',
+  `content` varchar(500) NOT NULL COMMENT '评论内容',
+  `parent_id` bigint DEFAULT '0' COMMENT '父评论ID，0 表示一级评论',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_book_id` (`book_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='书籍评论表';
+
+-- ----------------------------
+-- 书架收藏表
+-- ----------------------------
+DROP TABLE IF EXISTS `user_bookshelf`;
+CREATE TABLE `user_bookshelf` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `user_id` bigint NOT NULL COMMENT '用户ID',
+  `book_id` bigint NOT NULL COMMENT '书籍ID',
+  `create_time` datetime DEFAULT NULL COMMENT '收藏时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_user_book` (`user_id`, `book_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='书架收藏表';

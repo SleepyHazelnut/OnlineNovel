@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.inkisle.mapper.BookCommentMapper">
+
+    <!-- 评论表仅存 user_id，昵称需联 user_info；用 LEFT JOIN 以避免用户被删后评论一并消失 -->
+    <select id="selectByBookId" resultType="com.inkisle.entity.BookComment">
+        SELECT c.id, c.book_id, c.user_id, c.content, c.parent_id, c.create_time,
+               u.nick_name
+        FROM book_comment c
+        LEFT JOIN user_info u ON u.id = c.user_id
+        WHERE c.book_id = #{bookId}
+        ORDER BY c.create_time ASC
+    </select>
+
+    <!-- 时间直接用 NOW()，以数据库时间为准，避免多机时钟不一致 -->
+    <insert id="insert" parameterType="com.inkisle.entity.BookComment" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO book_comment (book_id, user_id, content, parent_id, create_time)
+        VALUES (#{bookId}, #{userId}, #{content}, #{parentId}, NOW())
+    </insert>
+
+</mapper>

@@ -23,6 +23,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/captcha/**",
                         // 书籍、分类、章节对外只读，游客也能看
                         "/book/**", "/category/**", "/chapter/**",
+                        // 评论列表可匿名浏览，只有发言要登录
+                        "/comment/list",
                         // 静态页面
                         "/", "/*.html", "/css/**", "/js/**", "/static/**", "/favicon.ico", "/error"
                 );
