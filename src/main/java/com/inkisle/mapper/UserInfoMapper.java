@@ -2,6 +2,7 @@ package com.inkisle.mapper;
 
 import com.inkisle.entity.UserInfo;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
 
@@ -22,6 +23,8 @@ public interface UserInfoMapper {
      * 按用户名统计，用于注册查重
      */
     int countByUsername(String username);
+
+    UserInfo selectById(@Param("id") Long id);
 
     int insert(UserInfo userInfo);
 

@@ -13,4 +13,9 @@ public interface BookService {
 
     BookInfo getById(Long id);
 
+    /**
+     * 搜索书籍，书名或作者命中即可
+     */
+    Map<String, Object> search(Integer pageNum, Integer pageSize, String keyword);
+
 }

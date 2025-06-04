@@ -29,6 +29,16 @@ public class BookController {
     }
 
     /**
+     * 搜索书籍
+     */
+    @GetMapping("/search")
+    public Map<String, Object> search(@RequestParam String keyword,
+                                      @RequestParam(defaultValue = "1") Integer pageNum,
+                                      @RequestParam(defaultValue = "10") Integer pageSize) {
+        return bookService.search(pageNum, pageSize, keyword);
+    }
+
+    /**
      * 书籍详情
      */
     @GetMapping("/{id}")

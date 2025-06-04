@@ -4,12 +4,15 @@ import com.inkisle.common.Result;
 import com.inkisle.entity.UserInfo;
 import com.inkisle.mapper.UserInfoMapper;
 import com.inkisle.service.UserService;
+import com.inkisle.util.JwtUtil;
 import com.inkisle.util.Md5Util;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class UserServiceImpl implements UserService {
@@ -17,9 +20,17 @@ public class UserServiceImpl implements UserService {
     @Autowired
     private UserInfoMapper userInfoMapper;
 
+    @Autowired
+    private JwtUtil jwtUtil;
+
     @Override
     public List<UserInfo> listAll() {
         return userInfoMapper.selectAll();
+    }
+
+    @Override
+    public UserInfo getById(Long id) {
+        return userInfoMapper.selectById(id);
     }
 
     @Override
@@ -47,9 +58,14 @@ public class UserServiceImpl implements UserService {
             return Result.fail("用户名或密码错误");
         }
 
+        String token = jwtUtil.generate(user.getId(), user.getUsername());
+
         // 密码不要返回给前端
         user.setPassword(null);
-        return Result.ok(user);
+        Map<String, Object> data = new HashMap<>();
+        data.put("token", token);
+        data.put("user", user);
+        return Result.ok(data);
     }
 
 }

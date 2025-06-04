@@ -15,6 +15,14 @@
         </where>
     </sql>
 
+    <!-- 搜索条件：书名或作者名包含关键字 -->
+    <sql id="Keyword_Where">
+        <where>
+            book_name LIKE CONCAT('%', #{keyword}, '%')
+            OR author_name LIKE CONCAT('%', #{keyword}, '%')
+        </where>
+    </sql>
+
     <select id="selectPage" resultType="com.inkisle.entity.BookInfo">
         SELECT
         <include refid="Base_Column_List"/>
@@ -34,6 +42,20 @@
         <include refid="Base_Column_List"/>
         FROM book_info
         WHERE id = #{id}
+    </select>
+
+    <select id="searchByKeyword" resultType="com.inkisle.entity.BookInfo">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM book_info
+        <include refid="Keyword_Where"/>
+        ORDER BY create_time DESC
+        LIMIT #{offset}, #{pageSize}
+    </select>
+
+    <select id="countByKeyword" resultType="int">
+        SELECT COUNT(*) FROM book_info
+        <include refid="Keyword_Where"/>
     </select>
 
 </mapper>

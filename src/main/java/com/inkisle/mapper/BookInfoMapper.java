@@ -20,4 +20,13 @@ public interface BookInfoMapper {
 
     BookInfo selectById(@Param("id") Long id);
 
+    /**
+     * 按书名或作者模糊搜索
+     */
+    List<BookInfo> searchByKeyword(@Param("offset") int offset,
+                                   @Param("pageSize") int pageSize,
+                                   @Param("keyword") String keyword);
+
+    int countByKeyword(@Param("keyword") String keyword);
+
 }

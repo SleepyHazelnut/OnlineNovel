@@ -32,4 +32,15 @@ public class BookServiceImpl implements BookService {
         return bookInfoMapper.selectById(id);
     }
 
+    @Override
+    public Map<String, Object> search(Integer pageNum, Integer pageSize, String keyword) {
+        int offset = (pageNum - 1) * pageSize;
+        List<BookInfo> list = bookInfoMapper.searchByKeyword(offset, pageSize, keyword);
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("list", list);
+        data.put("total", bookInfoMapper.countByKeyword(keyword));
+        return data;
+    }
+
 }

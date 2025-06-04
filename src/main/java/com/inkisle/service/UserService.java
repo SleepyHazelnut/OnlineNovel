@@ -12,13 +12,15 @@ public interface UserService {
      */
     List<UserInfo> listAll();
 
+    UserInfo getById(Long id);
+
     /**
      * 用户注册
      */
     Result register(UserInfo userInfo);
 
     /**
-     * 用户登录
+     * 用户登录，成功后返回 token
      */
     Result login(String username, String password);
 
