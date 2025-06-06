@@ -8,6 +8,9 @@ target/
 *.iml
 .vscode/
 
+# 上传的文件
+upload/
+
 # 日志
 logs/
 *.log

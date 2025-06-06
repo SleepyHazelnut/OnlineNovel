@@ -12,6 +12,11 @@ spring:
     username: root
     password: ${MYSQL_PASSWORD:123456}
     driver-class-name: com.mysql.cj.jdbc.Driver
+  servlet:
+    multipart:
+      # 封面图一般几百 KB，给到 5M 够用
+      max-file-size: 5MB
+      max-request-size: 10MB
 
 mybatis:
   mapper-locations: classpath*:/mapper/**/*.xml
@@ -25,3 +30,7 @@ jwt:
   secret: ${JWT_SECRET:inkisle-dev-secret-key-change-me-before-release}
   # token 有效期，单位小时
   expire-hours: 24
+
+file:
+  # 上传文件落盘目录，暂存本机，后面换对象存储
+  upload-path: ${FILE_UPLOAD_PATH:./upload}

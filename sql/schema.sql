@@ -49,6 +49,7 @@ CREATE TABLE `book_category` (
 
 -- ----------------------------
 -- 章节表
+-- 只放目录信息，正文拆到 book_content
 -- ----------------------------
 DROP TABLE IF EXISTS `book_chapter`;
 CREATE TABLE `book_chapter` (
@@ -56,11 +57,23 @@ CREATE TABLE `book_chapter` (
   `book_id` bigint NOT NULL COMMENT '书籍ID',
   `chapter_name` varchar(200) DEFAULT NULL COMMENT '章节名',
   `chapter_num` int DEFAULT NULL COMMENT '章节序号',
-  `content` longtext COMMENT '章节正文',
   `create_time` datetime DEFAULT NULL COMMENT '创建时间',
   PRIMARY KEY (`id`),
-  KEY `idx_book_id` (`book_id`)
+  KEY `idx_book_id_chapter_num` (`book_id`, `chapter_num`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='章节表';
+
+-- ----------------------------
+-- 章节内容表
+-- 正文单独存一张表，目录查询就不用把大字段一起拽出来了
+-- ----------------------------
+DROP TABLE IF EXISTS `book_content`;
+CREATE TABLE `book_content` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `chapter_id` bigint NOT NULL COMMENT '章节ID',
+  `content` longtext COMMENT '章节正文',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_chapter_id` (`chapter_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='章节内容表';
 
 -- ----------------------------
 -- 阅读记录表
