@@ -1,5 +1,6 @@
 package com.inkisle.service.impl;
 
+import com.inkisle.common.BusinessException;
 import com.inkisle.entity.BookChapter;
 import com.inkisle.entity.BookContent;
 import com.inkisle.mapper.BookChapterMapper;
@@ -30,7 +31,7 @@ public class BookChapterServiceImpl implements BookChapterService {
     public Map<String, Object> read(Long id) {
         BookChapter chapter = bookChapterMapper.selectById(id);
         if (chapter == null) {
-            return null;
+            throw new BusinessException("章节不存在");
         }
 
         // 正文单独查，读一章才拉一章的内容

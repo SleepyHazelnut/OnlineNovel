@@ -10,7 +10,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/chapter")
@@ -33,11 +32,7 @@ public class ChapterController {
      */
     @GetMapping("/{id}")
     public Result read(@PathVariable Long id) {
-        Map<String, Object> data = bookChapterService.read(id);
-        if (data == null) {
-            return Result.fail("章节不存在");
-        }
-        return Result.ok(data);
+        return Result.ok(bookChapterService.read(id));
     }
 
 }
