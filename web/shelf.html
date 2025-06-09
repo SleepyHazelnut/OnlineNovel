@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>我的书架 - 墨屿小说</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .shelf-row { display: flex; gap: 16px; padding: 16px 18px; border-bottom: 1px solid #f2f4f7; align-items: center; }
+        .shelf-row:last-child { border-bottom: none; }
+        .shelf-row .cover {
+            width: 52px; height: 70px; border-radius: 4px; flex-shrink: 0; cursor: pointer;
+            background: linear-gradient(135deg, #dbe4ee, #c3cfdd);
+            background-size: cover; background-position: center;
+            display: flex; align-items: center; justify-content: center; color: #fff; font-size: 20px;
+        }
+        .shelf-row .name { font-size: 15px; font-weight: 600; cursor: pointer; }
+        .shelf-row .meta { font-size: 12px; color: #8c9aa8; margin-top: 4px; }
+    </style>
+</head>
+<body data-role="reader">
+
+<div id="nav"></div>
+
+<div class="container">
+    <div class="page-title">我的书架 <small id="count"></small></div>
+    <div class="list" id="list"><div class="loading">加载中...</div></div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+    readerNav('shelf');
+
+    if (!Auth.require('shelf.html')) {
+        // 未登录时 require() 已跳转登录页，此分支留空
+    } else {
+        load();
+    }
+
+    async function load() {
+        const box = document.getElementById('list');
+        try {
+            const list = await get('/bookshelf/list');
+            if (!list || !list.length) {
+                box.innerHTML = '<div class="empty">书架还是空的，去 <a href="index.html">书库</a> 逛逛</div>';
+                return;
+            }
+            document.getElementById('count').textContent = '共 ' + list.length + ' 本';
+
+            let html = '';
+            list.forEach(function (s) {
+                html += '<div class="shelf-row">'
+                    + '<div class="cover" style="' + coverStyle(s.coverUrl) + '" '
+                    + 'onclick="location.href=\'book.html?id=' + s.bookId + '\'">' + coverText(s.coverUrl, s.bookName) + '</div>'
+                    + '<div class="grow">'
+                    + '  <div class="name" onclick="location.href=\'book.html?id=' + s.bookId + '\'">' + escapeHtml(s.bookName || ('书籍 #' + s.bookId)) + '</div>'
+                    + '  <div class="meta">' + escapeHtml(s.authorName || '佚名') + ' · 收藏于 ' + fmtTime(s.createTime) + '</div>'
+                    + '</div>'
+                    + '<button class="btn btn-sm" onclick="location.href=\'book.html?id=' + s.bookId + '\'">详情</button>'
+                    + '<button class="btn btn-sm btn-danger" onclick="removeBook(' + s.bookId + ')">移出</button>'
+                    + '</div>';
+            });
+            box.innerHTML = html;
+        } catch (e) {
+            box.innerHTML = '<div class="empty">' + escapeHtml(e.message) + '</div>';
+        }
+    }
+
+    async function removeBook(bookId) {
+        if (!confirm('确定从书架移出这本书？')) return;
+        try {
+            await post('/bookshelf/remove', { bookId: bookId });
+            toast('已移出');
+            load();
+        } catch (e) {
+            toast(e.message);
+        }
+    }
+</script>
+</body>
+</html>

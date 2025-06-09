@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>书籍详情 - 墨屿小说</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .detail-head { display: flex; gap: 24px; }
+        .detail-head .cover {
+            width: 150px; height: 200px; border-radius: 6px; flex-shrink: 0;
+            background: linear-gradient(135deg, #dbe4ee, #c3cfdd);
+            background-size: cover; background-position: center;
+            display: flex; align-items: center; justify-content: center;
+            color: #fff; font-size: 34px;
+        }
+        .detail-head h1 { margin: 0 0 10px; font-size: 24px; }
+        .detail-head .meta-line { color: #5a6b7d; font-size: 14px; margin-bottom: 6px; }
+        .detail-head .desc { color: #7d8b99; font-size: 13px; margin: 14px 0; line-height: 1.9; }
+        .detail-head .actions { display: flex; gap: 10px; margin-top: 16px; }
+    </style>
+</head>
+<body data-role="reader">
+
+<div id="nav"></div>
+
+<div class="container" id="page">
+    <div class="loading">加载中...</div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+    readerNav('index');
+
+    const bookId = param('id');
+    let book = null;
+    let categoryMap = {};
+
+    async function load() {
+        if (!bookId) {
+            document.getElementById('page').innerHTML = '<div class="empty">没指定要看的书</div>';
+            return;
+        }
+        try {
+            // 详情接口只给了 categoryId，分类名得拿分类树自己拼，所以两个请求一起发
+            const [detail, cats] = await Promise.all([
+                get('/book/' + bookId),
+                get('/category/list')
+            ]);
+            book = detail;
+            (cats || []).forEach(function (c) {
+                categoryMap[c.id] = c.categoryName;
+                (c.children || []).forEach(function (s) { categoryMap[s.id] = s.categoryName; });
+            });
+            if (!book) {
+                document.getElementById('page').innerHTML = '<div class="empty">这本书不存在</div>';
+                return;
+            }
+            render();
+        } catch (e) {
+            document.getElementById('page').innerHTML = '<div class="empty">' + escapeHtml(e.message) + '</div>';
+        }
+    }
+
+    function render() {
+        document.title = book.bookName + ' - 墨屿小说';
+        const html = ''
+            + '<div class="card">'
+            + '  <div class="detail-head">'
+            + '    <div class="cover" style="' + coverStyle(book.coverUrl) + '">' + coverText(book.coverUrl, book.bookName) + '</div>'
+            + '    <div class="grow">'
+            + '      <h1>' + escapeHtml(book.bookName) + '</h1>'
+            + '      <div class="meta-line">作者：' + escapeHtml(book.authorName || '佚名') + '</div>'
+            + '      <div class="meta-line">分类：' + escapeHtml(categoryMap[book.categoryId] || '未分类')
+            + '        <span style="margin-left:12px">' + bookStatusTag(book.status) + '</span></div>'
+            + '      <div class="desc">' + escapeHtml(book.bookDesc || '这本书还没有简介') + '</div>'
+            + '      <div class="actions">'
+            + '        <button class="btn btn-primary" onclick="startRead()">开始阅读</button>'
+            + '        <button class="btn" id="shelfBtn" onclick="toggleShelf()">收藏</button>'
+            + '      </div>'
+            + '    </div>'
+            + '  </div>'
+            + '</div>'
+            + '<div class="card"><div class="page-title" style="font-size:16px;margin-bottom:12px">目录 <small>共 <span id="chapterCount">0</span> 章</small></div>'
+            + '  <div id="chapters"><div class="loading">加载中...</div></div></div>'
+            + '<div class="card"><div class="page-title" style="font-size:16px;margin-bottom:12px">评论</div>'
+            + '  <div id="commentForm"></div>'
+            + '  <div id="comments"><div class="loading">加载中...</div></div></div>';
+
+        document.getElementById('page').innerHTML = html;
+
+        // 评论框 DOM 由上方拼接的 html 生成，初始化必须等 innerHTML 写入之后，顺序颠倒会取到 null
+        initCommentForm();
+        loadChapters();
+        loadComments();
+        initShelf();
+    }
+
+    async function loadChapters() {
+        const box = document.getElementById('chapters');
+        try {
+            const list = await get('/chapter/list/' + bookId);
+            if (!list || !list.length) {
+                box.innerHTML = '<div class="empty">作者还没传章节</div>';
+                return;
+            }
+            document.getElementById('chapterCount').textContent = list.length;
+            let html = '';
+            list.forEach(function (c) {
+                html += '<div class="chapter-item">'
+                    + '<span class="no">第 ' + c.chapterNum + ' 章</span>'
+                    + '<span class="name">' + escapeHtml(c.chapterName) + '</span>'
+                    + '<button class="btn btn-sm" onclick="location.href=\'read.html?chapterId=' + c.id + '\'">阅读</button>'
+                    + '</div>';
+            });
+            box.innerHTML = html;
+        } catch (e) {
+            box.innerHTML = '<div class="empty">' + escapeHtml(e.message) + '</div>';
+        }
+    }
+
+    async function loadComments() {
+        const box = document.getElementById('comments');
+        try {
+            const list = await get('/comment/list', { bookId: bookId });
+            renderComments(box, list || []);
+        } catch (e) {
+            box.innerHTML = '<div class="empty">' + escapeHtml(e.message) + '</div>';
+        }
+    }
+
+    function renderComments(box, list) {
+        if (!list.length) {
+            box.innerHTML = '<div class="empty">还没有人评论，来说两句</div>';
+            return;
+        }
+        let html = '';
+        list.forEach(function (c) {
+            html += commentHtml(c, false);
+            (c.children || []).forEach(function (r) {
+                html += '<div class="reply">'
+                    + '<span class="nick">' + escapeHtml(r.nickName || '书友') + '</span>'
+                    + ' <span class="time">' + fmtTime(r.createTime) + '</span>'
+                    + '<div>' + escapeHtml(r.content) + '</div></div>';
+            });
+        });
+        box.innerHTML = html;
+    }
+
+    function commentHtml(c, isReply) {
+        return '<div class="comment-item">'
+            + '<div class="head"><span class="nick">' + escapeHtml(c.nickName || '书友') + '</span>'
+            + '<span class="time">' + fmtTime(c.createTime) + '</span>'
+            + '<a href="javascript:void(0)" onclick="replyTo(' + c.id + ')" style="font-size:12px">回复</a></div>'
+            + '<div class="body">' + escapeHtml(c.content) + '</div>'
+            + '</div>';
+    }
+
+    function replyFormHtml() {
+        if (!Auth.logged()) {
+            return '<div class="alert alert-info">登录后可以发表评论 <a href="login.html?redirect=' + encodeURIComponent(location.href) + '">去登录</a></div>';
+        }
+        return '<div class="form-item">'
+            + '<textarea id="commentText" rows="3" placeholder="说点什么..."></textarea>'
+            + '<div class="row between" style="margin-top:8px">'
+            + '<span class="form-tip" id="replyHint"></span>'
+            + '<button class="btn btn-primary btn-sm" onclick="submitComment()">发表</button>'
+            + '</div></div>';
+    }
+
+    let replyParentId = null;
+
+    function initCommentForm() {
+        document.getElementById('commentForm').innerHTML = replyFormHtml();
+    }
+
+    function replyTo(id) {
+        if (!Auth.logged()) {
+            location.href = 'login.html?redirect=' + encodeURIComponent(location.href);
+            return;
+        }
+        replyParentId = id;
+        document.getElementById('replyHint').textContent = '正在回复 #' + id + '（点「发表」提交）';
+        const t = document.getElementById('commentText');
+        if (t) { t.focus(); }
+    }
+
+    async function submitComment() {
+        const text = document.getElementById('commentText').value.trim();
+        if (!text) { toast('评论不能为空'); return; }
+        try {
+            await post('/comment/add', { bookId: Number(bookId), content: text, parentId: replyParentId });
+            document.getElementById('commentText').value = '';
+            replyParentId = null;
+            document.getElementById('replyHint').textContent = '';
+            toast('发表成功');
+            loadComments();
+        } catch (e) {
+            toast(e.message);
+        }
+    }
+
+    async function initShelf() {
+        if (!Auth.logged()) return;
+        try {
+            const collected = await get('/bookshelf/check', { bookId: bookId });
+            updateShelfBtn(collected);
+        } catch (e) { /* 收藏状态查询失败不影响查看详情，忽略该错误 */ }
+    }
+
+    let collected = false;
+
+    function updateShelfBtn(v) {
+        collected = v;
+        const btn = document.getElementById('shelfBtn');
+        if (!btn) return;
+        btn.textContent = v ? '已在书架（点击移出）' : '加入书架';
+        btn.className = v ? 'btn btn-danger' : 'btn';
+    }
+
+    async function toggleShelf() {
+        if (!Auth.logged()) {
+            location.href = 'login.html?redirect=' + encodeURIComponent(location.href);
+            return;
+        }
+        try {
+            if (collected) {
+                await post('/bookshelf/remove', { bookId: Number(bookId) });
+                toast('已移出书架');
+                updateShelfBtn(false);
+            } else {
+                await post('/bookshelf/add', { bookId: Number(bookId) });
+                toast('已加入书架');
+                updateShelfBtn(true);
+            }
+        } catch (e) {
+            toast(e.message);
+        }
+    }
+
+    /**
+     * 「开始阅读」：已登录且有阅读记录时跳到上次阅读的章节，否则回到第一章
+     * 未登录不查询历史——该接口需要 token，请求会返回 401
+     */
+    async function startRead() {
+        const user = Auth.user();
+        try {
+            let chapterId = null;
+            if (user) {
+                const last = await get('/history/last', { bookId: bookId });
+                if (last && last.chapterId) chapterId = last.chapterId;
+            }
+            if (!chapterId) {
+                const list = await get('/chapter/list/' + bookId);
+                if (!list || !list.length) { toast('作者还没传章节'); return; }
+                chapterId = list[0].id;
+            }
+            location.href = 'read.html?chapterId=' + chapterId;
+        } catch (e) {
+            toast(e.message);
+        }
+    }
+
+    (async function () {
+        await load();
+    })();
+</script>
+</body>
+</html>

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>阅读 - 墨屿小说</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        body { background: #faf8f4; }
+        .reader-wrap { max-width: 760px; margin: 0 auto; padding: 28px 20px 70px; }
+        .reader-panel { background: #fff; border-radius: 6px; padding: 40px 48px 48px; box-shadow: 0 1px 6px rgba(0,0,0,.05); }
+    </style>
+</head>
+<body data-role="reader">
+
+<div id="nav"></div>
+
+<div class="reader-wrap" id="page">
+    <div class="loading">加载中...</div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+    readerNav('index');
+
+    const chapterId = param('chapterId');
+    let chapter = null;
+    let prevId = null;
+    let nextId = null;
+
+    async function load() {
+        if (!chapterId) {
+            document.getElementById('page').innerHTML = '<div class="empty">没指定章节</div>';
+            return;
+        }
+        try {
+            const data = await get('/chapter/' + chapterId);
+            chapter = data.chapter;
+            prevId = data.prevId;
+            nextId = data.nextId;
+
+            document.title = chapter.chapterName + ' - 墨屿小说';
+            render(data.content || '');
+            saveHistory();
+        } catch (e) {
+            document.getElementById('page').innerHTML = '<div class="empty">' + escapeHtml(e.message) + '</div>';
+        }
+    }
+
+    function render(content) {
+        const html = ''
+            + '<div class="reader-panel">'
+            + '  <div class="reader-title">' + escapeHtml(chapter.chapterName) + '</div>'
+            + '  <div class="reader-content">' + escapeHtml(content || '（本章还没有正文）') + '</div>'
+            + '  <div class="reader-nav">'
+            + '    <button class="btn" ' + (prevId ? 'onclick="go(' + prevId + ')"' : 'disabled') + '>上一章</button>'
+            + '    <button class="btn" onclick="location.href=\'book.html?id=' + chapter.bookId + '\'">回目录</button>'
+            + '    <button class="btn" ' + (nextId ? 'onclick="go(' + nextId + ')"' : 'disabled') + '>下一章</button>'
+            + '  </div>'
+            + '</div>';
+        document.getElementById('page').innerHTML = html;
+        window.scrollTo(0, 0);
+    }
+
+    function go(id) {
+        location.href = 'read.html?chapterId=' + id;
+    }
+
+    /** 每翻一章上报一次进度，下次在详情页点「开始阅读」才能接着读 */
+    async function saveHistory() {
+        const user = Auth.user();
+        if (!user || !chapter) return;
+        try {
+            await post('/history/save', {
+                bookId: chapter.bookId,
+                chapterId: chapter.id,
+                chapterNum: chapter.chapterNum
+            });
+        } catch (e) { /* 保存进度失败不影响阅读，忽略该错误 */ }
+    }
+
+    load();
+</script>
+</body>
+</html>

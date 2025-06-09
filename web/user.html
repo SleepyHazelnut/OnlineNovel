@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>个人中心 - 墨屿小说</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .profile { display: flex; align-items: center; gap: 20px; }
+        .avatar {
+            width: 64px; height: 64px; border-radius: 50%; flex-shrink: 0;
+            background: linear-gradient(135deg, #409eff, #7ab8ff); color: #fff;
+            display: flex; align-items: center; justify-content: center; font-size: 24px;
+        }
+    </style>
+</head>
+<body data-role="reader">
+
+<div id="nav"></div>
+
+<div class="container narrow">
+    <div class="card">
+        <div class="profile">
+            <div class="avatar" id="avatar">书</div>
+            <div class="grow">
+                <div class="page-title" style="margin:0;font-size:18px" id="nick">-</div>
+                <div style="color:#8c9aa8;font-size:13px" id="account">-</div>
+            </div>
+            <div style="text-align:right">
+                <div style="font-size:22px;font-weight:600;color:var(--primary)" id="signDays">0</div>
+                <div style="color:#8c9aa8;font-size:12px">连续签到</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="page-title" style="font-size:16px">资料</div>
+        <table class="table">
+            <tbody>
+            <tr><th style="width:110px">用户 ID</th><td id="uid">-</td></tr>
+            <tr><th>昵称</th><td id="nick2">-</td></tr>
+            <tr><th>手机号</th><td id="phone">-</td></tr>
+            <tr><th>邮箱</th><td id="email">-</td></tr>
+            <tr><th>注册时间</th><td id="createTime">-</td></tr>
+            </tbody>
+        </table>
+        <div style="margin-top:16px">
+            <button class="btn btn-danger btn-sm" onclick="Auth.logout()">退出登录</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="page-title" style="font-size:16px">阅读记录</div>
+        <div id="history"><div class="loading">加载中...</div></div>
+    </div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+    readerNav('user');
+
+    if (!Auth.require('user.html')) {
+        // 未登录时 require() 已跳转登录页
+    } else {
+        load();
+    }
+
+    async function load() {
+        try {
+            const u = await get('/user/info');
+            document.title = (u.nickName || u.username) + ' - 个人中心';
+            document.getElementById('avatar').textContent = (u.nickName || u.username || '书').slice(0, 1);
+            document.getElementById('nick').textContent = u.nickName || u.username;
+            document.getElementById('account').textContent = '账号：' + u.username;
+            document.getElementById('uid').textContent = u.id;
+            document.getElementById('nick2').textContent = u.nickName || '-';
+            document.getElementById('phone').textContent = u.phone || '未填';
+            document.getElementById('email').textContent = u.email || '未填';
+            document.getElementById('createTime').textContent = fmtTime(u.createTime);
+
+            loadSignDays(u.id);
+            loadHistory();
+        } catch (e) {
+            toast(e.message);
+        }
+    }
+
+    async function loadSignDays() {
+        try {
+            const days = await get('/sign/continuous');
+            document.getElementById('signDays').textContent = days || 0;
+        } catch (e) { /* 签到天数获取失败时留空，不影响查看资料 */ }
+    }
+
+    async function loadHistory() {
+        const box = document.getElementById('history');
+        try {
+            // userId 由后端从 token 解析，前端无需也不应传递
+            const list = await get('/history/list');
+            if (!list || !list.length) {
+                box.innerHTML = '<div class="empty">还没有阅读记录</div>';
+                return;
+            }
+            let html = '';
+            list.forEach(function (h) {
+                html += '<div class="list-item">'
+                    + '<div class="grow">'
+                    + '  <div class="title">' + escapeHtml(h.bookName || ('书籍 #' + h.bookId)) + '</div>'
+                    + '  <div class="meta">读到第 ' + (h.chapterNum || 0) + ' 章 · ' + fmtTime(h.updateTime) + '</div>'
+                    + '</div>'
+                    + '<button class="btn btn-sm" onclick="location.href=\'read.html?chapterId=' + h.chapterId + '\'">继续读</button>'
+                    + '</div>';
+            });
+            box.innerHTML = html;
+        } catch (e) {
+            box.innerHTML = '<div class="empty">' + escapeHtml(e.message) + '</div>';
+        }
+    }
+</script>
+</body>
+</html>
