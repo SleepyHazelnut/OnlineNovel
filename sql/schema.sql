@@ -19,6 +19,26 @@ CREATE TABLE `user_info` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户信息表';
 
 -- ----------------------------
+-- 作者信息表
+-- 读者和作者分开注册，账号体系互相独立
+-- ----------------------------
+DROP TABLE IF EXISTS `author_info`;
+CREATE TABLE `author_info` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `username` varchar(50) NOT NULL COMMENT '作者账号',
+  `password` varchar(64) NOT NULL COMMENT '密码(MD5)',
+  `pen_name` varchar(50) DEFAULT NULL COMMENT '笔名',
+  `phone` varchar(20) DEFAULT NULL COMMENT '手机号',
+  `email` varchar(100) DEFAULT NULL COMMENT '邮箱',
+  `intro` varchar(255) DEFAULT NULL COMMENT '作者简介',
+  `status` tinyint DEFAULT '0' COMMENT '状态 0正常 1禁用',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_username` (`username`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='作者信息表';
+
+-- ----------------------------
 -- 书籍信息表
 -- ----------------------------
 DROP TABLE IF EXISTS `book_info`;
@@ -26,13 +46,15 @@ CREATE TABLE `book_info` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
   `book_name` varchar(100) NOT NULL COMMENT '书名',
   `author_name` varchar(50) DEFAULT NULL COMMENT '作者名',
+  `author_id` bigint DEFAULT NULL COMMENT '作者ID，老数据没有作者账号所以允许为空',
   `category_id` bigint DEFAULT NULL COMMENT '分类ID',
   `book_desc` varchar(500) DEFAULT NULL COMMENT '简介',
   `cover_url` varchar(255) DEFAULT NULL COMMENT '封面地址',
   `status` tinyint DEFAULT '0' COMMENT '状态 0连载 1完结',
   `create_time` datetime DEFAULT NULL COMMENT '创建时间',
   `update_time` datetime DEFAULT NULL COMMENT '更新时间',
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`id`),
+  KEY `idx_author_id` (`author_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='书籍信息表';
 
 -- ----------------------------

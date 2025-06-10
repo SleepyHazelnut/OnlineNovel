@@ -3,7 +3,7 @@
 <mapper namespace="com.inkisle.mapper.BookInfoMapper">
 
     <sql id="Base_Column_List">
-        id, book_name, author_name, category_id, book_desc, cover_url, status, create_time, update_time
+        id, book_name, author_name, author_id, category_id, book_desc, cover_url, status, create_time, update_time
     </sql>
 
     <!-- 按分类筛选和查全部走同一条 SQL，categoryId 为空时 where 不生效 -->
@@ -57,5 +57,35 @@
         SELECT COUNT(*) FROM book_info
         <include refid="Keyword_Where"/>
     </select>
+
+    <select id="selectByAuthorId" resultType="com.inkisle.entity.BookInfo">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM book_info
+        WHERE author_id = #{authorId}
+        ORDER BY id DESC
+    </select>
+
+    <insert id="insert" parameterType="com.inkisle.entity.BookInfo" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO book_info (book_name, author_name, author_id, category_id, book_desc, cover_url, status, create_time, update_time)
+        VALUES (#{bookName}, #{authorName}, #{authorId}, #{categoryId}, #{bookDesc}, #{coverUrl}, #{status}, #{createTime}, #{updateTime})
+    </insert>
+
+    <update id="updateById" parameterType="com.inkisle.entity.BookInfo">
+        UPDATE book_info
+        SET book_name = #{bookName},
+            author_name = #{authorName},
+            category_id = #{categoryId},
+            book_desc = #{bookDesc},
+            cover_url = #{coverUrl},
+            status = #{status},
+            update_time = #{updateTime}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM book_info
+        WHERE id = #{id}
+    </delete>
 
 </mapper>

@@ -29,4 +29,15 @@ public interface BookInfoMapper {
 
     int countByKeyword(@Param("keyword") String keyword);
 
+    /**
+     * 作者名下的作品
+     */
+    List<BookInfo> selectByAuthorId(@Param("authorId") Long authorId);
+
+    int insert(BookInfo bookInfo);
+
+    int updateById(BookInfo bookInfo);
+
+    int deleteById(@Param("id") Long id);
+
 }
