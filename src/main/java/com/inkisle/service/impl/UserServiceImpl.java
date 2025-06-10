@@ -35,7 +35,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public Result register(UserInfo userInfo) {
+    public Result<Void> register(UserInfo userInfo) {
         // 用户名唯一，先查重
         if (userInfoMapper.countByUsername(userInfo.getUsername()) > 0) {
             throw new BusinessException("用户名已存在");
@@ -52,7 +52,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public Result login(String username, String password) {
+    public Result<Map<String, Object>> login(String username, String password) {
         UserInfo user = userInfoMapper.selectByUsername(username);
         // 用户不存在和密码错误返回同样的提示，避免被人试出哪些账号存在
         if (user == null || !Md5Util.md5(password).equals(user.getPassword())) {

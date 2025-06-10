@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/chapter")
@@ -22,7 +23,7 @@ public class ChapterController {
      * 章节目录
      */
     @GetMapping("/list/{bookId}")
-    public Result list(@PathVariable Long bookId) {
+    public Result<List<BookChapter>> list(@PathVariable Long bookId) {
         List<BookChapter> chapters = bookChapterService.listByBookId(bookId);
         return Result.ok(chapters);
     }
@@ -31,7 +32,7 @@ public class ChapterController {
      * 读某一章，带上上一章、下一章的ID
      */
     @GetMapping("/{id}")
-    public Result read(@PathVariable Long id) {
+    public Result<Map<String, Object>> read(@PathVariable Long id) {
         return Result.ok(bookChapterService.read(id));
     }
 

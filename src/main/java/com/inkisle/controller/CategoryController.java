@@ -18,10 +18,10 @@ public class CategoryController {
     private BookCategoryService bookCategoryService;
 
     /**
-     * 分类列表，树形返回
+     * 分类列表，树形返回（扁平列表拼接为树的逻辑在 service 的 `tree()` 中完成）
      */
     @GetMapping("/list")
-    public Result list() {
+    public Result<List<BookCategory>> list() {
         List<BookCategory> tree = bookCategoryService.tree();
         return Result.ok(tree);
     }

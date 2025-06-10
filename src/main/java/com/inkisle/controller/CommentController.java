@@ -12,6 +12,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/comment")
 public class CommentController {
@@ -23,7 +25,7 @@ public class CommentController {
      * 评论列表，游客也能看
      */
     @GetMapping("/list")
-    public Result list(@RequestParam Long bookId) {
+    public Result<List<BookComment>> list(@RequestParam Long bookId) {
         return Result.ok(bookCommentService.listByBookId(bookId));
     }
 
@@ -31,7 +33,7 @@ public class CommentController {
      * 发表评论或回复，需要登录
      */
     @PostMapping("/add")
-    public Result add(@RequestBody BookComment comment, HttpServletRequest request) {
+    public Result<Void> add(@RequestBody BookComment comment, HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
         comment.setUserId(userId);
         bookCommentService.add(comment);

@@ -25,7 +25,7 @@ public class FileController {
     private String uploadPath;
 
     @PostMapping("/upload")
-    public Result upload(@RequestParam("file") MultipartFile file) throws IOException {
+    public Result<String> upload(@RequestParam("file") MultipartFile file) throws IOException {
         if (file == null || file.isEmpty()) {
             return Result.fail("上传文件为空");
         }

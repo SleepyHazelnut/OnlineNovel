@@ -17,7 +17,7 @@ public class GlobalExceptionHandler {
      * 业务异常，提示信息可以直接给用户看
      */
     @ExceptionHandler(BusinessException.class)
-    public Result handleBusiness(BusinessException e) {
+    public Result<Void> handleBusiness(BusinessException e) {
         return Result.fail(e.getMessage());
     }
 
@@ -25,9 +25,9 @@ public class GlobalExceptionHandler {
      * 兜底：其他异常一律记日志，返回统一的模糊提示
      */
     @ExceptionHandler(Exception.class)
-    public Result handleException(Exception e) {
+    public Result<Void> handleException(Exception e) {
         log.error("系统异常", e);
-        return Result.fail("系统繁忙，请稍后再试");
+        return Result.fail(ResultCode.FAIL.getMsg());
     }
 
 }

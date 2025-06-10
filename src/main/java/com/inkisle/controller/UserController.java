@@ -11,6 +11,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+import java.util.Map;
+
 @RestController
 @RequestMapping("/user")
 public class UserController {
@@ -22,7 +25,7 @@ public class UserController {
      * 用户列表
      */
     @GetMapping("/list")
-    public Result list() {
+    public Result<List<UserInfo>> list() {
         return Result.ok(userService.listAll());
     }
 
@@ -30,7 +33,7 @@ public class UserController {
      * 用户注册
      */
     @PostMapping("/register")
-    public Result register(@RequestBody UserInfo userInfo) {
+    public Result<Void> register(@RequestBody UserInfo userInfo) {
         return userService.register(userInfo);
     }
 
@@ -38,7 +41,7 @@ public class UserController {
      * 用户登录，返回 token
      */
     @PostMapping("/login")
-    public Result login(@RequestBody UserInfo userInfo) {
+    public Result<Map<String, Object>> login(@RequestBody UserInfo userInfo) {
         return userService.login(userInfo.getUsername(), userInfo.getPassword());
     }
 
@@ -46,7 +49,7 @@ public class UserController {
      * 当前登录用户，userId 由拦截器解析 token 后放进 request
      */
     @GetMapping("/info")
-    public Result info(HttpServletRequest request) {
+    public Result<UserInfo> info(HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
         return Result.ok(userService.getById(userId));
     }

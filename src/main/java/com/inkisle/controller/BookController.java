@@ -1,5 +1,6 @@
 package com.inkisle.controller;
 
+import com.inkisle.common.Result;
 import com.inkisle.entity.BookInfo;
 import com.inkisle.service.BookService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,28 +23,28 @@ public class BookController {
      * 书籍列表，分页返回；传了 categoryId 就按分类筛
      */
     @GetMapping("/list")
-    public Map<String, Object> list(@RequestParam(defaultValue = "1") Integer pageNum,
-                                    @RequestParam(defaultValue = "10") Integer pageSize,
-                                    @RequestParam(required = false) Long categoryId) {
-        return bookService.page(pageNum, pageSize, categoryId);
+    public Result<Map<String, Object>> list(@RequestParam(defaultValue = "1") Integer pageNum,
+                                            @RequestParam(defaultValue = "10") Integer pageSize,
+                                            @RequestParam(required = false) Long categoryId) {
+        return Result.ok(bookService.page(pageNum, pageSize, categoryId));
     }
 
     /**
      * 搜索书籍
      */
     @GetMapping("/search")
-    public Map<String, Object> search(@RequestParam String keyword,
-                                      @RequestParam(defaultValue = "1") Integer pageNum,
-                                      @RequestParam(defaultValue = "10") Integer pageSize) {
-        return bookService.search(pageNum, pageSize, keyword);
+    public Result<Map<String, Object>> search(@RequestParam String keyword,
+                                              @RequestParam(defaultValue = "1") Integer pageNum,
+                                              @RequestParam(defaultValue = "10") Integer pageSize) {
+        return Result.ok(bookService.search(pageNum, pageSize, keyword));
     }
 
     /**
      * 书籍详情
      */
     @GetMapping("/{id}")
-    public BookInfo detail(@PathVariable Long id) {
-        return bookService.getById(id);
+    public Result<BookInfo> detail(@PathVariable Long id) {
+        return Result.ok(bookService.getById(id));
     }
 
 }

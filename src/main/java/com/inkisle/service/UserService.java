@@ -4,6 +4,7 @@ import com.inkisle.common.Result;
 import com.inkisle.entity.UserInfo;
 
 import java.util.List;
+import java.util.Map;
 
 public interface UserService {
 
@@ -17,11 +18,11 @@ public interface UserService {
     /**
      * 用户注册
      */
-    Result register(UserInfo userInfo);
+    Result<Void> register(UserInfo userInfo);
 
     /**
-     * 用户登录，成功后返回 token
+     * 用户登录，成功后返回 token 和用户信息
      */
-    Result login(String username, String password);
+    Result<Map<String, Object>> login(String username, String password);
 
 }

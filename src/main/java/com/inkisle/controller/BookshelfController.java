@@ -1,6 +1,7 @@
 package com.inkisle.controller;
 
 import com.inkisle.common.Result;
+import com.inkisle.entity.UserBookshelf;
 import com.inkisle.service.UserBookshelfService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -24,7 +26,7 @@ public class BookshelfController {
      * 加入书架
      */
     @PostMapping("/add")
-    public Result add(@RequestBody Map<String, Long> params, HttpServletRequest request) {
+    public Result<Void> add(@RequestBody Map<String, Long> params, HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
         userBookshelfService.add(userId, params.get("bookId"));
         return Result.ok();
@@ -34,7 +36,7 @@ public class BookshelfController {
      * 移出书架
      */
     @PostMapping("/remove")
-    public Result remove(@RequestBody Map<String, Long> params, HttpServletRequest request) {
+    public Result<Void> remove(@RequestBody Map<String, Long> params, HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
         userBookshelfService.remove(userId, params.get("bookId"));
         return Result.ok();
@@ -44,7 +46,7 @@ public class BookshelfController {
      * 我的书架
      */
     @GetMapping("/list")
-    public Result list(HttpServletRequest request) {
+    public Result<List<UserBookshelf>> list(HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
         return Result.ok(userBookshelfService.listByUserId(userId));
     }
@@ -53,7 +55,7 @@ public class BookshelfController {
      * 这本书我收藏了没有，详情页要显示不同的按钮
      */
     @GetMapping("/check")
-    public Result check(@RequestParam Long bookId, HttpServletRequest request) {
+    public Result<Boolean> check(@RequestParam Long bookId, HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
         return Result.ok(userBookshelfService.isCollected(userId, bookId));
     }

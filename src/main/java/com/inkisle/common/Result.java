@@ -4,36 +4,44 @@ import lombok.Data;
 
 /**
  * 接口统一返回结果
+ *
+ * @param <T> 业务数据类型
  */
 @Data
-public class Result {
+public class Result<T> {
 
-    /** 状态码，200 成功，500 失败 */
+    /** 状态码，见 ResultCode */
     private Integer code;
 
     /** 提示信息 */
     private String msg;
 
     /** 业务数据 */
-    private Object data;
+    private T data;
 
-    public static Result ok() {
-        Result result = new Result();
-        result.setCode(200);
-        result.setMsg("操作成功");
-        return result;
+    public static <T> Result<T> ok() {
+        return build(ResultCode.SUCCESS, null);
     }
 
-    public static Result ok(Object data) {
-        Result result = ok();
-        result.setData(data);
-        return result;
+    public static <T> Result<T> ok(T data) {
+        return build(ResultCode.SUCCESS, data);
     }
 
-    public static Result fail(String msg) {
-        Result result = new Result();
-        result.setCode(500);
+    public static <T> Result<T> fail(String msg) {
+        Result<T> result = build(ResultCode.FAIL, null);
         result.setMsg(msg);
+        return result;
+    }
+
+    public static <T> Result<T> fail(ResultCode resultCode) {
+        return build(resultCode, null);
+    }
+
+    private static <T> Result<T> build(ResultCode resultCode, T data) {
+        Result<T> result = new Result<>();
+        result.setCode(resultCode.getCode());
+        result.setMsg(resultCode.getMsg());
+        result.setData(data);
         return result;
     }
 

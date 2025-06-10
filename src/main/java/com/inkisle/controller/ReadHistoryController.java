@@ -24,7 +24,7 @@ public class ReadHistoryController {
      * 保存阅读位置，翻页时前端调
      */
     @PostMapping("/save")
-    public Result save(@RequestBody UserReadHistory history) {
+    public Result<Void> save(@RequestBody UserReadHistory history) {
         userReadHistoryService.save(history);
         return Result.ok();
     }
@@ -33,7 +33,7 @@ public class ReadHistoryController {
      * 我的阅读历史
      */
     @GetMapping("/list")
-    public Result list(@RequestParam Long userId) {
+    public Result<List<UserReadHistory>> list(@RequestParam Long userId) {
         List<UserReadHistory> list = userReadHistoryService.listByUserId(userId);
         return Result.ok(list);
     }
@@ -42,7 +42,7 @@ public class ReadHistoryController {
      * 某本书上次读到哪
      */
     @GetMapping("/last")
-    public Result last(@RequestParam Long userId, @RequestParam Long bookId) {
+    public Result<UserReadHistory> last(@RequestParam Long userId, @RequestParam Long bookId) {
         return Result.ok(userReadHistoryService.lastRead(userId, bookId));
     }
 
