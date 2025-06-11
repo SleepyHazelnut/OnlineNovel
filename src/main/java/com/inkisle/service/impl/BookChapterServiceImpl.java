@@ -8,9 +8,13 @@ import com.inkisle.mapper.BookChapterMapper;
 import com.inkisle.mapper.BookContentMapper;
 import com.inkisle.mapper.BookInfoMapper;
 import com.inkisle.service.BookChapterService;
+import com.inkisle.util.TxtChapterParser;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
@@ -84,6 +88,40 @@ public class BookChapterServiceImpl implements BookChapterService {
 
         bookChapterMapper.deleteById(chapterId);
         bookContentMapper.deleteByChapterId(chapterId);
+    }
+
+    @Override
+    public int importChapters(Long bookId, MultipartFile file, Long authorId) {
+        checkBookOwner(bookId, authorId);
+
+        String text;
+        try {
+            // 先按 UTF-8 读，作者电脑上基本都是这个编码
+            text = new String(file.getBytes(), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new BusinessException("文件读取失败");
+        }
+
+        Map<String, String> chapters = TxtChapterParser.split(text);
+        if (chapters.isEmpty()) {
+            throw new BusinessException("没解析出章节，检查一下标题格式");
+        }
+
+        Integer maxNum = bookChapterMapper.selectMaxChapterNum(bookId);
+        int num = maxNum == null ? 0 : maxNum;
+
+        for (Map.Entry<String, String> entry : chapters.entrySet()) {
+            BookChapter chapter = new BookChapter();
+            chapter.setBookId(bookId);
+            chapter.setChapterName(entry.getKey());
+            chapter.setChapterNum(++num);
+            chapter.setCreateTime(LocalDateTime.now());
+            bookChapterMapper.insert(chapter);
+
+            saveContent(chapter.getId(), entry.getValue());
+        }
+
+        return chapters.size();
     }
 
     /**

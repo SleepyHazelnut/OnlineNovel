@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
@@ -59,6 +60,18 @@ public class AuthorChapterController {
         Long authorId = (Long) request.getAttribute("userId");
         bookChapterService.deleteChapter(params.get("id"), authorId);
         return Result.ok();
+    }
+
+    /**
+     * 导入整本 TXT，按「第X章」自动切分
+     */
+    @PostMapping("/import")
+    public Result<Integer> importTxt(@RequestParam("file") MultipartFile file,
+                                     @RequestParam Long bookId,
+                                     HttpServletRequest request) {
+        Long authorId = (Long) request.getAttribute("userId");
+        int count = bookChapterService.importChapters(bookId, file, authorId);
+        return Result.ok(count);
     }
 
 }

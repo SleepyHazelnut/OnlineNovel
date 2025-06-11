@@ -1,6 +1,7 @@
 package com.inkisle.service;
 
 import com.inkisle.entity.BookChapter;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
@@ -26,5 +27,10 @@ public interface BookChapterService {
      * 删除章节，正文一起删
      */
     void deleteChapter(Long chapterId, Long authorId);
+
+    /**
+     * 导入整本 TXT，返回这次导进去多少章
+     */
+    int importChapters(Long bookId, MultipartFile file, Long authorId);
 
 }
