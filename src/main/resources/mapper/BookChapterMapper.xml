@@ -2,7 +2,11 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.inkisle.mapper.BookChapterMapper">
 
-    <!-- 目录查询不带正文，正文走 BookContentMapper -->
+    <!--
+      目录不返回正文，正文由 BookContentMapper 处理。
+      正文单独建表即为此目的：读一章才取一章的内容；
+      若与章节同表，查询目录时会连带取出整本书的正文。
+    -->
     <select id="selectListByBookId" resultType="com.inkisle.entity.BookChapter">
         SELECT id, book_id, chapter_name, chapter_num, create_time
         FROM book_chapter
@@ -16,6 +20,11 @@
         WHERE id = #{id}
     </select>
 
+    <!--
+      上一章：取当前章 chapter_num 之前最大的一个。
+      未写成 chapter_num = 当前值减 1，因为章节可删除、编号会跳号；
+      倒序取一条更可靠，查不到即表示没有上一章。
+    -->
     <select id="selectPrevId" resultType="java.lang.Long">
         SELECT id
         FROM book_chapter
@@ -24,6 +33,7 @@
         LIMIT 1
     </select>
 
+    <!-- 下一章同理，改为升序取一条；返回类型为 Long，查不到即 null -->
     <select id="selectNextId" resultType="java.lang.Long">
         SELECT id
         FROM book_chapter
@@ -31,5 +41,29 @@
         ORDER BY chapter_num ASC
         LIMIT 1
     </select>
+
+    <!-- 新增章节时取其 +1 作为新 chapter_num；无章节时返回 null，Service 需判断 -->
+    <select id="selectMaxChapterNum" resultType="java.lang.Integer">
+        SELECT MAX(chapter_num)
+        FROM book_chapter
+        WHERE book_id = #{bookId}
+    </select>
+
+    <insert id="insert" parameterType="com.inkisle.entity.BookChapter" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO book_chapter (book_id, chapter_name, chapter_num, create_time)
+        VALUES (#{bookId}, #{chapterName}, #{chapterNum}, #{createTime})
+    </insert>
+
+    <update id="updateById" parameterType="com.inkisle.entity.BookChapter">
+        UPDATE book_chapter
+        SET chapter_name = #{chapterName},
+            chapter_num = #{chapterNum}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM book_chapter
+        WHERE id = #{id}
+    </delete>
 
 </mapper>

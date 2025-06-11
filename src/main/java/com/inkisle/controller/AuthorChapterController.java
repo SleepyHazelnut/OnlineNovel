@@ -1,0 +1,64 @@
+package com.inkisle.controller;
+
+import com.inkisle.common.Result;
+import com.inkisle.entity.BookChapter;
+import com.inkisle.service.BookChapterService;
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
+import java.util.Map;
+
+/**
+ * 作者端的章节管理
+ */
+@RestController
+@RequestMapping("/author/chapter")
+public class AuthorChapterController {
+
+    @Autowired
+    private BookChapterService bookChapterService;
+
+    /**
+     * 某本书的章节列表，编辑页要用
+     */
+    @GetMapping("/list")
+    public Result<List<BookChapter>> list(@RequestParam Long bookId) {
+        return Result.ok(bookChapterService.listByBookId(bookId));
+    }
+
+    /**
+     * 保存章节，带 id 是改，不带是新增；正文放在 content 字段里一起传
+     */
+    @PostMapping("/save")
+    public Result<Void> save(@RequestBody Map<String, Object> params, HttpServletRequest request) {
+        Long authorId = (Long) request.getAttribute("userId");
+
+        BookChapter chapter = new BookChapter();
+        if (params.get("id") != null) {
+            chapter.setId(Long.valueOf(params.get("id").toString()));
+        }
+        chapter.setBookId(Long.valueOf(params.get("bookId").toString()));
+        chapter.setChapterName((String) params.get("chapterName"));
+
+        bookChapterService.saveChapter(chapter, (String) params.get("content"), authorId);
+        return Result.ok();
+    }
+
+    /**
+     * 删除章节
+     */
+    @PostMapping("/delete")
+    public Result<Void> delete(@RequestBody Map<String, Long> params, HttpServletRequest request) {
+        Long authorId = (Long) request.getAttribute("userId");
+        bookChapterService.deleteChapter(params.get("id"), authorId);
+        return Result.ok();
+    }
+
+}

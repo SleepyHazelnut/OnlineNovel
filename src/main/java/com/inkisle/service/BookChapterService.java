@@ -17,4 +17,14 @@ public interface BookChapterService {
      */
     Map<String, Object> read(Long id);
 
+    /**
+     * 保存章节，章节信息和正文要落两张表
+     */
+    void saveChapter(BookChapter chapter, String content, Long authorId);
+
+    /**
+     * 删除章节，正文一起删
+     */
+    void deleteChapter(Long chapterId, Long authorId);
+
 }
