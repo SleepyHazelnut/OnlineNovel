@@ -39,6 +39,22 @@ CREATE TABLE `author_info` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='作者信息表';
 
 -- ----------------------------
+-- 管理员表
+-- 不开放注册，账号由运维直接往库里加
+-- ----------------------------
+DROP TABLE IF EXISTS `admin_info`;
+CREATE TABLE `admin_info` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `username` varchar(50) NOT NULL COMMENT '管理员账号',
+  `password` varchar(64) NOT NULL COMMENT '密码(MD5)',
+  `real_name` varchar(50) DEFAULT NULL COMMENT '姓名',
+  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_username` (`username`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='管理员表';
+
+-- ----------------------------
 -- 书籍信息表
 -- ----------------------------
 DROP TABLE IF EXISTS `book_info`;

@@ -11,7 +11,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.Date;
 
 /**
- * JWT 签发和校验
+ * JWT 的签发与解析
+ * 登录成功后签发 token 返回前端，后续请求携带该 token，
+ * 拦截器调用 `parse` 校验签名并取出用户信息
  */
 @Component
 public class JwtUtil {
@@ -27,14 +29,16 @@ public class JwtUtil {
     }
 
     /**
-     * 签发 token，subject 放 userId，附带 username 方便直接读
+     * 签发 token。subject 存放用户主键，username 与 role 写入 claim，
+     * 拦截器无需再次查库即可获知用户身份与角色
      */
-    public String generate(Long userId, String username) {
+    public String generate(Long userId, String username, String role) {
         Date now = new Date();
         Date expire = new Date(now.getTime() + expireHours * 60 * 60 * 1000);
         return Jwts.builder()
                 .subject(String.valueOf(userId))
                 .claim("username", username)
+                .claim("role", role)
                 .issuedAt(now)
                 .expiration(expire)
                 .signWith(key())
@@ -42,7 +46,8 @@ public class JwtUtil {
     }
 
     /**
-     * 解析 token，签名不对或过期都返回 null
+     * 解析 token。签名不合法、过期、格式错误均会抛异常，
+     * 此处统一捕获并返回 null，调用方只需判空
      */
     public Claims parse(String token) {
         if (token == null || token.isEmpty()) {

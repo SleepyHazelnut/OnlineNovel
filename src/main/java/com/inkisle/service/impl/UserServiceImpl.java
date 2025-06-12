@@ -2,6 +2,7 @@ package com.inkisle.service.impl;
 
 import com.inkisle.common.BusinessException;
 import com.inkisle.common.Result;
+import com.inkisle.common.RoleConstant;
 import com.inkisle.entity.UserInfo;
 import com.inkisle.mapper.UserInfoMapper;
 import com.inkisle.service.UserService;
@@ -59,7 +60,7 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException("用户名或密码错误");
         }
 
-        String token = jwtUtil.generate(user.getId(), user.getUsername());
+        String token = jwtUtil.generate(user.getId(), user.getUsername(), RoleConstant.USER);
 
         // 密码不要返回给前端
         user.setPassword(null);

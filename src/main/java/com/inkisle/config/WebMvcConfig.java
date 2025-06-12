@@ -26,6 +26,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/user/login", "/user/register", "/user/list",
                         // 作者端注册登录
                         "/author/register", "/author/login",
+                        // 管理端登录
+                        "/admin/login",
                         // 图形验证码
                         "/captcha/**",
                         // 书籍、分类、章节对外只读，游客也能看

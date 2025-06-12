@@ -2,6 +2,7 @@ package com.inkisle.service.impl;
 
 import com.inkisle.common.BusinessException;
 import com.inkisle.common.Result;
+import com.inkisle.common.RoleConstant;
 import com.inkisle.entity.AuthorInfo;
 import com.inkisle.mapper.AuthorInfoMapper;
 import com.inkisle.service.AuthorService;
@@ -54,7 +55,7 @@ public class AuthorServiceImpl implements AuthorService {
             throw new BusinessException("账号已被禁用");
         }
 
-        String token = jwtUtil.generate(author.getId(), author.getUsername());
+        String token = jwtUtil.generate(author.getId(), author.getUsername(), RoleConstant.AUTHOR);
 
         author.setPassword(null);
         Map<String, Object> data = new HashMap<>();
