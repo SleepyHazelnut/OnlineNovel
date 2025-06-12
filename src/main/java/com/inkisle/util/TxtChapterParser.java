@@ -1,12 +1,13 @@
 package com.inkisle.util;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * 把整本 TXT 按「第X章」这样的标题行切成一条条章节
+ * 将整本 TXT 按「第X章」形式的标题行切分为多个章节
+ * 用于作者上传整本小说：通过正则识别标题行切分后逐条入库
  */
 public class TxtChapterParser {
 
@@ -19,9 +20,10 @@ public class TxtChapterParser {
 
     /**
      * 切分，返回 章节标题 -> 章节正文
+     * 必须使用 LinkedHashMap：HashMap 遍历顺序不确定，会导致章节顺序与原文不一致
      */
     public static Map<String, String> split(String text) {
-        Map<String, String> chapters = new HashMap<>();
+        Map<String, String> chapters = new LinkedHashMap<>();
         if (text == null || text.isEmpty()) {
             return chapters;
         }
@@ -43,7 +45,7 @@ public class TxtChapterParser {
             chapters.put(lastTitle, text.substring(lastTitleEnd).trim());
         }
 
-        // 一行标题都没认出来，就当整篇是一章，总比什么都不导入强
+        // 未识别出任何标题行时，将整篇作为一章，避免导入为空
         if (chapters.isEmpty()) {
             chapters.put("正文", text.trim());
         }
