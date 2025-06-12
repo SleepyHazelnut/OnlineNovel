@@ -34,4 +34,14 @@ public interface BookService {
      */
     void delete(Long id, Long authorId);
 
+    /**
+     * 改连载 / 完结
+     */
+    void updateStatus(Long id, Integer status, Long authorId);
+
+    /**
+     * 作品数据：阅读数、收藏数、评论数
+     */
+    Map<String, Object> stat(Long bookId, Long authorId);
+
 }

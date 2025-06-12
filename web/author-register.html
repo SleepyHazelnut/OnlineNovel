@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>作者注册 - 墨屿小说</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-role="author">
+
+<div class="auth-box">
+    <h2>作者注册</h2>
+    <div class="sub">注册后需要管理员审核资质，通过才能发布作品</div>
+
+    <div class="form-item">
+        <input type="text" id="username" placeholder="账号（4-20 位）">
+    </div>
+    <div class="form-item">
+        <input type="password" id="password" placeholder="密码（6-20 位）">
+    </div>
+    <div class="form-item">
+        <input type="password" id="password2" placeholder="再输一遍密码">
+    </div>
+    <div class="form-item">
+        <input type="text" id="penName" placeholder="笔名（可选，没填就用账号）">
+    </div>
+    <div class="form-item">
+        <input type="text" id="email" placeholder="邮箱（可选）">
+    </div>
+    <div class="form-error" id="tip"></div>
+
+    <button class="btn btn-primary btn-block" id="submitBtn" onclick="doRegister()">注 册</button>
+
+    <div class="foot">已有账号？<a href="author-login.html">去登录</a></div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+    async function doRegister() {
+        const tip = document.getElementById('tip');
+        const btn = document.getElementById('submitBtn');
+        const username = document.getElementById('username').value.trim();
+        const password = document.getElementById('password').value;
+        const password2 = document.getElementById('password2').value;
+        const penName = document.getElementById('penName').value.trim();
+        const email = document.getElementById('email').value.trim();
+
+        if (!username || !password) {
+            tip.textContent = '账号和密码都要填';
+            return;
+        }
+        // 与读者注册一致：前端先做规则校验，最终校验仍由后端完成
+        if (username.length < 4 || username.length > 20) {
+            tip.textContent = '账号长度要在 4 到 20 之间';
+            return;
+        }
+        if (password.length < 6 || password.length > 20) {
+            tip.textContent = '密码长度要在 6 到 20 之间';
+            return;
+        }
+        if (password !== password2) {
+            tip.textContent = '两次输的密码不一样';
+            return;
+        }
+
+        btn.disabled = true;
+        tip.textContent = '';
+        try {
+            await post('/author/register', {
+                username: username, password: password, penName: penName, email: email
+            });
+            alert('注册成功，等管理员审核资质后就能发布作品了');
+            location.href = 'author-login.html';
+        } catch (e) {
+            tip.textContent = e.message;
+            btn.disabled = false;
+        }
+    }
+</script>
+</body>
+</html>

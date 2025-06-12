@@ -3,6 +3,7 @@ package com.inkisle.service.impl;
 import com.inkisle.common.BusinessException;
 import com.inkisle.entity.BookInfo;
 import com.inkisle.mapper.BookInfoMapper;
+import com.inkisle.mapper.BookStatMapper;
 import com.inkisle.service.BookService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -17,6 +18,9 @@ public class BookServiceImpl implements BookService {
 
     @Autowired
     private BookInfoMapper bookInfoMapper;
+
+    @Autowired
+    private BookStatMapper bookStatMapper;
 
     @Override
     public Map<String, Object> page(Integer pageNum, Integer pageSize, Long categoryId) {
@@ -84,6 +88,39 @@ public class BookServiceImpl implements BookService {
             throw new BusinessException("只能删除自己的作品");
         }
         bookInfoMapper.deleteById(id);
+    }
+
+    @Override
+    public void updateStatus(Long id, Integer status, Long authorId) {
+        BookInfo exist = bookInfoMapper.selectById(id);
+        if (exist == null) {
+            throw new BusinessException("作品不存在");
+        }
+        if (!authorId.equals(exist.getAuthorId())) {
+            throw new BusinessException("只能操作自己的作品");
+        }
+        // 0 连载 1 完结，别的值不收
+        if (status == null || (status != 0 && status != 1)) {
+            throw new BusinessException("状态值不对");
+        }
+
+        BookInfo update = new BookInfo();
+        update.setId(id);
+        update.setStatus(status);
+        update.setUpdateTime(LocalDateTime.now());
+        bookInfoMapper.updateStatus(update);
+    }
+
+    @Override
+    public Map<String, Object> stat(Long bookId, Long authorId) {
+        BookInfo exist = bookInfoMapper.selectById(bookId);
+        if (exist == null) {
+            throw new BusinessException("作品不存在");
+        }
+        if (!authorId.equals(exist.getAuthorId())) {
+            throw new BusinessException("只能看自己作品的数据");
+        }
+        return bookStatMapper.selectBookStat(bookId);
     }
 
 }

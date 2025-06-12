@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.inkisle.mapper.BookStatMapper">
+
+    <!--
+      三个数各以一个子查询取出，别名即返回 Map 的 key。
+      数据量小时该写法最简便；出现性能瓶颈时再考虑缓存或独立统计表，暂不过度设计。
+    -->
+    <select id="selectBookStat" resultType="java.util.Map">
+        SELECT
+            (SELECT COUNT(*) FROM user_read_history WHERE book_id = #{bookId}) AS readCount,
+            (SELECT COUNT(*) FROM user_bookshelf WHERE book_id = #{bookId}) AS collectCount,
+            (SELECT COUNT(*) FROM book_comment WHERE book_id = #{bookId}) AS commentCount
+    </select>
+
+</mapper>

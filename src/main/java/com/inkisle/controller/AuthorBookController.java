@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -61,6 +62,27 @@ public class AuthorBookController {
         Long authorId = (Long) request.getAttribute("userId");
         bookService.delete(params.get("id"), authorId);
         return Result.ok();
+    }
+
+    /**
+     * 连载 / 完结 切换，作者自己控制
+     */
+    @PostMapping("/status")
+    public Result<Void> updateStatus(@RequestBody Map<String, Object> params, HttpServletRequest request) {
+        Long authorId = (Long) request.getAttribute("userId");
+        Long id = Long.valueOf(params.get("id").toString());
+        Integer status = Integer.valueOf(params.get("status").toString());
+        bookService.updateStatus(id, status, authorId);
+        return Result.ok();
+    }
+
+    /**
+     * 作品数据统计
+     */
+    @GetMapping("/stat")
+    public Result<Map<String, Object>> stat(@RequestParam Long bookId, HttpServletRequest request) {
+        Long authorId = (Long) request.getAttribute("userId");
+        return Result.ok(bookService.stat(bookId, authorId));
     }
 
 }

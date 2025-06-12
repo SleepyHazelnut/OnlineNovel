@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>我的作品 - 墨屿小说</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-role="author">
+
+<div id="nav"></div>
+
+<div class="layout">
+    <div id="side"></div>
+
+    <div class="main">
+        <div class="row between" style="margin-bottom:18px">
+            <div class="page-title" style="margin:0">我的作品 <small id="count"></small></div>
+            <button class="btn btn-primary" onclick="location.href='author-book.html'">新建作品</button>
+        </div>
+
+        <div id="list"><div class="loading">加载中...</div></div>
+    </div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+    if (!setupBackend('home')) {
+        // setupBackend 未通过时已跳转登录页，此处留空
+    } else {
+        load();
+    }
+
+    let books = [];
+    let categoryMap = {};
+    let audits = {};
+
+    async function load() {
+        const box = document.getElementById('list');
+        try {
+            const cats = await get('/category/list');
+            (cats || []).forEach(function (c) {
+                categoryMap[c.id] = c.categoryName;
+                (c.children || []).forEach(function (s) { categoryMap[s.id] = s.categoryName; });
+            });
+
+            books = await get('/author/book/list') || [];
+            if (!books.length) {
+                box.innerHTML = '<div class="empty">还没有作品，点右上角「新建作品」开始写</div>';
+                return;
+            }
+            document.getElementById('count').textContent = '共 ' + books.length + ' 本';
+
+            // 审核结果无批量接口，只能按书逐个请求。当前作品数量少，用 Promise.all 并发获取；
+            // 作品数量增长后此方式会失效，需后端在列表接口中一并返回
+            const pairs = await Promise.all(books.map(function (b) {
+                return get('/author/book/audit', { bookId: b.id })
+                    .then(function (r) { return { id: b.id, record: r }; })
+                    .catch(function () { return { id: b.id, record: null }; });
+            }));
+            pairs.forEach(function (p) { audits[p.id] = p.record; });
+
+            render();
+        } catch (e) {
+            box.innerHTML = '<div class="empty">' + escapeHtml(e.message) + '</div>';
+        }
+    }
+
+    function render() {
+        const box = document.getElementById('list');
+        let html = '<table class="table"><thead><tr>'
+            + '<th>书名</th><th>分类</th><th>连载状态</th><th>最近审核</th><th>更新时间</th><th style="width:330px">操作</th>'
+            + '</tr></thead><tbody>';
+
+        books.forEach(function (b) {
+            const audit = audits[b.id];
+            const auditHtml = audit ? auditStatusTag(audit.status) : '<span class="tag tag-gray">未提交</span>';
+            const nextStatus = Number(b.status) === 1 ? 0 : 1;
+            const statusText = Number(b.status) === 1 ? '转为连载' : '标记完结';
+
+            html += '<tr>'
+                + '<td><span style="font-weight:600">' + escapeHtml(b.bookName) + '</span></td>'
+                + '<td>' + escapeHtml(categoryMap[b.categoryId] || '未分类') + '</td>'
+                + '<td>' + bookStatusTag(b.status) + '</td>'
+                + '<td>' + auditHtml + '</td>'
+                + '<td>' + fmtTime(b.updateTime || b.createTime) + '</td>'
+                + '<td>'
+                + '  <button class="btn btn-sm" onclick="location.href=\'author-book.html?id=' + b.id + '\'">编辑</button> '
+                + '  <button class="btn btn-sm" onclick="location.href=\'author-chapter.html?bookId=' + b.id + '\'">章节</button> '
+                + '  <button class="btn btn-sm" onclick="showStat(' + b.id + ', \'' + escapeHtml(b.bookName) + '\')">数据</button> '
+                + '  <button class="btn btn-sm btn-primary" onclick="submitAudit(' + b.id + ')">提交审核</button> '
+                + '  <button class="btn btn-sm" onclick="changeStatus(' + b.id + ',' + nextStatus + ')">' + statusText + '</button> '
+                + '  <button class="btn btn-sm btn-danger" onclick="delBook(' + b.id + ')">删除</button>'
+                + '</td>'
+                + '</tr>';
+        });
+
+        html += '</tbody></table>';
+        box.innerHTML = html;
+    }
+
+    async function submitAudit(bookId) {
+        try {
+            await post('/author/book/submit', { bookId: bookId });
+            toast('已提交审核，等管理员处理');
+            load();
+        } catch (e) {
+            toast(e.message);
+        }
+    }
+
+    async function changeStatus(id, status) {
+        try {
+            await post('/author/book/status', { id: id, status: status });
+            toast('已更新');
+            load();
+        } catch (e) {
+            toast(e.message);
+        }
+    }
+
+    async function delBook(id) {
+        if (!confirm('删除作品会连同章节一起删掉，确定？')) return;
+        try {
+            await post('/author/book/delete', { id: id });
+            toast('已删除');
+            load();
+        } catch (e) {
+            toast(e.message);
+        }
+    }
+
+    async function showStat(bookId, name) {
+        try {
+            const s = await get('/author/book/stat', { bookId: bookId });
+            const mask = document.createElement('div');
+            mask.className = 'modal-mask';
+            mask.onclick = function (e) { if (e.target === mask) mask.remove(); };
+            mask.innerHTML = '<div class="modal">'
+                + '<h3>' + escapeHtml(name) + ' · 数据</h3>'
+                + '<div class="stat-grid">'
+                + '  <div class="stat-card"><div class="num">' + (s.readCount || 0) + '</div><div class="label">阅读次数</div></div>'
+                + '  <div class="stat-card"><div class="num">' + (s.collectCount || 0) + '</div><div class="label">收藏数</div></div>'
+                + '  <div class="stat-card"><div class="num">' + (s.commentCount || 0) + '</div><div class="label">评论数</div></div>'
+                + '</div>'
+                + '<div class="modal-foot"><button class="btn" onclick="this.closest(\'.modal-mask\').remove()">关闭</button></div>'
+                + '</div>';
+            document.body.appendChild(mask);
+        } catch (e) {
+            toast(e.message);
+        }
+    }
+</script>
+</body>
+</html>

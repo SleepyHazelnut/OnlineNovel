@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>新建作品 - 墨屿小说</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .cover-preview {
+            width: 130px; height: 176px; border-radius: 6px; border: 1px dashed #cfd8e3;
+            background: #fafbfc center/cover no-repeat;
+            display: flex; align-items: center; justify-content: center;
+            color: #a0aec0; font-size: 13px; cursor: pointer;
+        }
+    </style>
+</head>
+<body data-role="author">
+
+<div id="nav"></div>
+
+<div class="layout">
+    <div id="side"></div>
+
+    <div class="main">
+        <div class="page-title" id="title">新建作品</div>
+
+        <div class="card" style="max-width:720px">
+            <div class="form-item">
+                <label>书名 <span style="color:#f56c6c">*</span></label>
+                <input type="text" id="bookName" placeholder="最多 100 个字">
+            </div>
+
+            <div class="form-item">
+                <label>分类</label>
+                <select id="categoryId"><option value="">未分类</option></select>
+            </div>
+
+            <div class="form-item">
+                <label>作者名</label>
+                <input type="text" id="authorName" placeholder="不填就用你的笔名">
+            </div>
+
+            <div class="form-item">
+                <label>简介</label>
+                <textarea id="bookDesc" rows="4" placeholder="最多 500 个字"></textarea>
+            </div>
+
+            <div class="form-item">
+                <label>封面</label>
+                <div class="row">
+                    <div class="cover-preview" id="coverPreview" onclick="document.getElementById('coverFile').click()">
+                        点击上传
+                    </div>
+                    <div>
+                        <input type="file" id="coverFile" accept="image/*" style="display:none" onchange="uploadCover()">
+                        <div class="form-tip">支持 jpg / png / gif / webp，同一张图不会重复存</div>
+                        <div class="form-tip" id="coverTip"></div>
+                        <button class="btn btn-sm" style="margin-top:8px" onclick="clearCover()">清空封面</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-error" id="tip"></div>
+
+            <div class="row" style="margin-top:20px">
+                <button class="btn btn-primary" id="saveBtn" onclick="save()">保存</button>
+                <button class="btn" onclick="location.href='author-home.html'">返回</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+    const bookId = param('id');
+    let coverUrl = '';
+
+    if (!setupBackend('new')) {
+        // setupBackend 未通过，已跳转登录页
+    } else {
+        init();
+    }
+
+    async function init() {
+        try {
+            const cats = await get('/category/list');
+            let opts = '<option value="">未分类</option>';
+            (cats || []).forEach(function (c) {
+                opts += '<option value="' + c.id + '">' + escapeHtml(c.categoryName) + '</option>';
+                (c.children || []).forEach(function (s) {
+                    opts += '<option value="' + s.id + '">&nbsp;&nbsp;' + escapeHtml(s.categoryName) + '</option>';
+                });
+            });
+            document.getElementById('categoryId').innerHTML = opts;
+        } catch (e) { /* 分类获取失败时只保留「未分类」，避免阻塞整张表单 */ }
+
+        if (bookId) {
+            document.getElementById('title').textContent = '编辑作品';
+            // 本页同时用于新建与编辑，侧边栏将两者归为同一项，故标题需单独改为「编辑作品」
+            document.title = '编辑作品 - 墨屿小说';
+            try {
+                const b = await get('/author/book/detail', { id: bookId });
+                document.getElementById('bookName').value = b.bookName || '';
+                document.getElementById('categoryId').value = b.categoryId || '';
+                document.getElementById('authorName').value = b.authorName || '';
+                document.getElementById('bookDesc').value = b.bookDesc || '';
+                if (b.coverUrl) {
+                    coverUrl = b.coverUrl;
+                    showCover();
+                }
+            } catch (e) {
+                toast(e.message);
+            }
+        }
+    }
+
+    async function uploadCover() {
+        const file = document.getElementById('coverFile').files[0];
+        if (!file) return;
+
+        const tip = document.getElementById('coverTip');
+        tip.textContent = '上传中...';
+        try {
+            const fd = new FormData();
+            fd.append('file', file);
+            // 传文件使用 FormData，不可手动设置 Content-Type，
+            // 需由浏览器自动带上 multipart 的 boundary，api.js 也据此区分
+            const data = await request('/file/upload', { method: 'POST', body: fd });
+            coverUrl = data.url;
+            showCover();
+            tip.textContent = data.repeat ? '这张图之前传过，直接复用' : '上传成功';
+        } catch (e) {
+            tip.textContent = '';
+            toast(e.message);
+        }
+    }
+
+    function showCover() {
+        if (!coverUrl) return;
+        const el = document.getElementById('coverPreview');
+        el.style.backgroundImage = 'url(' + encodeURI(coverUrl) + ')';
+        el.textContent = '';
+    }
+
+    function clearCover() {
+        coverUrl = '';
+        const el = document.getElementById('coverPreview');
+        el.style.backgroundImage = '';
+        el.textContent = '点击上传';
+        document.getElementById('coverFile').value = '';
+        document.getElementById('coverTip').textContent = '';
+    }
+
+    async function save() {
+        const tip = document.getElementById('tip');
+        const btn = document.getElementById('saveBtn');
+        const bookName = document.getElementById('bookName').value.trim();
+        if (!bookName) {
+            tip.textContent = '书名不能为空';
+            return;
+        }
+
+        const body = {
+            bookName: bookName,
+            categoryId: document.getElementById('categoryId').value || null,
+            authorName: document.getElementById('authorName').value.trim(),
+            bookDesc: document.getElementById('bookDesc').value.trim(),
+            coverUrl: coverUrl
+        };
+        if (bookId) body.id = Number(bookId);
+
+        btn.disabled = true;
+        tip.textContent = '';
+        try {
+            await post('/author/book/save', body);
+            toast('已保存');
+            setTimeout(function () { location.href = 'author-home.html'; }, 500);
+        } catch (e) {
+            tip.textContent = e.message;
+            btn.disabled = false;
+        }
+    }
+</script>
+</body>
+</html>

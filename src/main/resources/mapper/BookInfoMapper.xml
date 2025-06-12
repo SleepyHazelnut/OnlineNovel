@@ -83,6 +83,13 @@
         WHERE id = #{id}
     </update>
 
+    <update id="updateStatus" parameterType="com.inkisle.entity.BookInfo">
+        UPDATE book_info
+        SET status = #{status},
+            update_time = #{updateTime}
+        WHERE id = #{id}
+    </update>
+
     <delete id="deleteById">
         DELETE FROM book_info
         WHERE id = #{id}

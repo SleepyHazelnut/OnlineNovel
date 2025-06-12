@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>章节管理 - 墨屿小说</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .chapter-layout { display: flex; gap: 20px; align-items: flex-start; }
+        .chapter-left { width: 300px; flex-shrink: 0; }
+        .chapter-right { flex: 1; min-width: 0; }
+        .chapter-list { max-height: 620px; overflow-y: auto; }
+        .chapter-list .item {
+            padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #f2f4f7;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .chapter-list .item:hover { background: #f7fafd; }
+        .chapter-list .item.active { background: #f2f8ff; color: var(--primary); }
+        .chapter-list .item .no { color: #a0aec0; font-size: 12px; width: 34px; flex-shrink: 0; }
+        .chapter-list .item .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .chapter-list .item .del { color: var(--danger); font-size: 12px; }
+        .editor-head { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; }
+    </style>
+</head>
+<body data-role="author">
+
+<div id="nav"></div>
+
+<div class="layout">
+    <div id="side"></div>
+
+    <div class="main">
+        <div class="row between" style="margin-bottom:18px">
+            <div class="page-title" style="margin:0">章节管理 <small id="bookName"></small></div>
+            <div class="row">
+                <input type="file" id="txtFile" accept=".txt" style="display:none" onchange="importTxt()">
+                <button class="btn" onclick="document.getElementById('txtFile').click()">导入 TXT</button>
+                <button class="btn btn-primary" onclick="newChapter()">新增章节</button>
+            </div>
+        </div>
+
+        <div class="chapter-layout">
+            <div class="chapter-left card" style="padding:0">
+                <div class="chapter-list" id="chapterList"><div class="loading">加载中...</div></div>
+            </div>
+
+            <div class="chapter-right card">
+                <div class="editor-head">
+                    <span style="color:#5a6b7d;font-size:13px">章节名</span>
+                    <input type="text" id="chapterName" placeholder="比如：第一章 雪夜书简" class="grow">
+                </div>
+                <div class="form-item">
+                    <textarea id="content" rows="18" placeholder="正文写在这里，换行直接敲回车"></textarea>
+                    <div class="form-tip">当前 <span id="wordCount">0</span> 字</div>
+                </div>
+                <div class="row">
+                    <button class="btn btn-primary" id="saveBtn" onclick="saveChapter()">保存章节</button>
+                    <button class="btn" onclick="newChapter()">清空重写</button>
+                    <span class="form-error" id="tip" style="align-self:center"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+    const bookId = param('bookId');
+    let chapters = [];
+    let editingId = null;
+
+    if (!setupBackend('chapter')) {
+        // setupBackend 未通过，已跳转登录页
+    } else if (!bookId) {
+        document.getElementById('chapterList').innerHTML = '<div class="empty">没指定作品，请从「我的作品」进入</div>';
+    } else {
+        init();
+    }
+
+    const el = document.getElementById('content');
+    el.addEventListener('input', function () {
+        document.getElementById('wordCount').textContent = el.value.length;
+    });
+
+    async function init() {
+        try {
+            const b = await get('/author/book/detail', { id: bookId });
+            document.getElementById('bookName').textContent = '· ' + b.bookName;
+        } catch (e) { /* 顶栏书名获取失败不影响正文编辑 */ }
+        loadChapters();
+    }
+
+    async function loadChapters() {
+        const box = document.getElementById('chapterList');
+        try {
+            chapters = await get('/author/chapter/list', { bookId: bookId }) || [];
+            if (!chapters.length) {
+                box.innerHTML = '<div class="empty" style="padding:30px 0">还没有章节</div>';
+                return;
+            }
+            let html = '';
+            // 「删」按钮位于整行点击区内，若不 stopPropagation，点删除会同时触发编辑进入编辑器
+            chapters.forEach(function (c) {
+                html += '<div class="item ' + (c.id === editingId ? 'active' : '') + '" onclick="editChapter(' + c.id + ')">'
+                    + '<span class="no">' + c.chapterNum + '</span>'
+                    + '<span class="name">' + escapeHtml(c.chapterName) + '</span>'
+                    + '<span class="del" onclick="event.stopPropagation();delChapter(' + c.id + ')">删</span>'
+                    + '</div>';
+            });
+            box.innerHTML = html;
+        } catch (e) {
+            box.innerHTML = '<div class="empty">' + escapeHtml(e.message) + '</div>';
+        }
+    }
+
+    /** 点击目录进入编辑器。正文走作者专用预览接口，未通过审核的草稿也能读取 */
+    async function editChapter(id) {
+        editingId = id;
+        document.getElementById('tip').textContent = '';
+        try {
+            const data = await get('/author/chapter/read?id=' + id);
+            document.getElementById('chapterName').value = data.chapter.chapterName || '';
+            document.getElementById('content').value = data.content || '';
+            document.getElementById('wordCount').textContent = (data.content || '').length;
+            loadChapters();
+        } catch (e) {
+            toast(e.message);
+        }
+    }
+
+    function newChapter() {
+        editingId = null;
+        document.getElementById('chapterName').value = '';
+        document.getElementById('content').value = '';
+        document.getElementById('wordCount').textContent = '0';
+        document.getElementById('tip').textContent = '';
+        loadChapters();
+    }
+
+    async function saveChapter() {
+        const tip = document.getElementById('tip');
+        const btn = document.getElementById('saveBtn');
+        const chapterName = document.getElementById('chapterName').value.trim();
+        const content = document.getElementById('content').value;
+
+        if (!chapterName) {
+            tip.textContent = '章节名不能为空';
+            return;
+        }
+
+        const body = { bookId: Number(bookId), chapterName: chapterName, content: content };
+        if (editingId) body.id = editingId;
+
+        btn.disabled = true;
+        tip.textContent = '';
+        try {
+            await post('/author/chapter/save', body);
+            toast(editingId ? '已更新' : '已新增');
+            await loadChapters();
+        } catch (e) {
+            tip.textContent = e.message;
+        } finally {
+            // 按钮恢复写在 finally 中，成功失败均执行一次，避免两处重复
+            btn.disabled = false;
+        }
+    }
+
+    async function delChapter(id) {
+        if (!confirm('删除这一章？删了就找不回来了')) return;
+        try {
+            await post('/author/chapter/delete', { id: id });
+            if (editingId === id) newChapter();
+            toast('已删除');
+            loadChapters();
+        } catch (e) {
+            toast(e.message);
+        }
+    }
+
+    async function importTxt() {
+        const file = document.getElementById('txtFile').files[0];
+        if (!file) return;
+        try {
+            const fd = new FormData();
+            fd.append('file', file);
+            fd.append('bookId', bookId);
+            const count = await request('/author/chapter/import', { method: 'POST', body: fd });
+            toast('导入成功，识别到 ' + count + ' 章');
+            loadChapters();
+        } catch (e) {
+            toast(e.message);
+        } finally {
+            document.getElementById('txtFile').value = '';
+        }
+    }
+</script>
+</body>
+</html>
