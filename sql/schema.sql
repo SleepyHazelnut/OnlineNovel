@@ -55,6 +55,25 @@ CREATE TABLE `admin_info` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='管理员表';
 
 -- ----------------------------
+-- 书籍审核记录表
+-- 作者每次提交审核写一条，管理员审完改这条的状态
+-- ----------------------------
+DROP TABLE IF EXISTS `book_audit_record`;
+CREATE TABLE `book_audit_record` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `book_id` bigint NOT NULL COMMENT '书籍ID',
+  `author_id` bigint NOT NULL COMMENT '提交的作者ID',
+  `status` tinyint DEFAULT '0' COMMENT '审核状态 0待审 1通过 2驳回',
+  `remark` varchar(255) DEFAULT NULL COMMENT '审核意见',
+  `audit_admin_id` bigint DEFAULT NULL COMMENT '审核人ID',
+  `submit_time` datetime DEFAULT NULL COMMENT '提交时间',
+  `audit_time` datetime DEFAULT NULL COMMENT '审核时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_book_id` (`book_id`),
+  KEY `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='书籍审核记录表';
+
+-- ----------------------------
 -- 书籍信息表
 -- ----------------------------
 DROP TABLE IF EXISTS `book_info`;

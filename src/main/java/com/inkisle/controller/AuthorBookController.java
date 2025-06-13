@@ -2,8 +2,10 @@ package com.inkisle.controller;
 
 import com.inkisle.common.Result;
 import com.inkisle.entity.AuthorInfo;
+import com.inkisle.entity.BookAuditRecord;
 import com.inkisle.entity.BookInfo;
 import com.inkisle.service.AuthorService;
+import com.inkisle.service.BookAuditService;
 import com.inkisle.service.BookService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,6 +31,9 @@ public class AuthorBookController {
 
     @Autowired
     private AuthorService authorService;
+
+    @Autowired
+    private BookAuditService bookAuditService;
 
     /**
      * 我的作品
@@ -83,6 +88,24 @@ public class AuthorBookController {
     public Result<Map<String, Object>> stat(@RequestParam Long bookId, HttpServletRequest request) {
         Long authorId = (Long) request.getAttribute("userId");
         return Result.ok(bookService.stat(bookId, authorId));
+    }
+
+    /**
+     * 提交审核，上架前先送审
+     */
+    @PostMapping("/submit")
+    public Result<Void> submit(@RequestBody Map<String, Long> params, HttpServletRequest request) {
+        Long authorId = (Long) request.getAttribute("userId");
+        bookAuditService.submit(params.get("bookId"), authorId);
+        return Result.ok();
+    }
+
+    /**
+     * 看一眼这本书最近一次审核的结果
+     */
+    @GetMapping("/audit")
+    public Result<BookAuditRecord> audit(@RequestParam Long bookId) {
+        return Result.ok(bookAuditService.latestAudit(bookId));
     }
 
 }
