@@ -12,6 +12,7 @@ CREATE TABLE `user_info` (
   `phone` varchar(20) DEFAULT NULL COMMENT '手机号',
   `email` varchar(100) DEFAULT NULL COMMENT '邮箱',
   `avatar` varchar(255) DEFAULT NULL COMMENT '头像地址',
+  `status` tinyint DEFAULT '0' COMMENT '状态 0正常 1封禁',
   `create_time` datetime DEFAULT NULL COMMENT '创建时间',
   `update_time` datetime DEFAULT NULL COMMENT '更新时间',
   PRIMARY KEY (`id`),

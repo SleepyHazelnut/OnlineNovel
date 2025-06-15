@@ -25,4 +25,14 @@ public interface UserService {
      */
     Result<Map<String, Object>> login(String username, String password);
 
+    /**
+     * 用户分页列表，管理端用
+     */
+    Map<String, Object> page(Integer pageNum, Integer pageSize);
+
+    /**
+     * 封禁 / 解封，1 封禁 0 正常
+     */
+    void updateStatus(Long userId, Integer status);
+
 }

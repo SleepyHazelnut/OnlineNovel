@@ -46,6 +46,7 @@ public class UserServiceImpl implements UserService {
         user.setUsername(userInfo.getUsername());
         user.setPassword(Md5Util.md5(userInfo.getPassword()));
         user.setNickName(userInfo.getUsername());
+        user.setStatus(0);
         user.setCreateTime(LocalDateTime.now());
         userInfoMapper.insert(user);
 
@@ -59,6 +60,9 @@ public class UserServiceImpl implements UserService {
         if (user == null || !Md5Util.md5(password).equals(user.getPassword())) {
             throw new BusinessException("用户名或密码错误");
         }
+        if (user.getStatus() != null && user.getStatus() == 1) {
+            throw new BusinessException("账号已被封禁");
+        }
 
         String token = jwtUtil.generate(user.getId(), user.getUsername(), RoleConstant.USER);
 
@@ -68,6 +72,32 @@ public class UserServiceImpl implements UserService {
         data.put("token", token);
         data.put("user", user);
         return Result.ok(data);
+    }
+
+    @Override
+    public Map<String, Object> page(Integer pageNum, Integer pageSize) {
+        int offset = (pageNum - 1) * pageSize;
+        Map<String, Object> data = new HashMap<>();
+        data.put("list", userInfoMapper.selectPage(offset, pageSize));
+        data.put("total", userInfoMapper.countAll());
+        return data;
+    }
+
+    @Override
+    public void updateStatus(Long userId, Integer status) {
+        UserInfo user = userInfoMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException("用户不存在");
+        }
+        if (status == null || (status != 0 && status != 1)) {
+            throw new BusinessException("状态值不对");
+        }
+
+        UserInfo update = new UserInfo();
+        update.setId(userId);
+        update.setStatus(status);
+        update.setUpdateTime(LocalDateTime.now());
+        userInfoMapper.updateStatus(update);
     }
 
 }

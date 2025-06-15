@@ -4,12 +4,12 @@
 
     <!-- 登录校验要拿 password，所以这条保留 -->
     <sql id="Base_Column_List">
-        id, username, password, nick_name, phone, email, avatar, create_time, update_time
+        id, username, password, nick_name, phone, email, avatar, status, create_time, update_time
     </sql>
 
     <!-- 对外返回的查询不要带 password -->
     <sql id="List_Column_List">
-        id, username, nick_name, phone, email, avatar, create_time, update_time
+        id, username, nick_name, phone, email, avatar, status, create_time, update_time
     </sql>
 
     <select id="selectAll" resultType="com.inkisle.entity.UserInfo">
@@ -40,8 +40,27 @@
     </select>
 
     <insert id="insert" parameterType="com.inkisle.entity.UserInfo" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO user_info (username, password, nick_name, phone, email, avatar, create_time, update_time)
-        VALUES (#{username}, #{password}, #{nickName}, #{phone}, #{email}, #{avatar}, #{createTime}, #{updateTime})
+        INSERT INTO user_info (username, password, nick_name, phone, email, avatar, status, create_time, update_time)
+        VALUES (#{username}, #{password}, #{nickName}, #{phone}, #{email}, #{avatar}, #{status}, #{createTime}, #{updateTime})
     </insert>
+
+    <select id="selectPage" resultType="com.inkisle.entity.UserInfo">
+        SELECT
+        <include refid="List_Column_List"/>
+        FROM user_info
+        ORDER BY id DESC
+        LIMIT #{offset}, #{pageSize}
+    </select>
+
+    <select id="countAll" resultType="int">
+        SELECT COUNT(*) FROM user_info
+    </select>
+
+    <update id="updateStatus" parameterType="com.inkisle.entity.UserInfo">
+        UPDATE user_info
+        SET status = #{status},
+            update_time = #{updateTime}
+        WHERE id = #{id}
+    </update>
 
 </mapper>

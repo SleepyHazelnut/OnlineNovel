@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 
 /**
  * 用户信息
+ * 读者账号。密码仅存 MD5 摘要，不存明文
  */
 @Data
 public class UserInfo {
@@ -15,7 +16,7 @@ public class UserInfo {
     /** 用户名，唯一 */
     private String username;
 
-    /** 密码，存 MD5 值 */
+    /** 密码，存的是 MD5 摘要，不是明文 */
     private String password;
 
     /** 昵称 */
@@ -27,6 +28,9 @@ public class UserInfo {
 
     /** 头像地址 */
     private String avatar;
+
+    /** 状态 0正常 1封禁 */
+    private Integer status;
 
     private LocalDateTime createTime;
 

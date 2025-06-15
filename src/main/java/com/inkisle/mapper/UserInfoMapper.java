@@ -28,4 +28,16 @@ public interface UserInfoMapper {
 
     int insert(UserInfo userInfo);
 
+    /**
+     * 用户分页，管理端用
+     */
+    List<UserInfo> selectPage(@Param("offset") int offset, @Param("pageSize") int pageSize);
+
+    int countAll();
+
+    /**
+     * 只更新状态，封禁 / 解封
+     */
+    int updateStatus(UserInfo userInfo);
+
 }
