@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -39,6 +40,8 @@ public class AuthorServiceImpl implements AuthorService {
         author.setEmail(authorInfo.getEmail());
         author.setIntro(authorInfo.getIntro());
         author.setStatus(0);
+        // 新注册的作者资质待审，审过了才能发作品
+        author.setAuditStatus(0);
         author.setCreateTime(LocalDateTime.now());
         authorInfoMapper.insert(author);
 
@@ -67,6 +70,32 @@ public class AuthorServiceImpl implements AuthorService {
     @Override
     public AuthorInfo getById(Long id) {
         return authorInfoMapper.selectById(id);
+    }
+
+    @Override
+    public List<AuthorInfo> listByAuditStatus(Integer auditStatus) {
+        return authorInfoMapper.selectByAuditStatus(auditStatus);
+    }
+
+    @Override
+    public void audit(Long authorId, Integer status, String remark) {
+        AuthorInfo author = authorInfoMapper.selectById(authorId);
+        if (author == null) {
+            throw new BusinessException("作者不存在");
+        }
+        if (status == null || (status != 1 && status != 2)) {
+            throw new BusinessException("审核结果不对");
+        }
+        if (status == 2 && (remark == null || remark.trim().isEmpty())) {
+            throw new BusinessException("驳回要写原因");
+        }
+
+        AuthorInfo update = new AuthorInfo();
+        update.setId(authorId);
+        update.setAuditStatus(status);
+        update.setAuditRemark(remark);
+        update.setUpdateTime(LocalDateTime.now());
+        authorInfoMapper.updateAudit(update);
     }
 
 }

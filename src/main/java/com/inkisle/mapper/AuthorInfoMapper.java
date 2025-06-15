@@ -4,21 +4,33 @@ import com.inkisle.entity.AuthorInfo;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
+import java.util.List;
+
 @Mapper
 public interface AuthorInfoMapper {
 
     /**
-     * 按账号查询，登录时要拿密码
+     * 按账号查询，供登录使用。使用包含 password 的列清单，不可由其他查询替代
      */
     AuthorInfo selectByUsername(String username);
 
     /**
-     * 账号查重
+     * 账号查重，注册前统计该 username 是否已被占用
      */
     int countByUsername(String username);
 
     AuthorInfo selectById(@Param("id") Long id);
 
     int insert(AuthorInfo authorInfo);
+
+    /**
+     * 按资质审核状态查作者。映射用的是不带 password 的那份列清单
+     */
+    List<AuthorInfo> selectByAuditStatus(@Param("auditStatus") Integer auditStatus);
+
+    /**
+     * 仅更新资质审核结果，提交时间等字段保持不变
+     */
+    int updateAudit(AuthorInfo authorInfo);
 
 }

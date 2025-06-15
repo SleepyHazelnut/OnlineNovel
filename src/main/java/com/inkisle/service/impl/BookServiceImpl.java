@@ -1,7 +1,9 @@
 package com.inkisle.service.impl;
 
 import com.inkisle.common.BusinessException;
+import com.inkisle.entity.AuthorInfo;
 import com.inkisle.entity.BookInfo;
+import com.inkisle.mapper.AuthorInfoMapper;
 import com.inkisle.mapper.BookInfoMapper;
 import com.inkisle.mapper.BookStatMapper;
 import com.inkisle.service.BookService;
@@ -21,6 +23,9 @@ public class BookServiceImpl implements BookService {
 
     @Autowired
     private BookStatMapper bookStatMapper;
+
+    @Autowired
+    private AuthorInfoMapper authorInfoMapper;
 
     @Override
     public Map<String, Object> page(Integer pageNum, Integer pageSize, Long categoryId) {
@@ -56,6 +61,12 @@ public class BookServiceImpl implements BookService {
 
     @Override
     public void save(BookInfo bookInfo, Long authorId) {
+        // 资质还没过的作者先别发书，不然书城全是没审过的东西
+        AuthorInfo author = authorInfoMapper.selectById(authorId);
+        if (author == null || author.getAuditStatus() == null || author.getAuditStatus() != 1) {
+            throw new BusinessException("作者资质还没通过审核，暂时不能发布作品");
+        }
+
         if (bookInfo.getId() == null) {
             bookInfo.setAuthorId(authorId);
             // 新建默认连载中

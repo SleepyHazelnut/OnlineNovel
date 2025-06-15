@@ -31,6 +31,8 @@ CREATE TABLE `author_info` (
   `phone` varchar(20) DEFAULT NULL COMMENT '手机号',
   `email` varchar(100) DEFAULT NULL COMMENT '邮箱',
   `intro` varchar(255) DEFAULT NULL COMMENT '作者简介',
+  `audit_status` tinyint DEFAULT '0' COMMENT '资质审核 0待审 1通过 2驳回',
+  `audit_remark` varchar(255) DEFAULT NULL COMMENT '资质审核意见',
   `status` tinyint DEFAULT '0' COMMENT '状态 0正常 1禁用',
   `create_time` datetime DEFAULT NULL COMMENT '创建时间',
   `update_time` datetime DEFAULT NULL COMMENT '更新时间',
