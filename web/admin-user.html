@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>用户管理 - 墨屿小说</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-role="admin">
+
+<div id="nav"></div>
+
+<div class="layout">
+    <div id="side"></div>
+
+    <div class="main">
+        <div class="page-title">用户管理 <small>封禁后该账号无法登录</small></div>
+
+        <div id="list"><div class="loading">加载中...</div></div>
+        <div class="pager" id="pager"></div>
+    </div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+    const state = { pageNum: 1, pageSize: 10 };
+
+    if (!setupBackend('user')) {
+        // setupBackend 未通过，已跳转登录页
+    } else {
+        load();
+    }
+
+    async function load() {
+        const box = document.getElementById('list');
+        box.innerHTML = '<div class="loading">加载中...</div>';
+        try {
+            const data = await get('/admin/user/list', {
+                pageNum: state.pageNum, pageSize: state.pageSize
+            });
+            const list = data.list || [];
+            if (!list.length) {
+                box.innerHTML = '<div class="empty">没有用户</div>';
+                document.getElementById('pager').innerHTML = '';
+                return;
+            }
+
+            let html = '<table class="table"><thead><tr>'
+                + '<th>ID</th><th>账号</th><th>昵称</th><th>手机号</th><th>邮箱</th><th>注册时间</th><th>状态</th><th style="width:110px">操作</th>'
+                + '</tr></thead><tbody>';
+
+            // 后端 status=1 表示封禁。按钮提交的是「要切换到的状态」，而非当前状态
+            list.forEach(function (u) {
+                const banned = Number(u.status) === 1;
+                html += '<tr>'
+                    + '<td>' + u.id + '</td>'
+                    + '<td>' + escapeHtml(u.username) + '</td>'
+                    + '<td>' + escapeHtml(u.nickName || '-') + '</td>'
+                    + '<td>' + escapeHtml(u.phone || '-') + '</td>'
+                    + '<td>' + escapeHtml(u.email || '-') + '</td>'
+                    + '<td>' + fmtTime(u.createTime) + '</td>'
+                    + '<td>' + (banned ? '<span class="tag tag-red">已封禁</span>' : '<span class="tag tag-green">正常</span>') + '</td>'
+                    + '<td><button class="btn btn-sm ' + (banned ? '' : 'btn-danger') + '" '
+                    + 'onclick="switchStatus(' + u.id + ',' + (banned ? 0 : 1) + ')">'
+                    + (banned ? '解封' : '封禁') + '</button></td>'
+                    + '</tr>';
+            });
+
+            html += '</tbody></table>';
+            box.innerHTML = html;
+            renderPager(data.total);
+        } catch (e) {
+            box.innerHTML = '<div class="empty">' + escapeHtml(e.message) + '</div>';
+        }
+    }
+
+    function renderPager(total) {
+        const pages = Math.max(1, Math.ceil((total || 0) / state.pageSize));
+        document.getElementById('pager').innerHTML =
+            '<button onclick="go(' + (state.pageNum - 1) + ')" ' + (state.pageNum <= 1 ? 'disabled' : '') + '>上一页</button>'
+            + '<span>第 ' + state.pageNum + ' / ' + pages + ' 页 · 共 ' + (total || 0) + ' 个用户</span>'
+            + '<button onclick="go(' + (state.pageNum + 1) + ')" ' + (state.pageNum >= pages ? 'disabled' : '') + '>下一页</button>';
+    }
+
+    function go(n) {
+        state.pageNum = n;
+        load();
+    }
+
+    async function switchStatus(userId, status) {
+        const word = status === 1 ? '封禁' : '解封';
+        if (!confirm('确认' + word + '这个用户？')) return;
+        try {
+            await post('/admin/user/status', { userId: userId, status: status });
+            toast('已' + word);
+            load();
+        } catch (e) {
+            toast(e.message);
+        }
+    }
+</script>
+</body>
+</html>

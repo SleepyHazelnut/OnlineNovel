@@ -43,6 +43,12 @@
             <version>${mybatis.version}</version>
         </dependency>
 
+        <!-- 参数校验，Controller 上打 @Valid 那套 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
         <!-- jwt，登录态改无状态后不再用 session -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>

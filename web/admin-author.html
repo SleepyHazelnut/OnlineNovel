@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>作者审核 - 墨屿小说</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-role="admin">
+
+<div id="nav"></div>
+
+<div class="layout">
+    <div id="side"></div>
+
+    <div class="main">
+        <div class="page-title">作者资质审核</div>
+
+        <div class="filter-bar">
+            <button class="btn btn-sm btn-primary" data-s="0" onclick="switchStatus(0, this)">待审核</button>
+            <button class="btn btn-sm" data-s="1" onclick="switchStatus(1, this)">已通过</button>
+            <button class="btn btn-sm" data-s="2" onclick="switchStatus(2, this)">已驳回</button>
+        </div>
+
+        <div id="list"><div class="loading">加载中...</div></div>
+    </div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+    let auditStatus = 0;
+
+    if (!setupBackend('author')) {
+        // setupBackend 未通过，已跳转登录页
+    } else {
+        load();
+    }
+
+    function switchStatus(s, btn) {
+        auditStatus = s;
+        document.querySelectorAll('.filter-bar .btn').forEach(function (b) { b.classList.remove('btn-primary'); });
+        btn.classList.add('btn-primary');
+        load();
+    }
+
+    async function load() {
+        const box = document.getElementById('list');
+        box.innerHTML = '<div class="loading">加载中...</div>';
+        try {
+            const list = await get('/admin/author/list', { auditStatus: auditStatus });
+            if (!list || !list.length) {
+                box.innerHTML = '<div class="empty">这个状态下没有作者</div>';
+                return;
+            }
+
+            let html = '<table class="table"><thead><tr>'
+                + '<th>ID</th><th>账号</th><th>笔名</th><th>邮箱</th><th>简介</th><th>注册时间</th><th>状态</th><th style="width:180px">操作</th>'
+                + '</tr></thead><tbody>';
+
+            list.forEach(function (a) {
+                const pending = Number(a.auditStatus) === 0;
+                html += '<tr>'
+                    + '<td>' + a.id + '</td>'
+                    + '<td>' + escapeHtml(a.username) + '</td>'
+                    + '<td>' + escapeHtml(a.penName || '-') + '</td>'
+                    + '<td>' + escapeHtml(a.email || '-') + '</td>'
+                    + '<td>' + escapeHtml(a.intro || '-') + '</td>'
+                    + '<td>' + fmtTime(a.createTime) + '</td>'
+                    + '<td>' + auditStatusTag(a.auditStatus)
+                    + (a.auditRemark ? '<div style="font-size:12px;color:#8c9aa8;margin-top:4px">'
+                        + escapeHtml(a.auditRemark) + '</div>' : '') + '</td>'
+                    + '<td>' + (pending
+                        ? '<button class="btn btn-sm btn-success" onclick="audit(' + a.id + ',1)">通过</button> '
+                          + '<button class="btn btn-sm btn-danger" onclick="audit(' + a.id + ',2)">驳回</button>'
+                        : '-')
+                    + '</td>'
+                    + '</tr>';
+            });
+
+            html += '</tbody></table>';
+            box.innerHTML = html;
+        } catch (e) {
+            box.innerHTML = '<div class="empty">' + escapeHtml(e.message) + '</div>';
+        }
+    }
+
+    function audit(authorId, status) {
+        // 驳回必须填写原因，作者可在个人中心查看，此处强制校验不允许为空
+        if (status === 2) {
+            const remark = prompt('驳回原因：');
+            if (remark === null) return; // prompt 点取消返回 null，不可当作空字符串处理
+            if (!remark.trim()) { toast('驳回要写原因'); return; }
+            send(authorId, 2, remark.trim());
+        } else {
+            if (!confirm('确认通过这位作者的资质？')) return;
+            send(authorId, 1, '');
+        }
+    }
+
+    async function send(authorId, status, remark) {
+        try {
+            await post('/admin/author/audit', { authorId: authorId, status: status, remark: remark });
+            toast(status === 1 ? '已通过' : '已驳回');
+            load();
+        } catch (e) {
+            toast(e.message);
+        }
+    }
+</script>
+</body>
+</html>

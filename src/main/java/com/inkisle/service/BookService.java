@@ -1,5 +1,6 @@
 package com.inkisle.service;
 
+import com.inkisle.dto.BookSaveDTO;
 import com.inkisle.entity.BookInfo;
 
 import java.util.List;
@@ -27,7 +28,7 @@ public interface BookService {
     /**
      * 新增或修改作品，改的时候要确认这本书是当前作者的
      */
-    void save(BookInfo bookInfo, Long authorId);
+    void save(BookSaveDTO bookSaveDTO, Long authorId);
 
     /**
      * 删除作品，同样只能删自己的

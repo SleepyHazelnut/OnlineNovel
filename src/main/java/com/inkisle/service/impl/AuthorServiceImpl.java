@@ -3,6 +3,7 @@ package com.inkisle.service.impl;
 import com.inkisle.common.BusinessException;
 import com.inkisle.common.Result;
 import com.inkisle.common.RoleConstant;
+import com.inkisle.dto.AuthorRegisterDTO;
 import com.inkisle.entity.AuthorInfo;
 import com.inkisle.mapper.AuthorInfoMapper;
 import com.inkisle.service.AuthorService;
@@ -16,6 +17,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 作者的注册、登录与资质审核
+ * 作者使用独立数据表，注册后资质为待审状态，管理端审核通过后方可发布作品
+ */
 @Service
 public class AuthorServiceImpl implements AuthorService {
 
@@ -26,21 +31,20 @@ public class AuthorServiceImpl implements AuthorService {
     private JwtUtil jwtUtil;
 
     @Override
-    public Result<Void> register(AuthorInfo authorInfo) {
-        if (authorInfoMapper.countByUsername(authorInfo.getUsername()) > 0) {
+    public Result<Void> register(AuthorRegisterDTO registerDTO) {
+        if (authorInfoMapper.countByUsername(registerDTO.getUsername()) > 0) {
             throw new BusinessException("该账号已被注册");
         }
 
         AuthorInfo author = new AuthorInfo();
-        author.setUsername(authorInfo.getUsername());
-        author.setPassword(Md5Util.md5(authorInfo.getPassword()));
-        // 没填笔名就先拿账号顶上，后面可以在个人中心改
-        author.setPenName(authorInfo.getPenName() == null ? authorInfo.getUsername() : authorInfo.getPenName());
-        author.setPhone(authorInfo.getPhone());
-        author.setEmail(authorInfo.getEmail());
-        author.setIntro(authorInfo.getIntro());
+        author.setUsername(registerDTO.getUsername());
+        author.setPassword(Md5Util.md5(registerDTO.getPassword()));
+        // 未填写笔名时以账号代替，避免列表显示为空，之后可在个人中心修改
+        author.setPenName(registerDTO.getPenName() == null || registerDTO.getPenName().isEmpty()
+                ? registerDTO.getUsername() : registerDTO.getPenName());
+        author.setEmail(registerDTO.getEmail());
         author.setStatus(0);
-        // 新注册的作者资质待审，审过了才能发作品
+        // 新作者资质默认待审，审核通过后方可发布作品
         author.setAuditStatus(0);
         author.setCreateTime(LocalDateTime.now());
         authorInfoMapper.insert(author);
@@ -86,6 +90,7 @@ public class AuthorServiceImpl implements AuthorService {
         if (status == null || (status != 1 && status != 2)) {
             throw new BusinessException("审核结果不对");
         }
+        // 驳回必须填写原因，否则作者无法判断需修改的内容
         if (status == 2 && (remark == null || remark.trim().isEmpty())) {
             throw new BusinessException("驳回要写原因");
         }

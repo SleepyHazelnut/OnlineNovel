@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>数据看板 - 墨屿小说</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-role="admin">
+
+<div id="nav"></div>
+
+<div class="layout">
+    <div id="side"></div>
+
+    <div class="main">
+        <div class="page-title">数据看板 <small>后台整体情况</small></div>
+
+        <div class="stat-grid" id="total" style="margin-bottom:20px">
+            <div class="stat-card"><div class="num">-</div><div class="label">用户总数</div></div>
+            <div class="stat-card"><div class="num">-</div><div class="label">作者总数</div></div>
+            <div class="stat-card"><div class="num">-</div><div class="label">书籍总数</div></div>
+            <div class="stat-card"><div class="num">-</div><div class="label">评论总数</div></div>
+        </div>
+
+        <div class="card">
+            <div class="row between" style="margin-bottom:8px">
+                <span style="font-weight:600">近 7 天新增</span>
+                <span style="font-size:12px;color:#8c9aa8">
+                    <span style="color:#409eff">■</span> 用户
+                    <span style="color:#67c23a;margin-left:10px">■</span> 书籍
+                    <span style="color:#e6a23c;margin-left:10px">■</span> 评论
+                </span>
+            </div>
+            <div id="daily"><div class="loading">加载中...</div></div>
+        </div>
+    </div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+    if (!setupBackend('stat')) {
+        // setupBackend 未通过，已跳转登录页
+    } else {
+        load();
+    }
+
+    async function load() {
+        try {
+            const t = await get('/admin/stat/total');
+            const nums = document.querySelectorAll('#total .num');
+            nums[0].textContent = t.userTotal || 0;
+            nums[1].textContent = t.authorTotal || 0;
+            nums[2].textContent = t.bookTotal || 0;
+            nums[3].textContent = t.commentTotal || 0;
+        } catch (e) {
+            toast(e.message);
+        }
+
+        try {
+            const rows = await get('/admin/stat/daily', { days: 7 });
+            renderChart(rows || []);
+        } catch (e) {
+            document.getElementById('daily').innerHTML = '<div class="empty">' + escapeHtml(e.message) + '</div>';
+        }
+    }
+
+    /** 未引入图表库，直接用 div 高度绘制柱状图 */
+    function renderChart(rows) {
+        const box = document.getElementById('daily');
+        if (!rows.length) {
+            box.innerHTML = '<div class="empty">最近 7 天没有新增数据</div>';
+            return;
+        }
+
+        // max 从 1 起，避免七天全为 0 时计算比例出现除零
+        let max = 1;
+        rows.forEach(function (r) {
+            max = Math.max(max, r.userNum || 0, r.bookNum || 0, r.commentNum || 0);
+        });
+
+        let html = '<div class="bar-chart">';
+        rows.forEach(function (r) {
+            const total = (r.userNum || 0) + (r.bookNum || 0) + (r.commentNum || 0);
+            const h = Math.round(total / max * 160);
+            const day = String(r.day || '').slice(5);
+            html += '<div class="bar-col">'
+                + '<span class="bar-val">' + total + '</span>'
+                + '<div class="bar" style="height:' + Math.max(h, total > 0 ? 6 : 2) + 'px" title="用户 '
+                + (r.userNum || 0) + ' / 书籍 ' + (r.bookNum || 0) + ' / 评论 ' + (r.commentNum || 0) + '"></div>'
+                + '<span class="bar-label">' + day + '</span>'
+                + '</div>';
+        });
+        html += '</div>';
+        box.innerHTML = html;
+    }
+</script>
+</body>
+</html>

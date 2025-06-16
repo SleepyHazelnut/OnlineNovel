@@ -2,6 +2,8 @@ package com.inkisle.common;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -19,6 +21,18 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BusinessException.class)
     public Result<Void> handleBusiness(BusinessException e) {
         return Result.fail(e.getMessage());
+    }
+
+    /**
+     * @Valid 校验没过，取第一条提示返回，前端弹出来就够了
+     */
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public Result<Void> handleValid(MethodArgumentNotValidException e) {
+        String msg = e.getBindingResult().getFieldErrors().stream()
+                .map(FieldError::getDefaultMessage)
+                .findFirst()
+                .orElse(ResultCode.PARAM_ERROR.getMsg());
+        return Result.fail(ResultCode.PARAM_ERROR, msg);
     }
 
     /**

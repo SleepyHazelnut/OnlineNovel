@@ -1,6 +1,7 @@
 package com.inkisle.service.impl;
 
 import com.inkisle.common.BusinessException;
+import com.inkisle.dto.BookSaveDTO;
 import com.inkisle.entity.AuthorInfo;
 import com.inkisle.entity.BookInfo;
 import com.inkisle.mapper.AuthorInfoMapper;
@@ -60,12 +61,22 @@ public class BookServiceImpl implements BookService {
     }
 
     @Override
-    public void save(BookInfo bookInfo, Long authorId) {
+    public void save(BookSaveDTO bookSaveDTO, Long authorId) {
         // 资质还没过的作者先别发书，不然书城全是没审过的东西
         AuthorInfo author = authorInfoMapper.selectById(authorId);
         if (author == null || author.getAuditStatus() == null || author.getAuditStatus() != 1) {
             throw new BusinessException("作者资质还没通过审核，暂时不能发布作品");
         }
+
+        BookInfo bookInfo = new BookInfo();
+        bookInfo.setId(bookSaveDTO.getId());
+        bookInfo.setBookName(bookSaveDTO.getBookName());
+        bookInfo.setCategoryId(bookSaveDTO.getCategoryId());
+        bookInfo.setBookDesc(bookSaveDTO.getBookDesc());
+        bookInfo.setCoverUrl(bookSaveDTO.getCoverUrl());
+        // 没填作者名就用笔名，免得列表里显示成空
+        bookInfo.setAuthorName(bookSaveDTO.getAuthorName() == null || bookSaveDTO.getAuthorName().isEmpty()
+                ? author.getPenName() : bookSaveDTO.getAuthorName());
 
         if (bookInfo.getId() == null) {
             bookInfo.setAuthorId(authorId);

@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>书籍审核 - 墨屿小说</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-role="admin">
+
+<div id="nav"></div>
+
+<div class="layout">
+    <div id="side"></div>
+
+    <div class="main">
+        <div class="page-title" id="title">书籍审核</div>
+
+        <div class="filter-bar">
+            <button class="btn btn-sm" data-status="0" onclick="switchStatus(0, this)">待审核</button>
+            <button class="btn btn-sm" data-status="1" onclick="switchStatus(1, this)">已通过</button>
+            <button class="btn btn-sm" data-status="2" onclick="switchStatus(2, this)">已驳回</button>
+        </div>
+
+        <div id="list"><div class="loading">加载中...</div></div>
+    </div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+    let status = 0;
+
+    if (!setupBackend('audit')) {
+        // setupBackend 未通过，已跳转登录页
+    } else {
+        load();
+    }
+
+    function switchStatus(s, btn) {
+        status = s;
+        document.querySelectorAll('.filter-bar .btn').forEach(function (b) { b.classList.remove('btn-primary'); });
+        btn.classList.add('btn-primary');
+        load();
+    }
+
+    async function load() {
+        const box = document.getElementById('list');
+        box.innerHTML = '<div class="loading">加载中...</div>';
+        try {
+            const list = await get('/admin/audit/list', { status: status });
+            if (!list || !list.length) {
+                box.innerHTML = '<div class="empty">这个状态下没有记录</div>';
+                return;
+            }
+
+            let html = '<table class="table"><thead><tr>'
+                + '<th>ID</th><th>书籍</th><th>作者ID</th><th>提交时间</th><th>审核时间</th><th>意见</th><th style="width:200px">操作</th>'
+                + '</tr></thead><tbody>';
+
+            // 只有「待审核」的记录才给出通过 / 驳回按钮，处理过的直接显示状态标签
+            list.forEach(function (r) {
+                const canOperate = Number(r.status) === 0;
+                html += '<tr>'
+                    + '<td>' + r.id + '</td>'
+                    + '<td><a href="book.html?id=' + r.bookId + '" target="_blank">'
+                    + escapeHtml(r.bookName || ('书籍 #' + r.bookId)) + '</a></td>'
+                    + '<td>' + r.authorId + '</td>'
+                    + '<td>' + fmtTime(r.submitTime) + '</td>'
+                    + '<td>' + fmtTime(r.auditTime) + '</td>'
+                    + '<td>' + escapeHtml(r.remark || '-') + '</td>'
+                    + '<td>'
+                    + (canOperate
+                        ? '<button class="btn btn-sm btn-success" onclick="pass(' + r.id + ')">通过</button> '
+                          + '<button class="btn btn-sm btn-danger" onclick="reject(' + r.id + ')">驳回</button>'
+                        : auditStatusTag(r.status))
+                    + '</td>'
+                    + '</tr>';
+            });
+
+            html += '</tbody></table>';
+            box.innerHTML = html;
+        } catch (e) {
+            box.innerHTML = '<div class="empty">' + escapeHtml(e.message) + '</div>';
+        }
+    }
+
+    async function pass(id) {
+        try {
+            await post('/admin/audit/pass', { id: id });
+            toast('已通过');
+            load();
+        } catch (e) {
+            toast(e.message);
+        }
+    }
+
+    function reject(id) {
+        const mask = document.createElement('div');
+        mask.className = 'modal-mask';
+        mask.innerHTML = '<div class="modal">'
+            + '<h3>驳回原因</h3>'
+            + '<div class="form-item"><textarea id="rejectRemark" rows="3" placeholder="写清楚为什么驳回，作者能看到"></textarea></div>'
+            + '<div class="form-error" id="rejectTip"></div>'
+            + '<div class="modal-foot">'
+            + '  <button class="btn" onclick="this.closest(\'.modal-mask\').remove()">取消</button>'
+            + '  <button class="btn btn-danger" onclick="doReject(' + id + ', this)">确认驳回</button>'
+            + '</div></div>';
+        document.body.appendChild(mask);
+        mask.querySelector('#rejectRemark').focus();
+    }
+
+    async function doReject(id, btn) {
+        const remark = document.getElementById('rejectRemark').value.trim();
+        const tip = document.getElementById('rejectTip');
+        if (!remark) {
+            tip.textContent = '驳回必须写原因';
+            return;
+        }
+        btn.disabled = true;
+        try {
+            await post('/admin/audit/reject', { id: id, remark: remark });
+            toast('已驳回');
+            document.querySelector('.modal-mask').remove();
+            load();
+        } catch (e) {
+            tip.textContent = e.message;
+            btn.disabled = false;
+        }
+    }
+</script>
+</body>
+</html>

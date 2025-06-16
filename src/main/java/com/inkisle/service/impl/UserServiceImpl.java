@@ -3,6 +3,7 @@ package com.inkisle.service.impl;
 import com.inkisle.common.BusinessException;
 import com.inkisle.common.Result;
 import com.inkisle.common.RoleConstant;
+import com.inkisle.dto.UserRegisterDTO;
 import com.inkisle.entity.UserInfo;
 import com.inkisle.mapper.UserInfoMapper;
 import com.inkisle.service.UserService;
@@ -36,16 +37,16 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public Result<Void> register(UserInfo userInfo) {
+    public Result<Void> register(UserRegisterDTO registerDTO) {
         // 用户名唯一，先查重
-        if (userInfoMapper.countByUsername(userInfo.getUsername()) > 0) {
+        if (userInfoMapper.countByUsername(registerDTO.getUsername()) > 0) {
             throw new BusinessException("用户名已存在");
         }
 
         UserInfo user = new UserInfo();
-        user.setUsername(userInfo.getUsername());
-        user.setPassword(Md5Util.md5(userInfo.getPassword()));
-        user.setNickName(userInfo.getUsername());
+        user.setUsername(registerDTO.getUsername());
+        user.setPassword(Md5Util.md5(registerDTO.getPassword()));
+        user.setNickName(registerDTO.getUsername());
         user.setStatus(0);
         user.setCreateTime(LocalDateTime.now());
         userInfoMapper.insert(user);

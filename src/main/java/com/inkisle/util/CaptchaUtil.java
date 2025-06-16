@@ -1,5 +1,8 @@
 package com.inkisle.util;
 
+import com.inkisle.common.BusinessException;
+import jakarta.servlet.http.HttpSession;
+
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.Graphics2D;
@@ -7,9 +10,14 @@ import java.awt.image.BufferedImage;
 import java.security.SecureRandom;
 
 /**
- * 验证码图片生成工具
+ * 验证码工具：生成和校验
+ * 未使用第三方验证码库，基于 JDK 自带的画图 API 实现，
+ * 包含随机字符与干扰线，足以拦截简单脚本
  */
 public class CaptchaUtil {
+
+    /** 验证码答案存在 Session 里的 key，生成和校验收尾都用这一个 */
+    public static final String SESSION_KEY = "captcha";
 
     /** 排除易混淆的字符 0/O、1/I */
     private static final String CHARS = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
@@ -26,7 +34,7 @@ public class CaptchaUtil {
     }
 
     /**
-     * 随机生成 4 位验证码
+     * 随机生成 4 位验证码，字符取自 `CHARS`
      */
     public static String randomCode() {
         StringBuilder sb = new StringBuilder(CODE_LENGTH);
@@ -37,7 +45,7 @@ public class CaptchaUtil {
     }
 
     /**
-     * 把验证码画成图片
+     * 将验证码绘制为图片，Controller 可直接写入 response 流
      */
     public static BufferedImage createImage(String code) {
         BufferedImage image = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_RGB);
@@ -61,6 +69,24 @@ public class CaptchaUtil {
 
         g.dispose();
         return image;
+    }
+
+    /**
+     * 校验用户填写的验证码
+     * 无论校验是否通过，都必须先清除 Session 中的答案：
+     * 若先判断对错再清除，同一张图可被无限次尝试
+     * 比较时去除首尾空格并忽略大小写
+     */
+    public static void verify(HttpSession session, String input) {
+        Object expected = session.getAttribute(SESSION_KEY);
+        session.removeAttribute(SESSION_KEY);
+
+        if (expected == null) {
+            throw new BusinessException("验证码已过期，请点击图片刷新");
+        }
+        if (input == null || !expected.toString().equalsIgnoreCase(input.trim())) {
+            throw new BusinessException("验证码错误");
+        }
     }
 
 }

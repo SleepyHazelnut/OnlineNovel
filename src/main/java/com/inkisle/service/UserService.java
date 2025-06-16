@@ -1,6 +1,7 @@
 package com.inkisle.service;
 
 import com.inkisle.common.Result;
+import com.inkisle.dto.UserRegisterDTO;
 import com.inkisle.entity.UserInfo;
 
 import java.util.List;
@@ -18,7 +19,7 @@ public interface UserService {
     /**
      * 用户注册
      */
-    Result<Void> register(UserInfo userInfo);
+    Result<Void> register(UserRegisterDTO registerDTO);
 
     /**
      * 用户登录，成功后返回 token 和用户信息

@@ -1,13 +1,13 @@
 package com.inkisle.controller;
 
 import com.inkisle.common.Result;
-import com.inkisle.entity.AuthorInfo;
+import com.inkisle.dto.BookSaveDTO;
 import com.inkisle.entity.BookAuditRecord;
 import com.inkisle.entity.BookInfo;
-import com.inkisle.service.AuthorService;
 import com.inkisle.service.BookAuditService;
 import com.inkisle.service.BookService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -30,9 +30,6 @@ public class AuthorBookController {
     private BookService bookService;
 
     @Autowired
-    private AuthorService authorService;
-
-    @Autowired
     private BookAuditService bookAuditService;
 
     /**
@@ -48,14 +45,9 @@ public class AuthorBookController {
      * 保存作品，带 id 是修改，不带是新增
      */
     @PostMapping("/save")
-    public Result<Void> save(@RequestBody BookInfo bookInfo, HttpServletRequest request) {
+    public Result<Void> save(@Valid @RequestBody BookSaveDTO bookSaveDTO, HttpServletRequest request) {
         Long authorId = (Long) request.getAttribute("userId");
-        // 没填作者名就用笔名，免得列表里显示成空
-        if (bookInfo.getAuthorName() == null || bookInfo.getAuthorName().isEmpty()) {
-            AuthorInfo author = authorService.getById(authorId);
-            bookInfo.setAuthorName(author.getPenName());
-        }
-        bookService.save(bookInfo, authorId);
+        bookService.save(bookSaveDTO, authorId);
         return Result.ok();
     }
 

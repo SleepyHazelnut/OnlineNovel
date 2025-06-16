@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>管理端登录 - 墨屿小说</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-role="admin">
+
+<div class="auth-box">
+    <h2>墨屿小说 · 管理端</h2>
+    <div class="sub">管理员账号不开放注册</div>
+
+    <div class="form-item">
+        <input type="text" id="username" placeholder="管理员账号" autocomplete="username">
+    </div>
+    <div class="form-item">
+        <input type="password" id="password" placeholder="密码" autocomplete="current-password">
+    </div>
+    <div class="form-item captcha-row">
+        <input type="text" id="captcha" placeholder="验证码" maxlength="4" autocomplete="off">
+        <img id="captchaImg" alt="验证码" title="看不清，点一下换一张" onclick="refreshCaptcha()">
+    </div>
+    <div class="form-error" id="tip"></div>
+
+    <button class="btn btn-primary btn-block" id="submitBtn" onclick="doLogin()">登 录</button>
+
+    <div class="foot" style="font-size:12px">
+        <a href="login.html">读者入口</a> · <a href="author-login.html">作者入口</a>
+    </div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+    // 已登录时直接进入后台
+    if (Auth.logged()) {
+        location.replace('admin-stat.html');
+    }
+
+    /** 刷新验证码。拼接时间戳以规避浏览器缓存：src 不变时图片不会重新请求 */
+    function refreshCaptcha() {
+        document.getElementById('captchaImg').src = 'captcha/image?t=' + Date.now();
+    }
+    refreshCaptcha();
+
+    async function doLogin() {
+        const tip = document.getElementById('tip');
+        const btn = document.getElementById('submitBtn');
+        const username = document.getElementById('username').value.trim();
+        const password = document.getElementById('password').value;
+        const captcha = document.getElementById('captcha').value.trim();
+
+        if (!username || !password || !captcha) {
+            tip.textContent = '账号、密码、验证码都要填';
+            return;
+        }
+
+        btn.disabled = true;
+        tip.textContent = '';
+        try {
+            const data = await post('/admin/login', { username: username, password: password, captcha: captcha });
+            Auth.save(data.token, data.admin);
+            toast('欢迎，' + (data.admin.realName || data.admin.username));
+            setTimeout(function () { location.href = 'admin-stat.html'; }, 400);
+        } catch (e) {
+            tip.textContent = e.message;
+            // 验证码一次性有效，本次无论对错都已被后端作废，需刷新后再试
+            refreshCaptcha();
+            btn.disabled = false;
+        }
+    }
+
+    document.getElementById('password').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') doLogin();
+    });
+</script>
+</body>
+</html>
