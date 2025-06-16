@@ -17,6 +17,13 @@ spring:
       # 封面图几百 KB 就够，但整本 txt 导入可能十几兆，统一放宽到 20M
       max-file-size: 20MB
       max-request-size: 25MB
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      database: 0
+      # 本地 redis 没设密码，连不上就快点报错，别让请求一直挂着
+      timeout: 3s
 
 mybatis:
   mapper-locations: classpath*:/mapper/**/*.xml

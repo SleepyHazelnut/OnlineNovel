@@ -49,6 +49,18 @@
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
 
+        <!-- 缓存，书籍详情读多写少，先上 Caffeine 本地缓存 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-cache</artifactId>
+        </dependency>
+
+        <!-- Redis，拿来做二级缓存，顺便给后面的签到 / 榜单 / 分布式锁用 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+
         <!-- jwt，登录态改无状态后不再用 session -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>

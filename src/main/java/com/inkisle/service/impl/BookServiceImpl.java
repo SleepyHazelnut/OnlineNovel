@@ -9,6 +9,8 @@ import com.inkisle.mapper.BookInfoMapper;
 import com.inkisle.mapper.BookStatMapper;
 import com.inkisle.service.BookService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -39,7 +41,11 @@ public class BookServiceImpl implements BookService {
         return data;
     }
 
+    /**
+     * 详情页被翻来覆去地看，读多写少，缓存起来
+     */
     @Override
+    @Cacheable(value = "book", key = "#id")
     public BookInfo getById(Long id) {
         return bookInfoMapper.selectById(id);
     }
@@ -60,7 +66,11 @@ public class BookServiceImpl implements BookService {
         return bookInfoMapper.selectByAuthorId(authorId);
     }
 
+    /**
+     * 新增和修改走的是同一个方法，新建时 id 还没有，干脆整个清掉
+     */
     @Override
+    @CacheEvict(value = "book", allEntries = true)
     public void save(BookSaveDTO bookSaveDTO, Long authorId) {
         // 资质还没过的作者先别发书，不然书城全是没审过的东西
         AuthorInfo author = authorInfoMapper.selectById(authorId);
@@ -101,6 +111,7 @@ public class BookServiceImpl implements BookService {
     }
 
     @Override
+    @CacheEvict(value = "book", key = "#id")
     public void delete(Long id, Long authorId) {
         BookInfo exist = bookInfoMapper.selectById(id);
         if (exist == null) {
@@ -113,6 +124,7 @@ public class BookServiceImpl implements BookService {
     }
 
     @Override
+    @CacheEvict(value = "book", key = "#id")
     public void updateStatus(Long id, Integer status, Long authorId) {
         BookInfo exist = bookInfoMapper.selectById(id);
         if (exist == null) {
