@@ -1,6 +1,9 @@
 package com.inkisle.config;
 
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -22,9 +25,19 @@ public class CacheConfig {
 
     @Bean
     public RedisCacheManager cacheManager(RedisConnectionFactory connectionFactory) {
-        // 默认的 JDK 序列化写入 Redis 是二进制，redis-cli 里看不了，值改用 JSON
+        // 默认序列化器是 JDK 序列化，存入 Redis 为二进制，redis-cli 中不可读，换成 JSON
         ObjectMapper objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
+        objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        // 为保证取出后能还原原类型，需开启默认类型信息；
+        // 但仅白名单放开本项目与 java.util，避免反序列化被利用
+        objectMapper.activateDefaultTyping(
+                BasicPolymorphicTypeValidator.builder()
+                        .allowIfSubType("com.inkisle.")
+                        .allowIfSubType("java.util.")
+                        .build(),
+                ObjectMapper.DefaultTyping.NON_FINAL,
+                JsonTypeInfo.As.PROPERTY);
 
         RedisCacheConfiguration config = RedisCacheConfiguration.defaultCacheConfig()
                 // 书籍信息更新频率低，TTL 设为 30 分钟
