@@ -2,39 +2,81 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.inkisle.mapper.BookInfoMapper">
 
+    <!--
+      列名为下划线、实体字段为驼峰，能自动映射的原因是 application.yml 中开启了
+      map-underscore-to-camel-case，book_name 会映射到 bookName。
+      开启该开关后无需为每张表手写 resultMap。
+    -->
     <sql id="Base_Column_List">
         id, book_name, author_name, author_id, category_id, book_desc, cover_url, status, create_time, update_time
     </sql>
 
-    <!-- 按分类筛选和查全部走同一条 SQL，categoryId 为空时 where 不生效 -->
-    <sql id="Category_Where">
+    <!--
+      读者端可见性：仅依据「最新一条」审核记录判断。
+      若按「历史上是否被驳回过」判断，作者修改重交并通过审核后，
+      旧的驳回记录仍在表中，该书将始终不可见。
+      改为 ORDER BY id DESC LIMIT 1 取最新状态。
+      IFNULL(..., 1)：建站初期的历史书籍没有审核记录，按已上架处理。
+    -->
+    <sql id="Audit_Visible">
+        IFNULL((
+        SELECT r.status FROM book_audit_record r
+        WHERE r.book_id = book_info.id
+        ORDER BY r.id DESC
+        LIMIT 1
+        ), 1) = 1
+    </sql>
+
+    <!--
+      书库列表的过滤条件：分类筛选 + 仅展示已上架作品。
+      categoryId 为 null 时 if 标签内不拼接，仅保留可见性条件。
+      外层使用 where 标签而非手写 WHERE 1=1，多余的 AND 由 MyBatis 去除。
+    -->
+    <sql id="Library_Where">
         <where>
             <if test="categoryId != null">
-                category_id = #{categoryId}
+                AND category_id = #{categoryId}
             </if>
+            AND <include refid="Audit_Visible"/>
         </where>
     </sql>
 
-    <!-- 搜索条件：书名或作者名包含关键字 -->
+    <!--
+      关键词搜索：书名或作者名命中关键字，同样只查已上架的作品。
+      两字及以上走全文索引（MATCH ... AGAINST + BOOLEAN MODE），索引必须配 ngram 分词器，
+      否则中文整句会被当成一个词，查询无结果。ngram 最小切分长度为 2，
+      单字仍匹配不到，故补一段 LIKE 兜底。
+      LIKE 分支的括号不能省：它是 A OR B，后面还要 AND 可见性条件，
+      缺括号会变成 A OR (B AND 可见)，未上架作品的作者名命中也会漏出。
+    -->
     <sql id="Keyword_Where">
         <where>
-            book_name LIKE CONCAT('%', #{keyword}, '%')
-            OR author_name LIKE CONCAT('%', #{keyword}, '%')
+            <choose>
+                <when test="keyword != null and keyword.length() &gt;= 2">
+                    MATCH(book_name, author_name) AGAINST(#{keyword} IN BOOLEAN MODE)
+                </when>
+                <otherwise>
+                    (book_name LIKE CONCAT('%', #{keyword}, '%')
+                    OR author_name LIKE CONCAT('%', #{keyword}, '%'))
+                </otherwise>
+            </choose>
+            AND <include refid="Audit_Visible"/>
         </where>
     </sql>
 
+    <!-- LIMIT 的两个参数同样使用 #{}，被预编译为 ?，不以字符串拼接 -->
     <select id="selectPage" resultType="com.inkisle.entity.BookInfo">
         SELECT
         <include refid="Base_Column_List"/>
         FROM book_info
-        <include refid="Category_Where"/>
+        <include refid="Library_Where"/>
         ORDER BY create_time DESC
         LIMIT #{offset}, #{pageSize}
     </select>
 
     <select id="countByCategory" resultType="int">
         SELECT COUNT(*) FROM book_info
-        <include refid="Category_Where"/>
+        <include refid="Library_Where"/>
     </select>
 
     <select id="selectById" resultType="com.inkisle.entity.BookInfo">

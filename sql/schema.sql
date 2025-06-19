@@ -92,7 +92,8 @@ CREATE TABLE `book_info` (
   `create_time` datetime DEFAULT NULL COMMENT '创建时间',
   `update_time` datetime DEFAULT NULL COMMENT '更新时间',
   PRIMARY KEY (`id`),
-  KEY `idx_author_id` (`author_id`)
+  KEY `idx_author_id` (`author_id`),
+  FULLTEXT KEY `ft_book_search` (`book_name`, `author_name`) WITH PARSER ngram
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='书籍信息表';
 
 -- ----------------------------
