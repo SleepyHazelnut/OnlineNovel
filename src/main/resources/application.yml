@@ -39,5 +39,5 @@ jwt:
   expire-hours: 24
 
 file:
-  # 上传文件落盘目录，暂存本机，后面换对象存储
+  # 上传文件落盘目录，里面按 yyyy/MM/dd 分子目录
   upload-path: ${FILE_UPLOAD_PATH:./upload}

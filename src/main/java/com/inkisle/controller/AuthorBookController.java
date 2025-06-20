@@ -1,5 +1,6 @@
 package com.inkisle.controller;
 
+import com.inkisle.annotation.RepeatSubmit;
 import com.inkisle.common.Result;
 import com.inkisle.dto.BookSaveDTO;
 import com.inkisle.entity.BookAuditRecord;
@@ -84,7 +85,9 @@ public class AuthorBookController {
 
     /**
      * 提交审核，上架前先送审
+     * 手快连点两下会送出两条待审记录，这里上个锁挡一下
      */
+    @RepeatSubmit
     @PostMapping("/submit")
     public Result<Void> submit(@RequestBody Map<String, Long> params, HttpServletRequest request) {
         Long authorId = (Long) request.getAttribute("userId");
