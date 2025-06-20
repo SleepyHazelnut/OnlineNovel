@@ -22,6 +22,8 @@ import java.util.Map;
 
 /**
  * 作者端的作品管理
+ * 所有接口均只服务作者查看自己的作品，校验的是作品归属；
+ * 与读者端接口是两条独立路径，互不复用
  */
 @RestController
 @RequestMapping("/author/book")
@@ -34,7 +36,7 @@ public class AuthorBookController {
     private BookAuditService bookAuditService;
 
     /**
-     * 我的作品
+     * 当前作者的作品，authorId 只取 token 中的值，忽略请求参数
      */
     @GetMapping("/list")
     public Result<List<BookInfo>> list(HttpServletRequest request) {
@@ -43,7 +45,18 @@ public class AuthorBookController {
     }
 
     /**
-     * 保存作品，带 id 是修改，不带是新增
+     * 自己的作品详情，编辑页回填用
+     * 不复用读者端的 `/book/{id}`：该路径会拦截未过审的作品，
+     * 作品被驳回后作者点击编辑将无法看到稿件
+     */
+    @GetMapping("/detail")
+    public Result<BookInfo> detail(@RequestParam Long id, HttpServletRequest request) {
+        Long authorId = (Long) request.getAttribute("userId");
+        return Result.ok(bookService.getForAuthor(id, authorId));
+    }
+
+    /**
+     * 保存作品，带 id 是改，不带是新增
      */
     @PostMapping("/save")
     public Result<Void> save(@Valid @RequestBody BookSaveDTO bookSaveDTO, HttpServletRequest request) {
@@ -63,7 +76,7 @@ public class AuthorBookController {
     }
 
     /**
-     * 连载 / 完结 切换，作者自己控制
+     * 连载 / 完结 切换，这个作者自己说了算
      */
     @PostMapping("/status")
     public Result<Void> updateStatus(@RequestBody Map<String, Object> params, HttpServletRequest request) {
@@ -85,7 +98,7 @@ public class AuthorBookController {
 
     /**
      * 提交审核，上架前先送审
-     * 手快连点两下会送出两条待审记录，这里上个锁挡一下
+     * 连续快速点击会提交多条待审记录，故加 `@RepeatSubmit` 拦截
      */
     @RepeatSubmit
     @PostMapping("/submit")
@@ -96,7 +109,7 @@ public class AuthorBookController {
     }
 
     /**
-     * 看一眼这本书最近一次审核的结果
+     * 查询该书最近一次审核结果，用于了解被驳回的原因
      */
     @GetMapping("/audit")
     public Result<BookAuditRecord> audit(@RequestParam Long bookId) {

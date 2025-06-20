@@ -18,6 +18,8 @@ import java.util.Map;
 
 /**
  * 作者端的章节管理
+ * 与作品管理一致，这里只校验章节归属，不校验作品是否过审：
+ * 草稿本身需要可编辑，不应被读者端的可见性规则限制
  */
 @RestController
 @RequestMapping("/author/chapter")
@@ -35,7 +37,18 @@ public class AuthorChapterController {
     }
 
     /**
-     * 保存章节，带 id 是改，不带是新增；正文放在 content 字段里一起传
+     * 作者预览章节正文
+     * 单独实现而不复用读者端的 `/chapter/{id}`：该路径会拦截未过审的作品，
+     * 而作者需要预览自己的草稿，故另开一条路径
+     */
+    @GetMapping("/read")
+    public Result<Map<String, Object>> read(@RequestParam Long id, HttpServletRequest request) {
+        Long authorId = (Long) request.getAttribute("userId");
+        return Result.ok(bookChapterService.readForAuthor(id, authorId));
+    }
+
+    /**
+     * 保存章节，带 id 是改，不带是新增；正文单独放 content 字段里一起传
      */
     @PostMapping("/save")
     public Result<Void> save(@RequestBody Map<String, Object> params, HttpServletRequest request) {

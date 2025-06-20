@@ -16,15 +16,15 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 热度榜放在 Redis 的 ZSet 里
+ * 热度榜存放于 Redis 的 ZSet
  * <p>
- * 以前想按阅读量排就得 {@code ORDER BY read_count DESC}，每次都要扫全表再排序；
- * ZSet 本身就是按 score 排好的，取前 N 名是 O(log N + N)，加热度也是 O(log N)
+ * 若按阅读量排序需 {@code ORDER BY read_count DESC}，每次全表扫描并排序，数据量增大后性能下降；
+ * 改用 ZSet 后按 score 自动排序，取前 N 名与增加热度均为对数级复杂度
  */
 @Service
 public class RankServiceImpl implements RankService {
 
-    /** 榜单的 key，member 是书籍 id，score 是热度 */
+    /** 榜单的 key：ZSet 里 member 是书籍 id，score 是热度 */
     private static final String HOT_KEY = "rank:book:hot";
 
     @Autowired
@@ -43,7 +43,7 @@ public class RankServiceImpl implements RankService {
 
     @Override
     public List<Map<String, Object>> hotList(int top) {
-        // 要的是从高到低，所以用 reverseRange
+        // 榜单需由高到低排序，故使用 reverseRangeWithScores，普通 range 为升序
         Set<ZSetOperations.TypedTuple<String>> tuples =
                 stringRedisTemplate.opsForZSet().reverseRangeWithScores(HOT_KEY, 0, (long) top - 1);
         if (tuples == null || tuples.isEmpty()) {
@@ -54,10 +54,14 @@ public class RankServiceImpl implements RankService {
         int rank = 1;
         for (ZSetOperations.TypedTuple<String> tuple : tuples) {
             Long bookId = Long.valueOf(tuple.getValue());
-            // 走 BookService 拿，能吃到那层缓存
+            // 通过 BookService 获取，可复用其缓存
             BookInfo book = bookService.getById(bookId);
             if (book == null) {
-                // 书被删了但榜单里还留着，跳过，别让前端收到空壳
+                // 作品已删除但榜单仍有残留记录时跳过，避免前端返回空数据
+                continue;
+            }
+            // 作品可能过审上榜后又被驳回下架，榜单中该条同样不应显示
+            if (!bookService.isVisibleToReader(bookId)) {
                 continue;
             }
 

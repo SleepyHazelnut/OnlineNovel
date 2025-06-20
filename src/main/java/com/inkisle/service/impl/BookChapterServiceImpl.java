@@ -8,6 +8,7 @@ import com.inkisle.mapper.BookChapterMapper;
 import com.inkisle.mapper.BookContentMapper;
 import com.inkisle.mapper.BookInfoMapper;
 import com.inkisle.service.BookChapterService;
+import com.inkisle.service.BookService;
 import com.inkisle.util.TxtChapterParser;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -20,6 +21,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 章节与正文
+ * 正文体积较大，单独存放于 `book_content` 表，与章节一对一
+ * 目录、列表只查章节表，可避免一次性取出大量正文数据
+ */
 @Service
 public class BookChapterServiceImpl implements BookChapterService {
 
@@ -32,6 +38,9 @@ public class BookChapterServiceImpl implements BookChapterService {
     @Autowired
     private BookInfoMapper bookInfoMapper;
 
+    @Autowired
+    private BookService bookService;
+
     @Override
     public List<BookChapter> listByBookId(Long bookId) {
         return bookChapterMapper.selectListByBookId(bookId);
@@ -43,8 +52,30 @@ public class BookChapterServiceImpl implements BookChapterService {
         if (chapter == null) {
             throw new BusinessException("章节不存在");
         }
+        // 章节接口对游客开放，作品须过审后方可阅读。仅在详情页拦截不足：
+        // 直接以章节 id 请求正文，仍可读取被驳回作品的完整内容
+        if (!bookService.isVisibleToReader(chapter.getBookId())) {
+            throw new BusinessException("作品不存在或未上架");
+        }
+        return buildReadData(chapter);
+    }
 
-        // 正文单独查，读一章才拉一章的内容
+    @Override
+    public Map<String, Object> readForAuthor(Long id, Long authorId) {
+        BookChapter chapter = bookChapterMapper.selectById(id);
+        if (chapter == null) {
+            throw new BusinessException("章节不存在");
+        }
+        // 作者预览的是本人稿件，未过审也需可读，故此处只校验归属，不校验审核状态
+        checkBookOwner(chapter.getBookId(), authorId);
+        return buildReadData(chapter);
+    }
+
+    /**
+     * 组装阅读接口的返回。正文单独查询，每次只取一章；同时附带上一章、下一章的 id，
+     * 供阅读页翻页按钮使用
+     */
+    private Map<String, Object> buildReadData(BookChapter chapter) {
         BookContent bookContent = bookContentMapper.selectByChapterId(chapter.getId());
 
         Map<String, Object> data = new HashMap<>();
@@ -60,7 +91,7 @@ public class BookChapterServiceImpl implements BookChapterService {
         checkBookOwner(chapter.getBookId(), authorId);
 
         if (chapter.getId() == null) {
-            // 新章节接在最后，章节号自己往后排
+            // 新章节追加在末尾，章节号取当前最大值加一
             Integer maxNum = bookChapterMapper.selectMaxChapterNum(chapter.getBookId());
             chapter.setChapterNum(maxNum == null ? 1 : maxNum + 1);
             chapter.setCreateTime(LocalDateTime.now());
@@ -70,7 +101,7 @@ public class BookChapterServiceImpl implements BookChapterService {
             if (exist == null) {
                 throw new BusinessException("章节不存在");
             }
-            // 章节号不许改，改了目录就乱了
+            // 章节号不可修改，否则会打乱目录顺序
             chapter.setChapterNum(exist.getChapterNum());
             bookChapterMapper.updateById(chapter);
         }
@@ -96,7 +127,7 @@ public class BookChapterServiceImpl implements BookChapterService {
 
         String text;
         try {
-            // 先按 UTF-8 读，作者电脑上基本都是这个编码
+            // 按 UTF-8 读取，该编码为常见文本编码
             text = new String(file.getBytes(), StandardCharsets.UTF_8);
         } catch (IOException e) {
             throw new BusinessException("文件读取失败");
@@ -125,7 +156,7 @@ public class BookChapterServiceImpl implements BookChapterService {
     }
 
     /**
-     * 正文按 chapter_id 一对一，有就更新没有就插
+     * 正文与章节一对一，按 `chapter_id` 存在则更新，否则插入
      */
     private void saveContent(Long chapterId, String content) {
         if (content == null) {
@@ -144,7 +175,7 @@ public class BookChapterServiceImpl implements BookChapterService {
     }
 
     /**
-     * 只有作品的作者能改它的章节
+     * 章节的增删改均经此校验：确认操作者即该作品的作者
      */
     private void checkBookOwner(Long bookId, Long authorId) {
         BookInfo book = bookInfoMapper.selectById(bookId);

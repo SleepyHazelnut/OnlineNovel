@@ -3,6 +3,7 @@ package com.inkisle.controller;
 import com.inkisle.common.Result;
 import com.inkisle.entity.UserBookshelf;
 import com.inkisle.service.UserBookshelfService;
+import com.inkisle.service.BookService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,13 +23,21 @@ public class BookshelfController {
     @Autowired
     private UserBookshelfService userBookshelfService;
 
+    @Autowired
+    private BookService bookService;
+
     /**
      * 加入书架
      */
     @PostMapping("/add")
     public Result<Void> add(@RequestBody Map<String, Long> params, HttpServletRequest request) {
+        Long bookId = params.get("bookId");
+        // 未上架的作品不允许加入，否则书架中会出现无法打开详情页的作品
+        if (!bookService.isVisibleToReader(bookId)) {
+            return Result.fail("作品不存在或未上架");
+        }
         Long userId = (Long) request.getAttribute("userId");
-        userBookshelfService.add(userId, params.get("bookId"));
+        userBookshelfService.add(userId, bookId);
         return Result.ok();
     }
 
@@ -43,7 +52,7 @@ public class BookshelfController {
     }
 
     /**
-     * 我的书架
+     * 当前用户的书架
      */
     @GetMapping("/list")
     public Result<List<UserBookshelf>> list(HttpServletRequest request) {
@@ -52,7 +61,7 @@ public class BookshelfController {
     }
 
     /**
-     * 这本书我收藏了没有，详情页要显示不同的按钮
+     * 查询当前用户是否收藏该书，详情页据此显示不同按钮
      */
     @GetMapping("/check")
     public Result<Boolean> check(@RequestParam Long bookId, HttpServletRequest request) {
