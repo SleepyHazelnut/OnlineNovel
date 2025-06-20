@@ -17,6 +17,17 @@ spring:
       # 封面图几百 KB 就够，但整本 txt 导入可能十几兆，统一放宽到 20M
       max-file-size: 20MB
       max-request-size: 25MB
+  ai:
+    openai:
+      # DeepSeek 给的是 OpenAI 兼容接口，换个 base-url 就能直接连
+      base-url: ${AI_BASE_URL:https://api.deepseek.com}
+      # key 只从环境变量读，绝不写进仓库
+      api-key: ${AI_API_KEY:sk-set-your-own-key-in-env}
+      chat:
+        options:
+          model: ${AI_MODEL:deepseek-chat}
+          # 写东西要有点发挥，别太刻板
+          temperature: 0.8
   data:
     redis:
       host: ${REDIS_HOST:localhost}

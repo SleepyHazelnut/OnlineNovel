@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AI 创作助手 - 墨屿小说</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .ai-layout { display: flex; gap: 20px; align-items: flex-start; }
+        .ai-col { flex: 1; min-width: 0; }
+        .ai-col textarea { height: 420px; }
+        .mode-group { display: flex; gap: 8px; margin-bottom: 14px; }
+        .mode-group .mode {
+            padding: 6px 20px; border-radius: 16px; background: #eef1f5;
+            color: #5a6b7d; cursor: pointer; font-size: 13px;
+        }
+        .mode-group .mode.active { background: var(--primary); color: #fff; }
+        .result-box {
+            height: 420px; overflow-y: auto; background: #fafbfc; border: 1px solid var(--line);
+            border-radius: var(--radius); padding: 14px; white-space: pre-wrap;
+            line-height: 1.9; color: #40505f;
+        }
+    </style>
+</head>
+<body data-role="author">
+
+<div id="nav"></div>
+
+<div class="layout">
+    <div id="side"></div>
+
+    <div class="main">
+        <div class="page-title">AI 创作助手 <small>选中一段正文，润色 / 扩写 / 缩写</small></div>
+
+        <div class="ai-layout">
+            <div class="ai-col card">
+                <div class="mode-group">
+                    <span class="mode active" data-type="polish" onclick="pickMode(this)">润色</span>
+                    <span class="mode" data-type="expand" onclick="pickMode(this)">扩写</span>
+                    <span class="mode" data-type="shrink" onclick="pickMode(this)">缩写</span>
+                </div>
+                <textarea id="content" placeholder="把要处理的段落贴进来（最多 3000 字）"></textarea>
+                <div class="row between" style="margin-top:12px">
+                    <span class="form-tip">当前 <span id="wordCount">0</span> 字</span>
+                    <button class="btn btn-primary" id="runBtn" onclick="run()">开始处理</button>
+                </div>
+                <div class="form-error" id="tip"></div>
+            </div>
+
+            <div class="ai-col card">
+                <div class="row between" style="margin-bottom:14px">
+                    <span style="font-weight:600">处理结果</span>
+                    <button class="btn btn-sm" onclick="copyResult()">复制</button>
+                </div>
+                <div class="result-box" id="result">结果会显示在这里</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+    let mode = 'polish';
+
+    if (!setupBackend('ai')) {
+        // setupBackend 未通过，已跳转登录页
+    }
+
+    const ta = document.getElementById('content');
+    ta.addEventListener('input', function () {
+        document.getElementById('wordCount').textContent = ta.value.length;
+    });
+
+    function pickMode(el) {
+        document.querySelectorAll('.mode').forEach(m => m.classList.remove('active'));
+        el.classList.add('active');
+        mode = el.dataset.type;
+    }
+
+    async function run() {
+        const tip = document.getElementById('tip');
+        const btn = document.getElementById('runBtn');
+        const content = ta.value.trim();
+
+        if (!content) {
+            tip.textContent = '先把要处理的文字贴进来';
+            return;
+        }
+        if (content.length > 3000) {
+            tip.textContent = '一次最多 3000 字';
+            return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = '处理中...';
+        tip.textContent = '';
+        document.getElementById('result').textContent = '正在等模型返回，稍等几秒...';
+
+        try {
+            const text = await post('/author/ai/rewrite', { content: content, type: mode });
+            document.getElementById('result').textContent = text || '（模型没有返回内容）';
+        } catch (e) {
+            tip.textContent = e.message;
+            document.getElementById('result').textContent = '处理失败：' + e.message;
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '开始处理';
+        }
+    }
+
+    function copyResult() {
+        const text = document.getElementById('result').textContent;
+        if (!text) return;
+        // navigator.clipboard 仅在安全上下文（https / localhost）可用，
+        // 通过 http 直接访问时为 undefined，只能回退到旧的 execCommand
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text).then(function () { toast('已复制'); });
+        } else {
+            const t = document.createElement('textarea');
+            t.value = text;
+            document.body.appendChild(t);
+            t.select();
+            try { document.execCommand('copy'); toast('已复制'); }
+            catch (e) { toast('复制失败，手动选中吧'); }
+            document.body.removeChild(t);
+        }
+    }
+</script>
+</body>
+</html>

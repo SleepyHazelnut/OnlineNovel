@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>签到 - 墨屿小说</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .sign-head { text-align: center; padding: 12px 0 26px; }
+        .sign-head .days { font-size: 40px; font-weight: 600; color: var(--primary); line-height: 1.2; }
+        .sign-head .label { color: var(--ink-light); font-size: 13px; }
+        .sign-head .btn { margin-top: 20px; padding: 10px 44px; font-size: 15px; }
+        .calendar { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; max-width: 460px; margin: 0 auto; }
+        .calendar .week { text-align: center; color: #a0aec0; font-size: 12px; padding-bottom: 4px; }
+        .calendar .day {
+            aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+            border-radius: 6px; background: #f4f6f9; color: #8c9aa8; font-size: 13px;
+        }
+        .calendar .day.signed { background: var(--primary); color: #fff; }
+        .calendar .day.today { outline: 2px solid var(--ink); }
+    </style>
+</head>
+<body data-role="reader">
+
+<div id="nav"></div>
+
+<div class="container narrow">
+    <div class="card">
+        <div class="sign-head">
+            <div class="days" id="continuous">0</div>
+            <div class="label">天连续签到</div>
+            <button class="btn btn-primary" id="signBtn" onclick="doSign()">今日签到</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="page-title" style="font-size:16px" id="monthTitle">本月签到</div>
+        <div class="calendar" id="calendar"></div>
+        <div style="text-align:center;margin-top:16px;color:#8c9aa8;font-size:13px" id="monthCount"></div>
+    </div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+    readerNav('sign');
+
+    const WEEK = ['日', '一', '二', '三', '四', '五', '六'];
+
+    if (!Auth.require('sign.html')) {
+        // 未登录时 require() 已跳转登录页
+    } else {
+        loadAll();
+    }
+
+    async function loadAll() {
+        try {
+            const days = await get('/sign/continuous');
+            document.getElementById('continuous').textContent = days || 0;
+        } catch (e) { /* 连续天数获取失败不影响日历渲染，忽略该错误 */ }
+
+        await loadMonth();
+    }
+
+    async function loadMonth() {
+        const box = document.getElementById('calendar');
+        try {
+            const data = await get('/sign/month');
+            const month = data.month;
+            const signed = data.days || [];
+            const today = new Date();
+            const first = new Date(today.getFullYear(), month - 1, 1);
+            const len = new Date(today.getFullYear(), month, 0).getDate();
+
+            document.getElementById('monthTitle').innerHTML = month + ' 月签到';
+
+            if (data.todaySigned) {
+                const btn = document.getElementById('signBtn');
+                btn.textContent = '今天已签到';
+                btn.disabled = true;
+                btn.className = 'btn';
+            }
+
+            let html = '';
+            WEEK.forEach(function (w) { html += '<div class="week">' + w + '</div>'; });
+            // 1 号前按其星期几补占位单元格，否则整月日期与星期无法对齐
+            for (let i = 0; i < first.getDay(); i++) {
+                html += '<div></div>';
+            }
+            for (let d = 1; d <= len; d++) {
+                const cls = ['day'];
+                if (signed.indexOf(d) >= 0) cls.push('signed');
+                if (d === today.getDate()) cls.push('today');
+                html += '<div class="' + cls.join(' ') + '">' + d + '</div>';
+            }
+            box.innerHTML = html;
+            document.getElementById('monthCount').textContent = '本月已签到 ' + (data.count || 0) + ' 天';
+        } catch (e) {
+            box.innerHTML = '<div class="empty">' + escapeHtml(e.message) + '</div>';
+        }
+    }
+
+    async function doSign() {
+        try {
+            const data = await post('/sign/in');
+            document.getElementById('continuous').textContent = data.continuousDays || 0;
+            toast(data.repeat ? '今天已经签过啦' : '签到成功');
+            const btn = document.getElementById('signBtn');
+            btn.textContent = '今天已签到';
+            btn.disabled = true;
+            btn.className = 'btn';
+            await loadMonth();
+        } catch (e) {
+            toast(e.message);
+        }
+    }
+</script>
+</body>
+</html>
