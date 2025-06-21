@@ -4,15 +4,9 @@ import com.inkisle.common.Result;
 import com.inkisle.dto.UserRegisterDTO;
 import com.inkisle.entity.UserInfo;
 
-import java.util.List;
 import java.util.Map;
 
 public interface UserService {
-
-    /**
-     * 查询全部用户
-     */
-    List<UserInfo> listAll();
 
     UserInfo getById(Long id);
 

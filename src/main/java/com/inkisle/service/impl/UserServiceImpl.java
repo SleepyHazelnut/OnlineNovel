@@ -14,7 +14,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 @Service
@@ -25,11 +24,6 @@ public class UserServiceImpl implements UserService {
 
     @Autowired
     private JwtUtil jwtUtil;
-
-    @Override
-    public List<UserInfo> listAll() {
-        return userInfoMapper.selectAll();
-    }
 
     @Override
     public UserInfo getById(Long id) {

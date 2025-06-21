@@ -23,7 +23,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .addPathPatterns("/**")
                 .excludePathPatterns(
                         // 注册登录本身不能拦
-                        "/user/login", "/user/register", "/user/list",
+                        "/user/login", "/user/register",
                         // 作者端注册登录
                         "/author/register", "/author/login",
                         // 管理端登录

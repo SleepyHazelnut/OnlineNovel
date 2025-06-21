@@ -10,12 +10,7 @@ import java.util.List;
 public interface UserInfoMapper {
 
     /**
-     * 查询全部用户
-     */
-    List<UserInfo> selectAll();
-
-    /**
-     * 按用户名查询，用户名有唯一索引所以最多一条
+     * 按用户名查询，供登录使用。username 有唯一索引，最多一条，故返回单个对象
      */
     UserInfo selectByUsername(String username);
 

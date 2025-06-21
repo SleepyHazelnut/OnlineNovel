@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
  * AI 创作助手，作者写正文时用
  */
 @RestController
-@RequestMapping("/ai")
+@RequestMapping("/author/ai")
 public class AiController {
 
     @Autowired
