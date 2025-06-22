@@ -18,6 +18,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
 
+/**
+ * 读者端账号接口：注册、登录、查看自己的信息
+ * 此处仅处理当前用户自身的操作：全量用户列表已移至 `/admin/user`，
+ * 普通读者不应有权获取全部用户数据
+ */
 @RestController
 @RequestMapping("/user")
 public class UserController {
@@ -34,7 +39,7 @@ public class UserController {
     }
 
     /**
-     * 用户登录，返回 token
+     * 用户登录，成功返回 token
      */
     @PostMapping("/login")
     public Result<Map<String, Object>> login(@Valid @RequestBody LoginDTO loginDTO, HttpSession session) {
@@ -44,7 +49,7 @@ public class UserController {
     }
 
     /**
-     * 当前登录用户，userId 由拦截器解析 token 后放进 request
+     * 当前登录用户，userId 由拦截器解析 token 后写入 request，不接收前端传入
      */
     @GetMapping("/info")
     public Result<UserInfo> info(HttpServletRequest request) {

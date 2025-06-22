@@ -1,5 +1,8 @@
 SET NAMES utf8mb4;
 
+CREATE DATABASE IF NOT EXISTS `inkisle` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+USE `inkisle`;
+
 -- ----------------------------
 -- 用户信息表
 -- ----------------------------

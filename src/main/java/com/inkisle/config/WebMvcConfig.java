@@ -8,6 +8,10 @@ import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
+/**
+ * Web MVC 配置：注册登录拦截器、将上传目录映射为静态资源
+ * 通过实现 `WebMvcConfigurer` 覆写对应方法完成，比只在 `application.yml` 中配置更灵活
+ */
 @Configuration
 public class WebMvcConfig implements WebMvcConfigurer {
 
@@ -36,13 +40,14 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/comment/list",
                         // 上传后的图片要能直接被浏览器打开
                         "/upload/**",
-                        // 静态页面
+                        // 静态页面与前端资源，css / js 若不放行，未登录时样式无法加载
                         "/", "/*.html", "/css/**", "/js/**", "/static/**", "/favicon.ico", "/error"
                 );
     }
 
     /**
-     * 把磁盘上的上传目录映射成 /upload/** 的静态资源
+     * 上传的图片存于服务器磁盘，无法直接通过 URL 访问，
+     * 此处将该目录映射为 `/upload/**` 的静态资源路径
      */
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
