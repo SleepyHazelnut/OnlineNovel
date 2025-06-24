@@ -7,11 +7,13 @@ import com.inkisle.entity.BookInfo;
 import com.inkisle.mapper.BookChapterMapper;
 import com.inkisle.mapper.BookContentMapper;
 import com.inkisle.mapper.BookInfoMapper;
+import com.inkisle.mapper.UserReadHistoryMapper;
 import com.inkisle.service.BookChapterService;
 import com.inkisle.service.BookService;
 import com.inkisle.util.TxtChapterParser;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -37,6 +39,9 @@ public class BookChapterServiceImpl implements BookChapterService {
 
     @Autowired
     private BookInfoMapper bookInfoMapper;
+
+    @Autowired
+    private UserReadHistoryMapper userReadHistoryMapper;
 
     @Autowired
     private BookService bookService;
@@ -86,11 +91,16 @@ public class BookChapterServiceImpl implements BookChapterService {
         return data;
     }
 
+    /**
+     * 章节与正文分两张表存放，正文写失败时章节不该留下，
+     * 否则目录里会出现点开一片空白的章节
+     */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void saveChapter(BookChapter chapter, String content, Long authorId) {
-        checkBookOwner(chapter.getBookId(), authorId);
-
         if (chapter.getId() == null) {
+            // 新增：bookId 由请求给出，先确认这本书属于当前作者
+            checkBookOwner(chapter.getBookId(), authorId);
             // 新章节追加在末尾，章节号取当前最大值加一
             Integer maxNum = bookChapterMapper.selectMaxChapterNum(chapter.getBookId());
             chapter.setChapterNum(maxNum == null ? 1 : maxNum + 1);
@@ -101,6 +111,10 @@ public class BookChapterServiceImpl implements BookChapterService {
             if (exist == null) {
                 throw new BusinessException("章节不存在");
             }
+            // 归属以库中记录为准，不能拿请求体里的 bookId 校验：
+            // 否则用自己的 bookId 就能过校验，再按 id 改掉别人书里的章节
+            checkBookOwner(exist.getBookId(), authorId);
+            chapter.setBookId(exist.getBookId());
             // 章节号不可修改，否则会打乱目录顺序
             chapter.setChapterNum(exist.getChapterNum());
             bookChapterMapper.updateById(chapter);
@@ -109,7 +123,17 @@ public class BookChapterServiceImpl implements BookChapterService {
         saveContent(chapter.getId(), content);
     }
 
+    /**
+     * 章节与其正文一并删除，任一步失败都整体回退
+     */
     @Override
+    public List<BookChapter> listByBookIdForAuthor(Long bookId, Long authorId) {
+        checkBookOwner(bookId, authorId);
+        return bookChapterMapper.selectListByBookId(bookId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
     public void deleteChapter(Long chapterId, Long authorId) {
         BookChapter chapter = bookChapterMapper.selectById(chapterId);
         if (chapter == null) {
@@ -119,9 +143,16 @@ public class BookChapterServiceImpl implements BookChapterService {
 
         bookChapterMapper.deleteById(chapterId);
         bookContentMapper.deleteByChapterId(chapterId);
+        // 阅读进度指向的章节被删后，读者再从书架续读会跳到一个不存在的章节
+        userReadHistoryMapper.deleteByChapterId(chapterId);
     }
 
+    /**
+     * 从 txt 导入章节。整本书是一个整体，解析或写库中途失败时
+     * 不应给作者留下半本，故全部章节放在同一个事务里
+     */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public int importChapters(Long bookId, MultipartFile file, Long authorId) {
         checkBookOwner(bookId, authorId);
 

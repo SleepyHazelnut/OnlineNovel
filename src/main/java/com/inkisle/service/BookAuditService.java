@@ -31,4 +31,10 @@ public interface BookAuditService {
      */
     BookAuditRecord latestAudit(Long bookId);
 
+    /**
+     * 作者查询自己作品的最新审核记录。驳回意见只该让作者本人看到，
+     * 故不能直接用 latestAudit 暴露给作者端
+     */
+    BookAuditRecord latestAuditForAuthor(Long bookId, Long authorId);
+
 }

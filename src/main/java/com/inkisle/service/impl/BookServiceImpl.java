@@ -153,6 +153,10 @@ public class BookServiceImpl implements BookService {
             throw new BusinessException("只能修改自己的作品");
         }
         bookInfo.setAuthorId(authorId);
+        // 编辑只改书名、简介这些展示信息。连载状态由 updateStatus 单独维护，
+        // 这里必须带回归档值：updateById 会无条件写入 status，
+        // 不带上就会把「已完结」覆盖成 null
+        bookInfo.setStatus(exist.getStatus());
         bookInfo.setUpdateTime(LocalDateTime.now());
         bookInfoMapper.updateById(bookInfo);
     }

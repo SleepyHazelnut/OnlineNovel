@@ -32,8 +32,9 @@ public class AuthorChapterController {
      * 某本书的章节列表，编辑页要用
      */
     @GetMapping("/list")
-    public Result<List<BookChapter>> list(@RequestParam Long bookId) {
-        return Result.ok(bookChapterService.listByBookId(bookId));
+    public Result<List<BookChapter>> list(@RequestParam Long bookId, HttpServletRequest request) {
+        Long authorId = (Long) request.getAttribute("userId");
+        return Result.ok(bookChapterService.listByBookIdForAuthor(bookId, authorId));
     }
 
     /**

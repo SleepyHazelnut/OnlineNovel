@@ -35,4 +35,9 @@
         WHERE book_id = #{bookId}
     </delete>
 
+    <delete id="deleteByChapterId">
+        DELETE FROM user_read_history
+        WHERE chapter_id = #{chapterId}
+    </delete>
+
 </mapper>

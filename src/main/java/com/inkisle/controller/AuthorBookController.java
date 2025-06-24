@@ -112,8 +112,9 @@ public class AuthorBookController {
      * 查询该书最近一次审核结果，用于了解被驳回的原因
      */
     @GetMapping("/audit")
-    public Result<BookAuditRecord> audit(@RequestParam Long bookId) {
-        return Result.ok(bookAuditService.latestAudit(bookId));
+    public Result<BookAuditRecord> audit(@RequestParam Long bookId, HttpServletRequest request) {
+        Long authorId = (Long) request.getAttribute("userId");
+        return Result.ok(bookAuditService.latestAuditForAuthor(bookId, authorId));
     }
 
 }

@@ -96,6 +96,18 @@ public class BookAuditServiceImpl implements BookAuditService {
         return bookAuditRecordMapper.selectLatestByBookId(bookId);
     }
 
+    @Override
+    public BookAuditRecord latestAuditForAuthor(Long bookId, Long authorId) {
+        BookInfo book = bookInfoMapper.selectById(bookId);
+        if (book == null) {
+            throw new BusinessException("作品不存在");
+        }
+        if (!authorId.equals(book.getAuthorId())) {
+            throw new BusinessException("只能查看自己作品的审核结果");
+        }
+        return bookAuditRecordMapper.selectLatestByBookId(bookId);
+    }
+
     /**
      * 取出待审记录并拦截已审核的记录；通过与驳回均经此校验，避免两处重复判断
      */

@@ -14,6 +14,12 @@ public interface BookChapterService {
     List<BookChapter> listByBookId(Long bookId);
 
     /**
+     * 作者端的章节目录。读者端接口只返回内容，不校验归属；
+     * 作者端会带出草稿，须先确认这本书属于当前作者
+     */
+    List<BookChapter> listByBookIdForAuthor(Long bookId, Long authorId);
+
+    /**
      * 阅读某一章，返回正文及上一章、下一章的 id
      * 读者侧入口，作品未过审时视为不存在
      */
