@@ -29,4 +29,9 @@
         ORDER BY s.create_time DESC
     </select>
 
+    <delete id="deleteByBookId">
+        DELETE FROM user_bookshelf
+        WHERE book_id = #{bookId}
+    </delete>
+
 </mapper>

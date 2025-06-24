@@ -6,14 +6,21 @@ import com.inkisle.entity.AuthorInfo;
 import com.inkisle.entity.BookAuditRecord;
 import com.inkisle.entity.BookInfo;
 import com.inkisle.mapper.AuthorInfoMapper;
+import com.inkisle.mapper.BookAuditRecordMapper;
+import com.inkisle.mapper.BookChapterMapper;
+import com.inkisle.mapper.BookCommentMapper;
+import com.inkisle.mapper.BookContentMapper;
 import com.inkisle.mapper.BookInfoMapper;
 import com.inkisle.mapper.BookStatMapper;
+import com.inkisle.mapper.UserBookshelfMapper;
+import com.inkisle.mapper.UserReadHistoryMapper;
 import com.inkisle.service.BookAuditService;
 import com.inkisle.service.BookService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -39,6 +46,24 @@ public class BookServiceImpl implements BookService {
 
     @Autowired
     private BookAuditService bookAuditService;
+
+    @Autowired
+    private BookChapterMapper bookChapterMapper;
+
+    @Autowired
+    private BookContentMapper bookContentMapper;
+
+    @Autowired
+    private BookCommentMapper bookCommentMapper;
+
+    @Autowired
+    private BookAuditRecordMapper bookAuditRecordMapper;
+
+    @Autowired
+    private UserBookshelfMapper userBookshelfMapper;
+
+    @Autowired
+    private UserReadHistoryMapper userReadHistoryMapper;
 
     @Override
     public Map<String, Object> page(Integer pageNum, Integer pageSize, Long categoryId) {
@@ -132,7 +157,14 @@ public class BookServiceImpl implements BookService {
         bookInfoMapper.updateById(bookInfo);
     }
 
+    /**
+     * 删除作品
+     * 章节、正文、评论、收藏、阅读记录、审核记录都以 book_id 关联本表，
+     * 只删 book_info 会把这些数据留成读不到也清不掉的孤儿，故按依赖顺序逐表清理
+     * 正文挂在章节上，必须先于章节删除，否则子查询已定位不到它
+     */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     @CacheEvict(value = "book", key = "#id")
     public void delete(Long id, Long authorId) {
         BookInfo exist = bookInfoMapper.selectById(id);
@@ -142,6 +174,14 @@ public class BookServiceImpl implements BookService {
         if (!authorId.equals(exist.getAuthorId())) {
             throw new BusinessException("只能删除自己的作品");
         }
+
+        // 顺序不可调换：正文按章节 id 定位，章节一旦先删，正文就再也找不到
+        bookContentMapper.deleteByBookId(id);
+        bookChapterMapper.deleteByBookId(id);
+        bookCommentMapper.deleteByBookId(id);
+        userBookshelfMapper.deleteByBookId(id);
+        userReadHistoryMapper.deleteByBookId(id);
+        bookAuditRecordMapper.deleteByBookId(id);
         bookInfoMapper.deleteById(id);
     }
 

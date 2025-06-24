@@ -26,4 +26,13 @@
         WHERE chapter_id = #{chapterId}
     </delete>
 
+    <!--
+      作品删除时按其全部章节清掉正文。用子查询按 book_id 定位，
+      免去先把章节 id 全查回 Java 再拼 IN，章节再多也只是一条 SQL
+    -->
+    <delete id="deleteByBookId">
+        DELETE FROM book_content
+        WHERE chapter_id IN (SELECT id FROM book_chapter WHERE book_id = #{bookId})
+    </delete>
+
 </mapper>

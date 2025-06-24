@@ -20,6 +20,11 @@ public interface UserReadHistoryMapper {
     int update(UserReadHistory history);
 
     /**
+     * 删除某本书的全部阅读记录。作品被删后这些进度已无对应内容
+     */
+    int deleteByBookId(@Param("bookId") Long bookId);
+
+    /**
      * 某用户的全部阅读记录，联表带出书名，最近阅读的在前
      */
     List<UserReadHistory> selectByUserId(@Param("userId") Long userId);

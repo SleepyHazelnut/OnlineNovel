@@ -66,4 +66,9 @@
         WHERE id = #{id}
     </delete>
 
+    <delete id="deleteByBookId">
+        DELETE FROM book_chapter
+        WHERE book_id = #{bookId}
+    </delete>
+
 </mapper>

@@ -52,4 +52,9 @@
         LIMIT 1
     </select>
 
+    <delete id="deleteByBookId">
+        DELETE FROM book_audit_record
+        WHERE book_id = #{bookId}
+    </delete>
+
 </mapper>

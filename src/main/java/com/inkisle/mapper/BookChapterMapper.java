@@ -39,4 +39,9 @@ public interface BookChapterMapper {
 
     int deleteById(@Param("id") Long id);
 
+    /**
+     * 删除某本书的全部章节。正文挂在章节上，须由 BookContentMapper 先一步清理
+     */
+    int deleteByBookId(@Param("bookId") Long bookId);
+
 }

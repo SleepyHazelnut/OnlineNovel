@@ -17,4 +17,9 @@ public interface BookCommentMapper {
 
     int insert(BookComment comment);
 
+    /**
+     * 删除某本书的全部评论。作品被删时评论随之清理
+     */
+    int deleteByBookId(@Param("bookId") Long bookId);
+
 }

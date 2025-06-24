@@ -18,4 +18,9 @@
         VALUES (#{bookId}, #{userId}, #{content}, #{parentId}, NOW())
     </insert>
 
+    <delete id="deleteByBookId">
+        DELETE FROM book_comment
+        WHERE book_id = #{bookId}
+    </delete>
+
 </mapper>

@@ -35,4 +35,9 @@ public interface BookAuditRecordMapper {
      */
     BookAuditRecord selectLatestByBookId(@Param("bookId") Long bookId);
 
+    /**
+     * 删除某本书的全部审核记录。作品被删后残留的待审记录会在管理端变成死链
+     */
+    int deleteByBookId(@Param("bookId") Long bookId);
+
 }

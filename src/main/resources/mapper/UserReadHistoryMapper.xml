@@ -30,4 +30,9 @@
         ORDER BY h.update_time DESC
     </select>
 
+    <delete id="deleteByBookId">
+        DELETE FROM user_read_history
+        WHERE book_id = #{bookId}
+    </delete>
+
 </mapper>

@@ -19,4 +19,10 @@ public interface BookContentMapper {
 
     int deleteByChapterId(@Param("chapterId") Long chapterId);
 
+    /**
+     * 删除某本书全部章节的正文。作品被删时正文一并清理，
+     * 否则这些内容既读不到，也永远占着空间
+     */
+    int deleteByBookId(@Param("bookId") Long bookId);
+
 }
