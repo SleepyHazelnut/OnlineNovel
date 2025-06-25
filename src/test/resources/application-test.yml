@@ -1,0 +1,11 @@
+# 测试专用配置。库名与开发库区分开，避免测试跑完把本地数据清掉
+spring:
+  datasource:
+    # createDatabaseIfNotExist：首次运行自动建库，不必手工执行建库语句
+    url: jdbc:mysql://localhost:3306/inkisle_test?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&createDatabaseIfNotExist=true
+    username: root
+    password: ${MYSQL_PASSWORD:123456}
+  ai:
+    openai:
+      # 测试不调用大模型，给个占位值让自动装配通过即可
+      api-key: test-key

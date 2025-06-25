@@ -44,6 +44,8 @@ inkisle
     └── mapper/*.xml                
 ```
 
+测试在 `src/test` 下：`support` 放共用基类与测试库初始化，`service` 是服务层用例，`util` 是纯函数用例。
+
 ## 本地运行
 
 依赖 MySQL 和 Redis：
@@ -78,3 +80,9 @@ mvn spring-boot:run
 
 上表的账号与书籍分类由 `sql/schema.sql` 末尾的初始化语句写入，空库导入后即可登录。
 书籍与章节内容需用作者账号创建，或在章节管理页导入 txt。
+
+## 测试
+
+```bash
+mvn test
+```
