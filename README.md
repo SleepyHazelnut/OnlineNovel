@@ -49,7 +49,7 @@ inkisle
 依赖 MySQL 和 Redis：
 
 ```bash
-# 1. 导入表结构
+# 1. 导入表结构与初始数据
 mysql -uroot -p < sql/schema.sql
 
 # 2. 启动（默认端口 8080）
@@ -75,3 +75,6 @@ mvn spring-boot:run
 | 读者端 | `/login.html` | 书库、书籍详情、阅读、我的书架、签到、排行榜、个人中心 | `reader1 / 123456` |
 | 作者端 | `/author-login.html` | 我的作品、作品编辑、章节管理、AI 创作助手 | `bimo / 123456` |
 | 管理端 | `/admin-login.html` | 数据看板、书籍审核、作者审核、用户管理 | `admin / admin123` |
+
+上表的账号与书籍分类由 `sql/schema.sql` 末尾的初始化语句写入，空库导入后即可登录。
+书籍与章节内容需用作者账号创建，或在章节管理页导入 txt。

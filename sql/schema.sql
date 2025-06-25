@@ -181,3 +181,29 @@ CREATE TABLE `user_bookshelf` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_user_book` (`user_id`, `book_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='书架收藏表';
+
+-- ----------------------------
+-- 初始化数据
+-- 分类与账号是系统能跑起来的前提：没有分类，作者新建作品时无处可选；
+-- 没有管理员，后台登录页无人可登。故随建表脚本一并写入，空库导入后即可使用
+-- 账号与 README 的演示账号一致，密码均为 123456，管理员为 admin123
+-- 正式部署前请修改密码，或直接删除这几条演示数据
+-- ----------------------------
+INSERT INTO `book_category` (`id`, `category_name`, `parent_id`, `sort`) VALUES
+(1, '玄幻', 0, 1),
+(2, '都市', 0, 2),
+(3, '历史', 0, 3),
+(4, '科幻', 0, 4),
+(5, '东方玄幻', 1, 1),
+(6, '异世大陆', 1, 2),
+(7, '都市异能', 2, 1);
+
+INSERT INTO `user_info` (`id`, `username`, `password`, `nick_name`, `status`, `create_time`, `update_time`) VALUES
+(1, 'reader1', 'e10adc3949ba59abbe56e057f20f883e', 'reader1', 0, NOW(), NOW());
+
+-- 演示作者资质直接置为通过，否则登录作者端后无法发布作品
+INSERT INTO `author_info` (`id`, `username`, `password`, `pen_name`, `intro`, `audit_status`, `status`, `create_time`, `update_time`) VALUES
+(1, 'bimo', 'e10adc3949ba59abbe56e057f20f883e', '白墨', '演示作者账号', 1, 0, NOW(), NOW());
+
+INSERT INTO `admin_info` (`id`, `username`, `password`, `real_name`, `create_time`, `update_time`) VALUES
+(1, 'admin', '0192023a7bbd73250516f069df18b500', '超级管理员', NOW(), NOW());
