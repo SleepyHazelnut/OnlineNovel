@@ -3,6 +3,7 @@ package com.inkisle.controller;
 import com.inkisle.service.BookService;
 import com.inkisle.support.BaseIntegrationTest;
 import com.inkisle.util.JwtUtil;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,6 +38,15 @@ class AdminAuditControllerTest extends BaseIntegrationTest {
 
     @Autowired
     private BookService bookService;
+
+    /**
+     * 拦截器现在每次请求都回查账号是否存在，token 里的 9001 必须在表里，
+     * 否则所有管理端用例都会先被 403 挡掉
+     */
+    @BeforeEach
+    void prepareAdmin() {
+        insertAdmin(ADMIN_ID, "ctrl-admin");
+    }
 
     @Test
     @DisplayName("作者访问审核接口应被拒绝")
@@ -113,6 +123,12 @@ class AdminAuditControllerTest extends BaseIntegrationTest {
         long authorId = insertAuthor("ctrl-takedown");
         long bookId = insertBook(authorId, 0, 2);
 
+        // 先正常读一次详情，让这条记录进详情缓存；下架后若不失效，
+        // 下面那条断言会读到缓存里的旧状态而失败
+        mockMvc.perform(get("/book/" + bookId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
         mockMvc.perform(post("/admin/audit/take-down")
                         .header("Authorization", adminToken())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -129,6 +145,12 @@ class AdminAuditControllerTest extends BaseIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
         assertThat(bookService.isVisibleToReader(bookId)).isFalse();
+
+        // 缓存已失效，详情接口当场就读不到这本书
+        mockMvc.perform(get("/book/" + bookId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(500))
+                .andExpect(jsonPath("$.msg").value("作品不存在或未上架"));
 
         mockMvc.perform(post("/admin/audit/restore")
                         .header("Authorization", adminToken())

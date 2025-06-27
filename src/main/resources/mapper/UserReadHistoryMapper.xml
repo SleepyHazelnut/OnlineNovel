@@ -20,12 +20,15 @@
         WHERE user_id = #{userId} AND book_id = #{bookId}
     </select>
 
-    <!-- 阅读表仅存 book_id，历史列表需显示书名，故联 book_info 取出 -->
+    <!--
+      阅读表仅存 book_id，历史列表需显示书名，故联 book_info。
+      与书架同一口径，只留已上架的作品：下架后继续读会跳到一个不存在的章节。
+    -->
     <select id="selectByUserId" resultType="com.inkisle.entity.UserReadHistory">
         SELECT h.id, h.user_id, h.book_id, h.chapter_id, h.chapter_num, h.update_time,
                b.book_name
         FROM user_read_history h
-        LEFT JOIN book_info b ON b.id = h.book_id
+        INNER JOIN book_info b ON b.id = h.book_id AND b.audit_status = 2
         WHERE h.user_id = #{userId}
         ORDER BY h.update_time DESC
     </select>

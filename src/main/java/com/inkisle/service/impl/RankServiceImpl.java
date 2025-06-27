@@ -1,5 +1,6 @@
 package com.inkisle.service.impl;
 
+import com.inkisle.common.BookAuditStatus;
 import com.inkisle.entity.BookInfo;
 import com.inkisle.service.BookService;
 import com.inkisle.service.RankService;
@@ -60,8 +61,10 @@ public class RankServiceImpl implements RankService {
                 // 作品已删除但榜单仍有残留记录时跳过，避免前端返回空数据
                 continue;
             }
-            // 作品可能过审上榜后又被驳回下架，榜单中该条同样不应显示
-            if (!bookService.isVisibleToReader(bookId)) {
+            // 作品可能过审上榜后又被驳回或下架，榜单中该条同样不应显示
+            // 直接用上面取到的实体判断：再调一次 isVisibleToReader 等于每本书多查一次库，
+            // 榜单 10 条就是 10 次多余查询
+            if (!BookAuditStatus.isVisible(book.getAuditStatus())) {
                 continue;
             }
 

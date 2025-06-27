@@ -38,6 +38,12 @@ class BookAuditServiceTest extends BaseIntegrationTest {
     @Autowired
     private BookChapterService bookChapterService;
 
+    @Autowired
+    private UserBookshelfService userBookshelfService;
+
+    @Autowired
+    private UserReadHistoryService userReadHistoryService;
+
     @Test
     @DisplayName("新建的作品是草稿，读者看不到")
     void newBookIsDraftAndInvisible() {
@@ -204,6 +210,27 @@ class BookAuditServiceTest extends BaseIntegrationTest {
         assertThatThrownBy(() -> bookAuditService.submit(bookId, otherId))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("只能操作自己的作品");
+    }
+
+    @Test
+    @DisplayName("下架的书从书架和阅读历史里消失")
+    void offlineBookDropsOutOfShelfAndHistory() {
+        long authorId = insertAuthor("audit-shelf");
+        long bookId = insertBook(authorId, 0, PASSED);
+        long chapterId = insertChapter(bookId, 1);
+        long userId = insertUser("audit-shelf-reader", 0);
+        insertBookshelf(userId, bookId);
+        insertHistory(userId, bookId, chapterId);
+
+        assertThat(userBookshelfService.listByUserId(userId)).hasSize(1);
+        assertThat(userReadHistoryService.listByUserId(userId)).hasSize(1);
+
+        bookAuditService.takeDown(bookId, "收到侵权投诉", 1L);
+
+        // 两条列表都联 book_info 过滤上架状态，下架后记录仍在表里，但读者看不到
+        assertThat(userBookshelfService.listByUserId(userId)).isEmpty();
+        assertThat(userReadHistoryService.listByUserId(userId)).isEmpty();
+        assertThat(countBy("user_bookshelf", "book_id", bookId)).isEqualTo(1);
     }
 
     private long latestBookId(long authorId) {

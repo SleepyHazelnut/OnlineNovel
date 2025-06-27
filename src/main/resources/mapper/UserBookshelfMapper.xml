@@ -19,12 +19,16 @@
         WHERE user_id = #{userId} AND book_id = #{bookId}
     </delete>
 
-    <!-- 收藏表仅存 book_id，书架需显示书名与封面，故联 book_info -->
+    <!--
+      收藏表仅存 book_id，书架需显示书名与封面，故联 book_info。
+      只留已上架的作品：书被下架或删除后，书架里那条点进去也是「作品不存在」，
+      留着只会让读者以为收藏丢了。audit_status = 2 与 BookAuditStatus.PASSED 对应。
+    -->
     <select id="selectByUserId" resultType="com.inkisle.entity.UserBookshelf">
         SELECT s.id, s.user_id, s.book_id, s.create_time,
                b.book_name, b.author_name, b.cover_url
         FROM user_bookshelf s
-        LEFT JOIN book_info b ON b.id = s.book_id
+        INNER JOIN book_info b ON b.id = s.book_id AND b.audit_status = 2
         WHERE s.user_id = #{userId}
         ORDER BY s.create_time DESC
     </select>

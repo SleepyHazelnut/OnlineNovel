@@ -61,6 +61,26 @@ public abstract class BaseIntegrationTest {
                 username, "e10adc3949ba59abbe56e057f20f883e", username);
     }
 
+    /**
+     * 管理员按指定主键插入：接口测试里 token 的 sub 是写死的，
+     * 自增出来的 id 对不上就会被拦截器判成「账号不存在」
+     */
+    protected long insertAdmin(long id, String username) {
+        jdbcTemplate.update(
+                "INSERT INTO admin_info (id, username, password, real_name, create_time, update_time) "
+                        + "VALUES (?, ?, ?, '测试管理员', NOW(), NOW())",
+                id, username, "e10adc3949ba59abbe56e057f20f883e");
+        return id;
+    }
+
+    /** 读者，status 传 1 即封禁状态 */
+    protected long insertUser(String username, int status) {
+        return insertAndReturnId(
+                "INSERT INTO user_info (username, password, nick_name, status, create_time, update_time) "
+                        + "VALUES (?, ?, ?, ?, NOW(), NOW())",
+                username, "e10adc3949ba59abbe56e057f20f883e", username, status);
+    }
+
     protected long insertBook(long authorId, int status) {
         // 默认按「未提交」写入，与新建作品的真实状态一致；
         // 需要已上架的书时用三参数重载显式指定
