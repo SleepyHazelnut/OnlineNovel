@@ -335,3 +335,34 @@ textarea { resize: vertical; line-height: 1.8; }
     margin: 10px 0 0 20px; padding: 10px 14px; background: #f7f9fb;
     border-radius: var(--radius); font-size: 13px;
 }
+
+/* ---------- 审核预览 ---------- */
+/* 作者作品列表里显示驳回或下架的原因 */
+.audit-remark {
+    margin-top: 4px; font-size: 12px; color: #8c9aa8; line-height: 1.5;
+}
+.hint {
+    margin-top: 14px; padding: 10px 14px; background: #f7f9fb;
+    border-radius: var(--radius); color: var(--ink-light); font-size: 13px; line-height: 1.7;
+}
+.modal-lg { width: 900px; max-width: 94vw; }
+.preview-meta { margin: -8px 0 14px; font-size: 13px; color: var(--ink-light); }
+.preview-wrap { display: flex; gap: 14px; height: 460px; }
+.preview-side {
+    width: 220px; flex-shrink: 0; overflow-y: auto;
+    border: 1px solid var(--line); border-radius: var(--radius); background: #fbfcfd;
+}
+.preview-chapter {
+    display: flex; gap: 8px; padding: 9px 12px; font-size: 13px; cursor: pointer;
+    border-bottom: 1px solid #f2f4f7; color: #40505f;
+}
+.preview-chapter:last-child { border-bottom: none; }
+.preview-chapter:hover { background: #f2f8ff; color: var(--primary); }
+.preview-chapter.active { background: #f2f8ff; color: var(--primary); font-weight: 600; }
+.preview-chapter .num { color: var(--ink-light); width: 28px; flex-shrink: 0; }
+.preview-chapter .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.preview-content {
+    flex: 1; overflow-y: auto; padding: 18px 22px;
+    border: 1px solid var(--line); border-radius: var(--radius);
+    white-space: pre-wrap; line-height: 1.95; font-size: 14px; color: #40505f;
+}

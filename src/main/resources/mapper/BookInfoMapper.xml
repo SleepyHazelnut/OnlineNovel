@@ -8,23 +8,20 @@
       开启该开关后无需为每张表手写 resultMap。
     -->
     <sql id="Base_Column_List">
-        id, book_name, author_name, author_id, category_id, book_desc, cover_url, status, create_time, update_time
+        id, book_name, author_name, author_id, category_id, book_desc, cover_url, status,
+        audit_status, audit_remark, create_time, update_time
     </sql>
 
     <!--
-      读者端可见性：仅依据「最新一条」审核记录判断。
-      若按「历史上是否被驳回过」判断，作者修改重交并通过审核后，
-      旧的驳回记录仍在表中，该书将始终不可见。
-      改为 ORDER BY id DESC LIMIT 1 取最新状态。
-      IFNULL(..., 1)：建站初期的历史书籍没有审核记录，按已上架处理。
+      读者端可见性：只认 book_info.audit_status = 2（已通过）。
+      早先的判断方式是每行执行一次「取最新审核记录」的相关子查询，
+      既走不了索引，count 还要再扫一遍；状态收敛到本表一列后，
+      条件退化为普通列比较，可直接命中 idx_audit_status。
+      2 与 BookAuditStatus.PASSED 对应，XML 里引用不到 Java 枚举，改动时两处需同步。
+      空值按不可见处理：状态缺失时宁可不上架，也不漏出未审内容。
     -->
     <sql id="Audit_Visible">
-        IFNULL((
-        SELECT r.status FROM book_audit_record r
-        WHERE r.book_id = book_info.id
-        ORDER BY r.id DESC
-        LIMIT 1
-        ), 1) = 1
+        audit_status = 2
     </sql>
 
     <!--
@@ -109,10 +106,17 @@
     </select>
 
     <insert id="insert" parameterType="com.inkisle.entity.BookInfo" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO book_info (book_name, author_name, author_id, category_id, book_desc, cover_url, status, create_time, update_time)
-        VALUES (#{bookName}, #{authorName}, #{authorId}, #{categoryId}, #{bookDesc}, #{coverUrl}, #{status}, #{createTime}, #{updateTime})
+        INSERT INTO book_info (book_name, author_name, author_id, category_id, book_desc, cover_url, status,
+                               audit_status, create_time, update_time)
+        VALUES (#{bookName}, #{authorName}, #{authorId}, #{categoryId}, #{bookDesc}, #{coverUrl}, #{status},
+                #{auditStatus}, #{createTime}, #{updateTime})
     </insert>
 
+    <!--
+      编辑只覆盖展示字段。audit_status / audit_remark 不在这里改：
+      它们由审核流程单独维护（updateAuditStatus），混进来就会被编辑操作覆盖，
+      与 status 曾经被写成 null 是同一类问题。
+    -->
     <update id="updateById" parameterType="com.inkisle.entity.BookInfo">
         UPDATE book_info
         SET book_name = #{bookName},
@@ -131,6 +135,33 @@
             update_time = #{updateTime}
         WHERE id = #{id}
     </update>
+
+    <!--
+      上架状态的唯一写入口。auditRemark 无条件覆盖：
+      通过时传 null 正好清掉上一次的驳回意见，避免作者看到过期的原因。
+    -->
+    <update id="updateAuditStatus">
+        UPDATE book_info
+        SET audit_status = #{auditStatus},
+            audit_remark = #{auditRemark},
+            update_time = #{updateTime}
+        WHERE id = #{id}
+    </update>
+
+    <!-- 管理端按上架状态查书：审核通过名单用于下架，已下架名单用于恢复 -->
+    <select id="selectByAuditStatus" resultType="com.inkisle.entity.BookInfo">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM book_info
+        WHERE audit_status = #{auditStatus}
+        ORDER BY update_time DESC, id DESC
+        LIMIT #{offset}, #{pageSize}
+    </select>
+
+    <select id="countByAuditStatus" resultType="int">
+        SELECT COUNT(*) FROM book_info
+        WHERE audit_status = #{auditStatus}
+    </select>
 
     <delete id="deleteById">
         DELETE FROM book_info

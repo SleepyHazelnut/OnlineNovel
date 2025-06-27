@@ -92,10 +92,13 @@ CREATE TABLE `book_info` (
   `book_desc` varchar(500) DEFAULT NULL COMMENT '简介',
   `cover_url` varchar(255) DEFAULT NULL COMMENT '封面地址',
   `status` tinyint DEFAULT '0' COMMENT '状态 0连载 1完结',
+  `audit_status` tinyint NOT NULL DEFAULT '0' COMMENT '上架状态 0未提交 1待审核 2已通过 3已驳回 4已下架',
+  `audit_remark` varchar(255) DEFAULT NULL COMMENT '最近一次审核意见，驳回或下架的原因',
   `create_time` datetime DEFAULT NULL COMMENT '创建时间',
   `update_time` datetime DEFAULT NULL COMMENT '更新时间',
   PRIMARY KEY (`id`),
   KEY `idx_author_id` (`author_id`),
+  KEY `idx_audit_status` (`audit_status`),
   FULLTEXT KEY `ft_book_search` (`book_name`, `author_name`) WITH PARSER ngram
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='书籍信息表';
 

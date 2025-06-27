@@ -176,6 +176,23 @@ function auditStatusTag(status) {
     return '<span class="tag ' + it[0] + '">' + it[1] + '</span>';
 }
 
+/**
+ * 作品上架状态：0 未提交 1 待审核 2 已通过 3 已驳回 4 已下架
+ * 与上面 auditStatusTag 的编号不是一套：那个读的是审核记录，只有三种状态
+ * 混用会显示成错误的标签，两者不要互换
+ */
+function bookAuditTag(status) {
+    const map = {
+        0: ['tag-gray', '未提交'],
+        1: ['tag-orange', '待审核'],
+        2: ['tag-green', '已上架'],
+        3: ['tag-red', '已驳回'],
+        4: ['tag-blue', '已下架']
+    };
+    const it = map[Number(status)] || ['tag-gray', '未提交'];
+    return '<span class="tag ' + it[0] + '">' + it[1] + '</span>';
+}
+
 // 有封面图就把图铺成背景；没图就不设背景，让封面块上显示书名第一个字（配合下面的 coverText）
 function coverStyle(url, name) {
     if (url) {

@@ -62,10 +62,16 @@ public abstract class BaseIntegrationTest {
     }
 
     protected long insertBook(long authorId, int status) {
+        // 默认按「未提交」写入，与新建作品的真实状态一致；
+        // 需要已上架的书时用三参数重载显式指定
+        return insertBook(authorId, status, 0);
+    }
+
+    protected long insertBook(long authorId, int status, int auditStatus) {
         return insertAndReturnId(
-                "INSERT INTO book_info (book_name, author_name, author_id, category_id, book_desc, cover_url, status, create_time, update_time) "
-                        + "VALUES (?, '测试作者', ?, 1, '简介', '', ?, NOW(), NOW())",
-                "测试作品-" + authorId, authorId, status);
+                "INSERT INTO book_info (book_name, author_name, author_id, category_id, book_desc, cover_url, status, audit_status, create_time, update_time) "
+                        + "VALUES (?, '测试作者', ?, 1, '简介', '', ?, ?, NOW(), NOW())",
+                "测试作品-" + authorId, authorId, status, auditStatus);
     }
 
     protected long insertChapter(long bookId, int chapterNum) {

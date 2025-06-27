@@ -18,6 +18,9 @@ import java.util.Map;
 /**
  * 管理端的书籍审核。作者端只负责提交稿件，审核通过或驳回在此处决定；
  * 审核人 id 取自拦截器写入 request 的 `userId`，不接收前端传入
+ * <p>
+ * 除了审核，管理端还要能处理「已经上架之后才出问题」的书，
+ * 故另有下架、恢复上架两个入口，以及供审核员查看正文的预览接口
  */
 @RestController
 @RequestMapping("/admin/audit")
@@ -55,6 +58,55 @@ public class AdminAuditController {
         Long id = Long.valueOf(params.get("id").toString());
         bookAuditService.reject(id, (String) params.get("remark"), adminId);
         return Result.ok();
+    }
+
+    /**
+     * 已上架 / 已下架的作品列表，供管理端决定下架或恢复
+     * 审核记录列表只覆盖「送审过的那一次」，管不到上架之后的情况
+     */
+    @GetMapping("/books")
+    public Result<Map<String, Object>> books(@RequestParam Integer auditStatus,
+                                             @RequestParam(defaultValue = "1") Integer pageNum,
+                                             @RequestParam(defaultValue = "20") Integer pageSize) {
+        return Result.ok(bookAuditService.listBooks(auditStatus, pageNum, pageSize));
+    }
+
+    /**
+     * 下架已上架的作品，必须写原因，作者能看到
+     */
+    @PostMapping("/take-down")
+    public Result<Void> takeDown(@RequestBody Map<String, Object> params, HttpServletRequest request) {
+        Long adminId = (Long) request.getAttribute("userId");
+        Long bookId = Long.valueOf(params.get("bookId").toString());
+        bookAuditService.takeDown(bookId, (String) params.get("remark"), adminId);
+        return Result.ok();
+    }
+
+    /**
+     * 恢复上架，用于处理下架错了的情况
+     */
+    @PostMapping("/restore")
+    public Result<Void> restore(@RequestBody Map<String, Long> params, HttpServletRequest request) {
+        Long adminId = (Long) request.getAttribute("userId");
+        bookAuditService.restore(params.get("bookId"), adminId);
+        return Result.ok();
+    }
+
+    /**
+     * 审核预览：作品信息与章节目录
+     * 待审作品在读者端是看不到的，审核员若只能看书名，审核就没有依据
+     */
+    @GetMapping("/preview")
+    public Result<Map<String, Object>> preview(@RequestParam Long bookId) {
+        return Result.ok(bookAuditService.preview(bookId));
+    }
+
+    /**
+     * 预览某一章正文，章节必须属于该作品
+     */
+    @GetMapping("/chapter")
+    public Result<String> chapter(@RequestParam Long bookId, @RequestParam Long chapterId) {
+        return Result.ok(bookAuditService.chapterContent(bookId, chapterId));
     }
 
 }

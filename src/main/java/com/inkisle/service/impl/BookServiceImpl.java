@@ -1,9 +1,9 @@
 package com.inkisle.service.impl;
 
+import com.inkisle.common.BookAuditStatus;
 import com.inkisle.common.BusinessException;
 import com.inkisle.dto.BookSaveDTO;
 import com.inkisle.entity.AuthorInfo;
-import com.inkisle.entity.BookAuditRecord;
 import com.inkisle.entity.BookInfo;
 import com.inkisle.mapper.AuthorInfoMapper;
 import com.inkisle.mapper.BookAuditRecordMapper;
@@ -26,6 +26,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * 作品
@@ -139,6 +140,9 @@ public class BookServiceImpl implements BookService {
             bookInfo.setAuthorId(authorId);
             // 新建作品默认为连载中
             bookInfo.setStatus(0);
+            // 上架状态从「未提交」起步：读者端只认「已通过」，
+            // 建完就能在书库看到等于审核流程形同虚设
+            bookInfo.setAuditStatus(BookAuditStatus.DRAFT.getCode());
             bookInfo.setCreateTime(LocalDateTime.now());
             bookInfoMapper.insert(bookInfo);
             return;
@@ -159,6 +163,28 @@ public class BookServiceImpl implements BookService {
         bookInfo.setStatus(exist.getStatus());
         bookInfo.setUpdateTime(LocalDateTime.now());
         bookInfoMapper.updateById(bookInfo);
+
+        // 已上架的作品改了展示信息，必须重新送审，否则改完简介就绕过了审核
+        // 章节正文不在此列：若每次更新都要重审，作者每更一章书都得下架等审，功能没法用
+        if (BookAuditStatus.isVisible(exist.getAuditStatus()) && displayChanged(exist, bookInfo)) {
+            bookAuditService.resubmitAfterEdit(exist.getId(), authorId);
+        }
+    }
+
+    /**
+     * 只比较对外展示、审核员会看的字段
+     * 空串与 null 视为相同：编辑页回填时空值可能变成 ""，不算改动，否则每次保存都会触发重审
+     */
+    private boolean displayChanged(BookInfo before, BookInfo after) {
+        return textChanged(before.getBookName(), after.getBookName())
+                || textChanged(before.getAuthorName(), after.getAuthorName())
+                || textChanged(before.getBookDesc(), after.getBookDesc())
+                || textChanged(before.getCoverUrl(), after.getCoverUrl())
+                || !Objects.equals(before.getCategoryId(), after.getCategoryId());
+    }
+
+    private boolean textChanged(String before, String after) {
+        return !Objects.equals(before == null ? "" : before.trim(), after == null ? "" : after.trim());
     }
 
     /**
@@ -228,13 +254,9 @@ public class BookServiceImpl implements BookService {
         if (bookId == null) {
             return false;
         }
-        BookAuditRecord latest = bookAuditService.latestAudit(bookId);
-        // 无任何审核记录时视为已上架，默认对读者可见
-        if (latest == null) {
-            return true;
-        }
-        Integer status = latest.getStatus();
-        return status != null && status == 1;
+        BookInfo book = bookInfoMapper.selectById(bookId);
+        // 只认作品自身的上架状态，不再每次回查审核记录表
+        return book != null && BookAuditStatus.isVisible(book.getAuditStatus());
     }
 
 }

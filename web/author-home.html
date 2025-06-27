@@ -33,7 +33,6 @@
 
     let books = [];
     let categoryMap = {};
-    let audits = {};
 
     async function load() {
         const box = document.getElementById('list');
@@ -50,16 +49,6 @@
                 return;
             }
             document.getElementById('count').textContent = '共 ' + books.length + ' 本';
-
-            // 审核结果无批量接口，只能按书逐个请求。当前作品数量少，用 Promise.all 并发获取；
-            // 作品数量增长后此方式会失效，需后端在列表接口中一并返回
-            const pairs = await Promise.all(books.map(function (b) {
-                return get('/author/book/audit', { bookId: b.id })
-                    .then(function (r) { return { id: b.id, record: r }; })
-                    .catch(function () { return { id: b.id, record: null }; });
-            }));
-            pairs.forEach(function (p) { audits[p.id] = p.record; });
-
             render();
         } catch (e) {
             box.innerHTML = '<div class="empty">' + escapeHtml(e.message) + '</div>';
@@ -69,12 +58,17 @@
     function render() {
         const box = document.getElementById('list');
         let html = '<table class="table"><thead><tr>'
-            + '<th>书名</th><th>分类</th><th>连载状态</th><th>最近审核</th><th>更新时间</th><th style="width:330px">操作</th>'
+            + '<th>书名</th><th>分类</th><th>连载状态</th><th>上架状态</th><th>更新时间</th><th style="width:330px">操作</th>'
             + '</tr></thead><tbody>';
 
         books.forEach(function (b) {
-            const audit = audits[b.id];
-            const auditHtml = audit ? auditStatusTag(audit.status) : '<span class="tag tag-gray">未提交</span>';
+            // 上架状态由列表接口一并返回，不再按书逐个查审核记录
+            const auditStatus = Number(b.auditStatus);
+            const auditHtml = bookAuditTag(auditStatus)
+                + (b.auditRemark ? '<div class="audit-remark">' + escapeHtml(b.auditRemark) + '</div>' : '');
+            // 已上架的书改书名、简介、封面后会自动重新送审，不需要手动点
+            const canSubmit = auditStatus === 0 || auditStatus === 3 || auditStatus === 4;
+            const submitText = auditStatus === 0 ? '提交审核' : '重新提交';
             const nextStatus = Number(b.status) === 1 ? 0 : 1;
             const statusText = Number(b.status) === 1 ? '转为连载' : '标记完结';
 
@@ -88,14 +82,18 @@
                 + '  <button class="btn btn-sm" onclick="location.href=\'author-book.html?id=' + b.id + '\'">编辑</button> '
                 + '  <button class="btn btn-sm" onclick="location.href=\'author-chapter.html?bookId=' + b.id + '\'">章节</button> '
                 + '  <button class="btn btn-sm" onclick="showStat(' + b.id + ', \'' + escapeHtml(b.bookName) + '\')">数据</button> '
-                + '  <button class="btn btn-sm btn-primary" onclick="submitAudit(' + b.id + ')">提交审核</button> '
+                + (canSubmit
+                    ? '<button class="btn btn-sm btn-primary" onclick="submitAudit(' + b.id + ')">' + submitText + '</button> '
+                    : '')
                 + '  <button class="btn btn-sm" onclick="changeStatus(' + b.id + ',' + nextStatus + ')">' + statusText + '</button> '
                 + '  <button class="btn btn-sm btn-danger" onclick="delBook(' + b.id + ')">删除</button>'
                 + '</td>'
                 + '</tr>';
         });
 
-        html += '</tbody></table>';
+        html += '</tbody></table>'
+            + '<div class="hint">上架中的作品修改书名、简介、封面或分类后会自动重新送审，'
+            + '审核期间读者看不到这本书；修改章节正文不会触发重新审核。</div>';
         box.innerHTML = html;
     }
 

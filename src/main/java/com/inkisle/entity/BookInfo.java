@@ -35,6 +35,15 @@ public class BookInfo {
     /** 状态：0 连载 1 完结 */
     private Integer status;
 
+    /**
+     * 上架状态，取值见 BookAuditStatus
+     * 只有「已通过」对读者可见，读者端所有查询都以此列为准
+     */
+    private Integer auditStatus;
+
+    /** 最近一次审核意见：驳回原因或下架原因，通过时清空 */
+    private String auditRemark;
+
     private LocalDateTime createTime;
 
     private LocalDateTime updateTime;

@@ -4,6 +4,7 @@ import com.inkisle.entity.BookInfo;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -49,6 +50,24 @@ public interface BookInfoMapper {
      * 仅更新 status 一列，用于连载 / 完结切换，其他字段不变
      */
     int updateStatus(BookInfo bookInfo);
+
+    /**
+     * 上架状态的唯一写入口，审核流转与管理员下架都走这里
+     * auditRemark 传入 null 表示清空（审核通过时用），不留上一次的驳回意见
+     */
+    int updateAuditStatus(@Param("id") Long id,
+                          @Param("auditStatus") Integer auditStatus,
+                          @Param("auditRemark") String auditRemark,
+                          @Param("updateTime") LocalDateTime updateTime);
+
+    /**
+     * 管理端按上架状态查书，分页。审核通过的书用于下架，已下架的书用于恢复
+     */
+    List<BookInfo> selectByAuditStatus(@Param("auditStatus") Integer auditStatus,
+                                       @Param("offset") int offset,
+                                       @Param("pageSize") int pageSize);
+
+    int countByAuditStatus(@Param("auditStatus") Integer auditStatus);
 
     int deleteById(@Param("id") Long id);
 
