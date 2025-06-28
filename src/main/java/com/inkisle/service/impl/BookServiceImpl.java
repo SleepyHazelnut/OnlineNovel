@@ -2,6 +2,7 @@ package com.inkisle.service.impl;
 
 import com.inkisle.common.BookAuditStatus;
 import com.inkisle.common.BusinessException;
+import com.inkisle.common.PageUtils;
 import com.inkisle.dto.BookSaveDTO;
 import com.inkisle.entity.AuthorInfo;
 import com.inkisle.entity.BookInfo;
@@ -23,6 +24,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +37,12 @@ import java.util.Objects;
  */
 @Service
 public class BookServiceImpl implements BookService {
+
+    /** 未指定每页条数时的默认值 */
+    private static final int DEFAULT_PAGE_SIZE = 10;
+
+    /** 搜索关键词长度上限：再长也没有实际匹配意义，只会让 LIKE 更慢 */
+    private static final int MAX_KEYWORD_LENGTH = 64;
 
     @Autowired
     private BookInfoMapper bookInfoMapper;
@@ -68,8 +76,9 @@ public class BookServiceImpl implements BookService {
 
     @Override
     public Map<String, Object> page(Integer pageNum, Integer pageSize, Long categoryId) {
-        int offset = (pageNum - 1) * pageSize;
-        List<BookInfo> list = bookInfoMapper.selectPage(offset, pageSize, categoryId);
+        int num = PageUtils.pageNum(pageNum);
+        int size = PageUtils.pageSize(pageSize, DEFAULT_PAGE_SIZE);
+        List<BookInfo> list = bookInfoMapper.selectPage(PageUtils.offset(num, size), size, categoryId);
 
         Map<String, Object> data = new HashMap<>();
         data.put("list", list);
@@ -100,12 +109,29 @@ public class BookServiceImpl implements BookService {
 
     @Override
     public Map<String, Object> search(Integer pageNum, Integer pageSize, String keyword) {
-        int offset = (pageNum - 1) * pageSize;
-        List<BookInfo> list = bookInfoMapper.searchByKeyword(offset, pageSize, keyword);
+        // 空关键词会退化成 LIKE '%%'，等于把整个书库当成搜索结果返回，页码也对不上，直接返回空
+        String kw = keyword == null ? "" : keyword.trim();
+        if (kw.isEmpty()) {
+            return emptyPage();
+        }
+        if (kw.length() > MAX_KEYWORD_LENGTH) {
+            throw new BusinessException("搜索关键词最多 " + MAX_KEYWORD_LENGTH + " 个字");
+        }
+
+        int num = PageUtils.pageNum(pageNum);
+        int size = PageUtils.pageSize(pageSize, DEFAULT_PAGE_SIZE);
+        List<BookInfo> list = bookInfoMapper.searchByKeyword(PageUtils.offset(num, size), size, kw);
 
         Map<String, Object> data = new HashMap<>();
         data.put("list", list);
-        data.put("total", bookInfoMapper.countByKeyword(keyword));
+        data.put("total", bookInfoMapper.countByKeyword(kw));
+        return data;
+    }
+
+    private Map<String, Object> emptyPage() {
+        Map<String, Object> data = new HashMap<>();
+        data.put("list", Collections.emptyList());
+        data.put("total", 0);
         return data;
     }
 

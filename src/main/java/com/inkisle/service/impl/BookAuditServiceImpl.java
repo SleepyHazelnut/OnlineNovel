@@ -2,6 +2,7 @@ package com.inkisle.service.impl;
 
 import com.inkisle.common.BookAuditStatus;
 import com.inkisle.common.BusinessException;
+import com.inkisle.common.PageUtils;
 import com.inkisle.entity.BookAuditRecord;
 import com.inkisle.entity.BookChapter;
 import com.inkisle.entity.BookContent;
@@ -178,11 +179,11 @@ public class BookAuditServiceImpl implements BookAuditService {
                 && auditStatus != BookAuditStatus.OFFLINE.getCode())) {
             throw new BusinessException("只能查已上架或已下架的作品");
         }
-        int page = pageNum == null || pageNum < 1 ? 1 : pageNum;
-        int size = pageSize == null || pageSize < 1 ? 20 : Math.min(pageSize, 100);
+        int page = PageUtils.pageNum(pageNum);
+        int size = PageUtils.pageSize(pageSize, 20);
 
         Map<String, Object> data = new HashMap<>();
-        data.put("list", bookInfoMapper.selectByAuditStatus(auditStatus, (page - 1) * size, size));
+        data.put("list", bookInfoMapper.selectByAuditStatus(auditStatus, PageUtils.offset(page, size), size));
         data.put("total", bookInfoMapper.countByAuditStatus(auditStatus));
         return data;
     }

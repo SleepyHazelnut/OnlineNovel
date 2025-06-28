@@ -8,6 +8,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+import java.util.Map;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -81,6 +84,30 @@ class BookServiceTest extends BaseIntegrationTest {
 
         assertThat(bookNameOf(bookId)).isEqualTo("改过的书名");
         assertThat(statusOf(bookId)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("每页条数有上限，页码与空关键词都归一化")
+    void pageAndSearchParamsAreClamped() {
+        long authorId = insertAuthor("book-page");
+        for (int i = 0; i < 120; i++) {
+            insertBook(authorId, 0, 2);
+        }
+
+        // 前端传 10000 也只取 100 条，不会把整张表拖走
+        assertThat(listOf(bookService.page(1, 10000, null))).hasSize(100);
+        // 页码 0、条数 0 按第一页与默认条数处理，不会算出负的 offset
+        assertThat(listOf(bookService.page(0, 0, null))).hasSize(10);
+
+        // 空关键词原本会退化成 LIKE '%%'，等于列全部
+        assertThat(listOf(bookService.search(1, 10, "   "))).isEmpty();
+        assertThatThrownBy(() -> bookService.search(1, 10, "剑".repeat(65)))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<?> listOf(Map<String, Object> page) {
+        return (List<?>) page.get("list");
     }
 
     private String bookNameOf(long bookId) {

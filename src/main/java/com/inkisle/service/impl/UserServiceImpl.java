@@ -1,6 +1,7 @@
 package com.inkisle.service.impl;
 
 import com.inkisle.common.BusinessException;
+import com.inkisle.common.PageUtils;
 import com.inkisle.common.Result;
 import com.inkisle.common.RoleConstant;
 import com.inkisle.dto.UserRegisterDTO;
@@ -75,9 +76,10 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public Map<String, Object> page(Integer pageNum, Integer pageSize) {
-        int offset = (pageNum - 1) * pageSize;
+        int num = PageUtils.pageNum(pageNum);
+        int size = PageUtils.pageSize(pageSize, 10);
         Map<String, Object> data = new HashMap<>();
-        data.put("list", userInfoMapper.selectPage(offset, pageSize));
+        data.put("list", userInfoMapper.selectPage(PageUtils.offset(num, size), size));
         data.put("total", userInfoMapper.countAll());
         return data;
     }
