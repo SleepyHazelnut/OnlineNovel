@@ -24,7 +24,8 @@
 inkisle
 ├── sql
 │   ├── schema.sql                  建库建表脚本（含全文索引与初始数据）
-│   └── upgrade-audit-status.sql    存量库升级：为 book_info 补上架状态
+│   ├── upgrade-audit-status.sql    存量库升级：为 book_info 补上架状态
+│   └── upgrade-chapter-unique.sql  存量库升级：章节号改唯一索引
 ├── web/                            前端页面，由后端静态资源映射托管
 │   ├── *.html                      读者端 / 作者端 / 管理端共 20 个页面
 │   ├── css/style.css               全站样式

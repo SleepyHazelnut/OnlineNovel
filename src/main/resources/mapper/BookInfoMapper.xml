@@ -83,6 +83,15 @@
         WHERE id = #{id}
     </select>
 
+    <!--
+      追加章节前先锁住作品行：取最大章节号与插入之间若不加锁，
+      两个并发请求会读到同一个最大值，写出两个相同的章节号。
+      唯一索引 uk_book_id_chapter_num 兜底，这里是让冲突不发生而不是发生后再报错。
+    -->
+    <select id="selectIdForUpdate" resultType="java.lang.Long">
+        SELECT id FROM book_info WHERE id = #{id} FOR UPDATE
+    </select>
+
     <select id="searchByKeyword" resultType="com.inkisle.entity.BookInfo">
         SELECT
         <include refid="Base_Column_List"/>

@@ -101,6 +101,9 @@ public class BookChapterServiceImpl implements BookChapterService {
         if (chapter.getId() == null) {
             // 新增：bookId 由请求给出，先确认这本书属于当前作者
             checkBookOwner(chapter.getBookId(), authorId);
+            // 锁住作品行再取最大章节号：不加锁时两个并发追加会读到同一个最大值，
+            // 写出两个相同的章节号，目录顺序就乱了
+            bookInfoMapper.selectIdForUpdate(chapter.getBookId());
             // 新章节追加在末尾，章节号取当前最大值加一
             Integer maxNum = bookChapterMapper.selectMaxChapterNum(chapter.getBookId());
             chapter.setChapterNum(maxNum == null ? 1 : maxNum + 1);
@@ -169,6 +172,8 @@ public class BookChapterServiceImpl implements BookChapterService {
             throw new BusinessException("没解析出章节，检查一下标题格式");
         }
 
+        // 与单章追加同一处理：先锁作品行，避免与另一个导入或追加请求抢同一个起始号
+        bookInfoMapper.selectIdForUpdate(bookId);
         Integer maxNum = bookChapterMapper.selectMaxChapterNum(bookId);
         int num = maxNum == null ? 0 : maxNum;
 

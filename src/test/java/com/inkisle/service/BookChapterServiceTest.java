@@ -6,6 +6,7 @@ import com.inkisle.support.BaseIntegrationTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.transaction.annotation.Transactional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -95,6 +96,41 @@ class BookChapterServiceTest extends BaseIntegrationTest {
         assertThat(countBy("book_chapter", "id", chapterId)).isZero();
         assertThat(countBy("book_content", "chapter_id", chapterId)).isZero();
         assertThat(countBy("user_read_history", "chapter_id", chapterId)).isZero();
+    }
+
+    @Test
+    @DisplayName("追加章节按当前最大章节号递增")
+    void appendChapterIncrementsNum() {
+        long authorId = insertAuthor("chapter-append");
+        long bookId = insertBook(authorId, 0);
+
+        BookChapter first = new BookChapter();
+        first.setBookId(bookId);
+        first.setChapterName("第一章");
+        bookChapterService.saveChapter(first, "正文一", authorId);
+
+        BookChapter second = new BookChapter();
+        second.setBookId(bookId);
+        second.setChapterName("第二章");
+        bookChapterService.saveChapter(second, "正文二", authorId);
+
+        assertThat(chapterNumOf(first.getId())).isEqualTo(1);
+        assertThat(chapterNumOf(second.getId())).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("同一本书内章节号不允许重复，不同书之间互不影响")
+    void chapterNumIsUniqueWithinBook() {
+        long authorId = insertAuthor("chapter-unique");
+        long bookId = insertBook(authorId, 0);
+        insertChapter(bookId, 1);
+
+        // 唯一索引兜底：即使代码里的锁失效，也不会有两个第 1 章
+        assertThatThrownBy(() -> insertChapter(bookId, 1))
+                .isInstanceOf(DuplicateKeyException.class);
+
+        long otherBookId = insertBook(authorId, 0);
+        assertThat(insertChapter(otherBookId, 1)).isPositive();
     }
 
     private String contentOf(long chapterId) {

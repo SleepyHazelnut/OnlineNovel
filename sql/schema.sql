@@ -126,7 +126,7 @@ CREATE TABLE `book_chapter` (
   `chapter_num` int DEFAULT NULL COMMENT '章节序号',
   `create_time` datetime DEFAULT NULL COMMENT '创建时间',
   PRIMARY KEY (`id`),
-  KEY `idx_book_id_chapter_num` (`book_id`, `chapter_num`)
+  UNIQUE KEY `uk_book_id_chapter_num` (`book_id`, `chapter_num`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='章节表';
 
 -- ----------------------------

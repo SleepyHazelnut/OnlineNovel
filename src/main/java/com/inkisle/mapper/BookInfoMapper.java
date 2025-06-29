@@ -28,6 +28,13 @@ public interface BookInfoMapper {
     BookInfo selectById(@Param("id") Long id);
 
     /**
+     * 锁住作品行，仅取 id
+     * 用于把「读当前最大章节号 + 插入下一章」串成串行操作：
+     * 不加锁时两个并发的追加请求会读到同一个最大值，插入同一个章节号
+     */
+    Long selectIdForUpdate(@Param("id") Long id);
+
+    /**
      * 按书名或作者搜索。「模糊」的表述并不准确：两字及以上走全文索引，
      * 仅单字才退回 LIKE，详见 XML
      */
