@@ -12,6 +12,7 @@ import com.inkisle.mapper.BookChapterMapper;
 import com.inkisle.mapper.BookCommentMapper;
 import com.inkisle.mapper.BookContentMapper;
 import com.inkisle.mapper.BookInfoMapper;
+import com.inkisle.mapper.BookRatingMapper;
 import com.inkisle.mapper.BookStatMapper;
 import com.inkisle.mapper.UserBookshelfMapper;
 import com.inkisle.mapper.UserReadHistoryMapper;
@@ -64,6 +65,9 @@ public class BookServiceImpl implements BookService {
 
     @Autowired
     private BookCommentMapper bookCommentMapper;
+
+    @Autowired
+    private BookRatingMapper bookRatingMapper;
 
     @Autowired
     private BookAuditRecordMapper bookAuditRecordMapper;
@@ -235,6 +239,7 @@ public class BookServiceImpl implements BookService {
         bookContentMapper.deleteByBookId(id);
         bookChapterMapper.deleteByBookId(id);
         bookCommentMapper.deleteByBookId(id);
+        bookRatingMapper.deleteByBookId(id);
         userBookshelfMapper.deleteByBookId(id);
         userReadHistoryMapper.deleteByBookId(id);
         bookAuditRecordMapper.deleteByBookId(id);

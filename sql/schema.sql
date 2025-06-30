@@ -94,11 +94,21 @@ CREATE TABLE `book_info` (
   `status` tinyint DEFAULT '0' COMMENT '状态 0连载 1完结',
   `audit_status` tinyint NOT NULL DEFAULT '0' COMMENT '上架状态 0未提交 1待审核 2已通过 3已驳回 4已下架',
   `audit_remark` varchar(255) DEFAULT NULL COMMENT '最近一次审核意见，驳回或下架的原因',
+  `visit_count` int NOT NULL DEFAULT '0' COMMENT '阅读次数，每打开一章累加一次',
+  `word_count` int NOT NULL DEFAULT '0' COMMENT '总字数，由章节正文字数汇总',
+  `comment_count` int NOT NULL DEFAULT '0' COMMENT '评论数，只统计审核通过的评论',
+  `score` decimal(3,1) NOT NULL DEFAULT '0.0' COMMENT '平均评分 0-5，无人评分时为 0',
+  `rating_count` int NOT NULL DEFAULT '0' COMMENT '评分人数',
   `create_time` datetime DEFAULT NULL COMMENT '创建时间',
   `update_time` datetime DEFAULT NULL COMMENT '更新时间',
   PRIMARY KEY (`id`),
   KEY `idx_author_id` (`author_id`),
   KEY `idx_audit_status` (`audit_status`),
+  -- 点击榜按 visit_count 排序，新书榜按 create_time，更新榜按 update_time，
+  -- 三个榜单都只取前 N 名，索引让排序不必全表扫
+  KEY `idx_visit_count` (`visit_count`),
+  KEY `idx_update_time` (`update_time`),
+  KEY `idx_create_time` (`create_time`),
   FULLTEXT KEY `ft_book_search` (`book_name`, `author_name`) WITH PARSER ngram
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='书籍信息表';
 
@@ -124,6 +134,7 @@ CREATE TABLE `book_chapter` (
   `book_id` bigint NOT NULL COMMENT '书籍ID',
   `chapter_name` varchar(200) DEFAULT NULL COMMENT '章节名',
   `chapter_num` int DEFAULT NULL COMMENT '章节序号',
+  `word_count` int NOT NULL DEFAULT '0' COMMENT '本章字数',
   `create_time` datetime DEFAULT NULL COMMENT '创建时间',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_book_id_chapter_num` (`book_id`, `chapter_num`)
@@ -171,6 +182,22 @@ CREATE TABLE `book_comment` (
   PRIMARY KEY (`id`),
   KEY `idx_book_id` (`book_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='书籍评论表';
+
+-- ----------------------------
+-- 书籍评分表
+-- 一位读者对一本书只留一条评分，重复打分覆盖旧值，故有 (book_id, user_id) 唯一键
+-- ----------------------------
+DROP TABLE IF EXISTS `book_rating`;
+CREATE TABLE `book_rating` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `book_id` bigint NOT NULL COMMENT '书籍ID',
+  `user_id` bigint NOT NULL COMMENT '评分人ID',
+  `score` tinyint NOT NULL COMMENT '评分 1-5 星',
+  `create_time` datetime DEFAULT NULL COMMENT '首次评分时间',
+  `update_time` datetime DEFAULT NULL COMMENT '最近一次修改时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_book_user` (`book_id`, `user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='书籍评分表';
 
 -- ----------------------------
 -- 书架收藏表

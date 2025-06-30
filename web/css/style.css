@@ -366,3 +366,20 @@ textarea { resize: vertical; line-height: 1.8; }
     border: 1px solid var(--line); border-radius: var(--radius);
     white-space: pre-wrap; line-height: 1.95; font-size: 14px; color: #40505f;
 }
+
+/* ---------- 作品数据 ---------- */
+/* 卡片与详情页共用的辅助信息行：字数、阅读数、评分 */
+.book-meta { margin-top: 6px; font-size: 12px; color: var(--ink-light); }
+.book-meta span + span::before { content: "·"; margin: 0 5px; color: #c3ccd6; }
+.stars { color: #d6dde5; letter-spacing: 1px; font-size: 13px; }
+.stars .star.on { color: #f5b942; }
+
+/* 详情页评分：五个可点的星，hover 时整排变亮，选中的那颗填实 */
+.rate-box { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 13px; color: var(--ink-light); }
+.rate-stars { display: flex; gap: 4px; }
+.rate-stars .pick {
+    font-size: 22px; line-height: 1; color: #d6dde5; cursor: pointer;
+    background: none; border: none; padding: 0; transition: color .12s;
+}
+.rate-stars .pick.on, .rate-stars .pick:hover { color: #f5b942; }
+.rate-score { font-size: 14px; color: var(--ink); font-weight: 600; }

@@ -111,12 +111,16 @@
 
             let html = '<div class="book-grid">';
             list.forEach(function (b) {
+                // 无人评分时显示「暂无评分」，不显示 0.0 分，否则像是被打了零分
+                const scoreText = Number(b.score) > 0 ? '★ ' + Number(b.score).toFixed(1) : '暂无评分';
                 html += '<div class="book-card" onclick="location.href=\'book.html?id=' + b.id + '\'">'
                     + '<div class="cover" style="' + coverStyle(b.coverUrl, b.bookName) + '">'
                     + coverText(b.coverUrl, b.bookName) + '</div>'
                     + '<div class="info">'
                     + '<div class="name">' + escapeHtml(b.bookName) + '</div>'
                     + '<div class="author">' + escapeHtml(b.authorName || '佚名') + '</div>'
+                    + '<div class="book-meta"><span>' + scoreText + '</span>'
+                    + '<span>' + fmtCount(b.wordCount) + ' 字</span></div>'
                     + '<div class="desc">' + escapeHtml(b.bookDesc || '这本书还没有简介') + '</div>'
                     + '</div></div>';
             });

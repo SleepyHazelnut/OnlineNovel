@@ -23,6 +23,9 @@ public class BookChapter {
     /** 章节序号，从 1 开始 */
     private Integer chapterNum;
 
+    /** 本章字数，由正文长度统计 */
+    private Integer wordCount;
+
     private LocalDateTime createTime;
 
 }

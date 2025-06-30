@@ -121,6 +121,14 @@ function post(path, body) {
     return request(path, { method: 'POST', body: body === undefined ? {} : body });
 }
 
+function put(path, body) {
+    return request(path, { method: 'PUT', body: body === undefined ? {} : body });
+}
+
+function del(path) {
+    return request(path, { method: 'DELETE' });
+}
+
 /* ---------------- 小工具 ---------------- */
 function $(sel) { return document.querySelector(sel); }
 function $all(sel) { return Array.prototype.slice.call(document.querySelectorAll(sel)); }
@@ -206,6 +214,29 @@ function coverText(url, name) {
     return url ? '' : escapeHtml((name || '书').slice(0, 1));
 }
 
+/** 大数字缩写，一万以上按「万」显示，列表里不至于把卡片撑开 */
+function fmtCount(n) {
+    const v = Number(n) || 0;
+    if (v >= 10000) {
+        return (v / 10000).toFixed(1).replace(/\.0$/, '') + ' 万';
+    }
+    return String(v);
+}
+
+/**
+ * 评分的星星。按四舍五入取整颗星，小数点后一位单独显示在文字里，
+ * 不做半颗星图标——项目没有图标库，半星只能用字符拼，反而更乱
+ */
+function starHtml(score) {
+    const value = Number(score) || 0;
+    const full = Math.round(value);
+    let stars = '';
+    for (let i = 1; i <= 5; i++) {
+        stars += '<span class="star' + (i <= full ? ' on' : '') + '">★</span>';
+    }
+    return '<span class="stars">' + stars + '</span>';
+}
+
 /* ---------------- 导航 ---------------- */
 /**
  * role 三选一，items 是 [{key, text, href}]，active 匹配 key
@@ -267,6 +298,8 @@ const SIDE_MENUS = {
         { key: 'stat', text: '数据看板', href: 'admin-stat.html' },
         { key: 'audit', text: '书籍审核', href: 'admin-audit.html' },
         { key: 'author', text: '作者审核', href: 'admin-author.html' },
+        { key: 'comment', text: '评论管理', href: 'admin-comment.html' },
+        { key: 'category', text: '分类管理', href: 'admin-category.html' },
         { key: 'user', text: '用户管理', href: 'admin-user.html' }
     ]
 };

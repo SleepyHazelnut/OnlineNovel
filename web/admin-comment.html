@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>评论管理 - 墨屿小说</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-role="admin">
+
+<div id="nav"></div>
+
+<div class="layout">
+    <div id="side"></div>
+
+    <div class="main">
+        <div class="page-title">评论管理 <small>删除一级评论时其下回复一并删除</small></div>
+
+        <div class="filter-bar">
+            <input type="text" id="keyword" placeholder="评论内容 / 书名 / 昵称" style="width:260px">
+            <button class="btn btn-primary btn-sm" onclick="search()">搜索</button>
+            <button class="btn btn-sm" onclick="reset()">重置</button>
+        </div>
+
+        <div id="list"><div class="loading">加载中...</div></div>
+        <div class="pager" id="pager"></div>
+    </div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+    const state = { pageNum: 1, pageSize: 10, keyword: '' };
+
+    if (setupBackend('comment')) {
+        load();
+    }
+
+    async function load() {
+        const box = document.getElementById('list');
+        box.innerHTML = '<div class="loading">加载中...</div>';
+        try {
+            const data = await get('/admin/comment/list', {
+                keyword: state.keyword, pageNum: state.pageNum, pageSize: state.pageSize
+            });
+            const list = data.list || [];
+            if (!list.length) {
+                box.innerHTML = '<div class="empty">' + (state.keyword ? '没有匹配的评论' : '还没有评论') + '</div>';
+                document.getElementById('pager').innerHTML = '';
+                return;
+            }
+
+            let html = '<table class="table"><thead><tr>'
+                + '<th style="width:60px">ID</th><th style="width:180px">书名</th><th style="width:110px">评论人</th>'
+                + '<th>内容</th><th style="width:130px">时间</th><th style="width:80px">操作</th>'
+                + '</tr></thead><tbody>';
+
+            list.forEach(function (c) {
+                html += '<tr>'
+                    + '<td>' + c.id + '</td>'
+                    + '<td>' + escapeHtml(c.bookName || ('书籍 #' + c.bookId)) + '</td>'
+                    + '<td>' + escapeHtml(c.nickName || ('用户 #' + c.userId)) + '</td>'
+                    + '<td title="' + escapeHtml(c.content) + '">' + escapeHtml(shorten(c.content, 60)) + '</td>'
+                    + '<td>' + fmtTime(c.createTime) + '</td>'
+                    + '<td><button class="btn btn-danger btn-sm" onclick="remove(' + c.id + ')">删除</button></td>'
+                    + '</tr>';
+            });
+
+            html += '</tbody></table>';
+            box.innerHTML = html;
+            renderPager(data.total);
+        } catch (e) {
+            box.innerHTML = '<div class="empty">' + escapeHtml(e.message) + '</div>';
+        }
+    }
+
+    /** 表格单行放不下整段评论，截断显示，完整内容放在 title 里悬停可看 */
+    function shorten(text, max) {
+        const s = text || '';
+        return s.length > max ? s.slice(0, max) + '…' : s;
+    }
+
+    function renderPager(total) {
+        const pages = Math.max(1, Math.ceil((total || 0) / state.pageSize));
+        document.getElementById('pager').innerHTML =
+            '<button onclick="go(' + (state.pageNum - 1) + ')" ' + (state.pageNum <= 1 ? 'disabled' : '') + '>上一页</button>'
+            + '<span>第 ' + state.pageNum + ' / ' + pages + ' 页 · 共 ' + (total || 0) + ' 条</span>'
+            + '<button onclick="go(' + (state.pageNum + 1) + ')" ' + (state.pageNum >= pages ? 'disabled' : '') + '>下一页</button>';
+    }
+
+    function go(n) {
+        state.pageNum = n;
+        load();
+    }
+
+    function search() {
+        state.keyword = document.getElementById('keyword').value.trim();
+        state.pageNum = 1;
+        load();
+    }
+
+    function reset() {
+        document.getElementById('keyword').value = '';
+        state.keyword = '';
+        state.pageNum = 1;
+        load();
+    }
+
+    async function remove(id) {
+        if (!confirm('确定删除这条评论？其下的回复会一并删除，且无法恢复')) return;
+        try {
+            await del('/admin/comment/' + id);
+            toast('已删除');
+            load();
+        } catch (e) {
+            toast(e.message);
+        }
+    }
+</script>
+</body>
+</html>

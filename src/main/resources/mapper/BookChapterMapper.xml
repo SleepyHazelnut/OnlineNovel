@@ -8,14 +8,14 @@
       若与章节同表，查询目录时会连带取出整本书的正文。
     -->
     <select id="selectListByBookId" resultType="com.inkisle.entity.BookChapter">
-        SELECT id, book_id, chapter_name, chapter_num, create_time
+        SELECT id, book_id, chapter_name, chapter_num, word_count, create_time
         FROM book_chapter
         WHERE book_id = #{bookId}
         ORDER BY chapter_num ASC
     </select>
 
     <select id="selectById" resultType="com.inkisle.entity.BookChapter">
-        SELECT id, book_id, chapter_name, chapter_num, create_time
+        SELECT id, book_id, chapter_name, chapter_num, word_count, create_time
         FROM book_chapter
         WHERE id = #{id}
     </select>
@@ -49,15 +49,37 @@
         WHERE book_id = #{bookId}
     </select>
 
+    <!--
+      总字数由章节上的字数列求和，不再回正文表逐行 CHAR_LENGTH：
+      正文是大字段，扫描成本随篇幅线性增长，而章节行只有几十字节。
+      无章节时 SUM 返回 null，用 COALESCE 归零。
+    -->
+    <select id="selectTotalWordCount" resultType="int">
+        SELECT COALESCE(SUM(word_count), 0)
+        FROM book_chapter
+        WHERE book_id = #{bookId}
+    </select>
+
+    <!-- 字数在正文写入后才算得出来，新增时实体里通常没有值，用 COALESCE 兜成 0 -->
     <insert id="insert" parameterType="com.inkisle.entity.BookChapter" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO book_chapter (book_id, chapter_name, chapter_num, create_time)
-        VALUES (#{bookId}, #{chapterName}, #{chapterNum}, #{createTime})
+        INSERT INTO book_chapter (book_id, chapter_name, chapter_num, word_count, create_time)
+        VALUES (#{bookId}, #{chapterName}, #{chapterNum}, COALESCE(#{wordCount}, 0), #{createTime})
     </insert>
 
     <update id="updateById" parameterType="com.inkisle.entity.BookChapter">
         UPDATE book_chapter
         SET chapter_name = #{chapterName},
             chapter_num = #{chapterNum}
+        WHERE id = #{id}
+    </update>
+
+    <!--
+      字数单独更新，不并入 updateById：
+      改章节名时实体里没有字数，带进去会把这一列覆盖成 null。
+    -->
+    <update id="updateWordCount">
+        UPDATE book_chapter
+        SET word_count = #{wordCount}
         WHERE id = #{id}
     </update>
 

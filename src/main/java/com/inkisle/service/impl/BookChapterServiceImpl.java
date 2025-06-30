@@ -12,6 +12,8 @@ import com.inkisle.service.BookChapterService;
 import com.inkisle.service.BookService;
 import com.inkisle.util.TxtChapterParser;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -46,6 +48,9 @@ public class BookChapterServiceImpl implements BookChapterService {
     @Autowired
     private BookService bookService;
 
+    @Autowired
+    private CacheManager cacheManager;
+
     @Override
     public List<BookChapter> listByBookId(Long bookId) {
         return bookChapterMapper.selectListByBookId(bookId);
@@ -62,6 +67,8 @@ public class BookChapterServiceImpl implements BookChapterService {
         if (!bookService.isVisibleToReader(chapter.getBookId())) {
             throw new BusinessException("作品不存在或未上架");
         }
+        // 阅读次数在读者打开正文时累加，作者预览走下面的 readForAuthor，不计入
+        bookInfoMapper.incrementVisitCount(chapter.getBookId());
         return buildReadData(chapter);
     }
 
@@ -124,6 +131,7 @@ public class BookChapterServiceImpl implements BookChapterService {
         }
 
         saveContent(chapter.getId(), content);
+        refreshBookWordCount(chapter.getBookId());
     }
 
     /**
@@ -148,6 +156,7 @@ public class BookChapterServiceImpl implements BookChapterService {
         bookContentMapper.deleteByChapterId(chapterId);
         // 阅读进度指向的章节被删后，读者再从书架续读会跳到一个不存在的章节
         userReadHistoryMapper.deleteByChapterId(chapterId);
+        refreshBookWordCount(chapter.getBookId());
     }
 
     /**
@@ -188,6 +197,7 @@ public class BookChapterServiceImpl implements BookChapterService {
             saveContent(chapter.getId(), entry.getValue());
         }
 
+        refreshBookWordCount(bookId);
         return chapters.size();
     }
 
@@ -207,6 +217,22 @@ public class BookChapterServiceImpl implements BookChapterService {
         } else {
             exist.setContent(content);
             bookContentMapper.updateByChapterId(exist);
+        }
+        // 第一章的正文写进来才知道字数，故放在写正文之后
+        bookChapterMapper.updateWordCount(chapterId, content.length());
+    }
+
+    /**
+     * 按章节字数重算作品总字数
+     * 章节增删改都会让总数变化，统一在这里收口，
+     * 免得每处各算一次、算法还不一致
+     */
+    private void refreshBookWordCount(Long bookId) {
+        bookInfoMapper.updateWordCount(bookId, bookChapterMapper.selectTotalWordCount(bookId));
+        // 详情缓存里存着整个 BookInfo，不清的话字数与「共几章」会停在旧值
+        Cache cache = cacheManager.getCache("book");
+        if (cache != null) {
+            cache.evict(bookId);
         }
     }
 

@@ -3,14 +3,21 @@
 <mapper namespace="com.inkisle.mapper.BookStatMapper">
 
     <!--
-      三个数各以一个子查询取出，别名即返回 Map 的 key。
-      数据量小时该写法最简便；出现性能瓶颈时再考虑缓存或独立统计表，暂不过度设计。
+      阅读次数、字数、评分直接取 book_info 上维护好的列，
+      只有收藏数与去重读者数需要现查。
+      子查询以主查询的书为条件，最多两条等值计数，数据量小时最简便；
+      出现性能瓶颈时再考虑缓存或独立统计表，暂不过度设计。
     -->
     <select id="selectBookStat" resultType="java.util.Map">
-        SELECT
-            (SELECT COUNT(*) FROM user_read_history WHERE book_id = #{bookId}) AS readCount,
-            (SELECT COUNT(*) FROM user_bookshelf WHERE book_id = #{bookId}) AS collectCount,
-            (SELECT COUNT(*) FROM book_comment WHERE book_id = #{bookId}) AS commentCount
+        SELECT b.visit_count    AS visitCount,
+               b.word_count     AS wordCount,
+               b.score          AS score,
+               b.rating_count   AS ratingCount,
+               b.comment_count  AS commentCount,
+               (SELECT COUNT(*) FROM user_read_history WHERE book_id = b.id) AS readCount,
+               (SELECT COUNT(*) FROM user_bookshelf WHERE book_id = b.id)    AS collectCount
+        FROM book_info b
+        WHERE b.id = #{bookId}
     </select>
 
 </mapper>

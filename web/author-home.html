@@ -137,9 +137,12 @@
             mask.innerHTML = '<div class="modal">'
                 + '<h3>' + escapeHtml(name) + ' · 数据</h3>'
                 + '<div class="stat-grid">'
-                + '  <div class="stat-card"><div class="num">' + (s.readCount || 0) + '</div><div class="label">阅读次数</div></div>'
+                + '  <div class="stat-card"><div class="num">' + fmtCount(s.visitCount) + '</div><div class="label">阅读次数</div></div>'
+                + '  <div class="stat-card"><div class="num">' + fmtCount(s.wordCount) + '</div><div class="label">总字数</div></div>'
                 + '  <div class="stat-card"><div class="num">' + (s.collectCount || 0) + '</div><div class="label">收藏数</div></div>'
                 + '  <div class="stat-card"><div class="num">' + (s.commentCount || 0) + '</div><div class="label">评论数</div></div>'
+                + '  <div class="stat-card"><div class="num">' + (Number(s.score) > 0 ? Number(s.score).toFixed(1) : '-') + '</div>'
+                + '<div class="label">评分（' + (s.ratingCount || 0) + ' 人）</div></div>'
                 + '</div>'
                 + '<div class="modal-foot"><button class="btn" onclick="this.closest(\'.modal-mask\').remove()">关闭</button></div>'
                 + '</div>';

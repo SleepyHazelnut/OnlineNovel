@@ -37,6 +37,16 @@ public interface BookChapterMapper {
 
     int updateById(BookChapter chapter);
 
+    /**
+     * 更新章节字数，正文保存后由正文长度算出
+     */
+    int updateWordCount(@Param("id") Long id, @Param("wordCount") int wordCount);
+
+    /**
+     * 某本书全部章节的字数之和，作品总字数用它重算
+     */
+    int selectTotalWordCount(@Param("bookId") Long bookId);
+
     int deleteById(@Param("id") Long id);
 
     /**

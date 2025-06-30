@@ -28,6 +28,9 @@ public class BookComment {
     /** 评论人昵称，联表带出来 */
     private String nickName;
 
+    /** 书名，管理端与「我的评论」列表联表带出 */
+    private String bookName;
+
     /** 回复列表，只有一级评论会带上 */
     private List<BookComment> children;
 

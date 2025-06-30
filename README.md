@@ -27,7 +27,7 @@ inkisle
 │   ├── upgrade-audit-status.sql    存量库升级：为 book_info 补上架状态
 │   └── upgrade-chapter-unique.sql  存量库升级：章节号改唯一索引
 ├── web/                            前端页面，由后端静态资源映射托管
-│   ├── *.html                      读者端 / 作者端 / 管理端共 20 个页面
+│   ├── *.html                      读者端 / 作者端 / 管理端共 22 个页面
 │   ├── css/style.css               全站样式
 │   └── js/api.js                   请求封装、登录态、导航渲染
 ├── src/main/java/com/inkisle
@@ -77,9 +77,9 @@ mvn spring-boot:run
 
 | 端 | 入口页 | 主要页面 | 演示账号 |
 | --- | --- | --- | --- |
-| 读者端 | `/login.html` | 书库、书籍详情、阅读、我的书架、签到、排行榜、个人中心 | `reader1 / 123456` |
+| 读者端 | `/login.html` | 书库、书籍详情、阅读、我的书架、签到、排行榜、个人中心（含我的评论） | `reader1 / 123456` |
 | 作者端 | `/author-login.html` | 我的作品、作品编辑、章节管理、AI 创作助手 | `bimo / 123456` |
-| 管理端 | `/admin-login.html` | 数据看板、书籍审核、作者审核、用户管理 | `admin / admin123` |
+| 管理端 | `/admin-login.html` | 数据看板、书籍审核、作者审核、评论管理、分类管理、用户管理 | `admin / admin123` |
 
 上表的账号与书籍分类由 `sql/schema.sql` 末尾的初始化语句写入，空库导入后即可登录。
 书籍与章节内容需用作者账号创建，或在章节管理页导入 txt。

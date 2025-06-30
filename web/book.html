@@ -73,7 +73,13 @@
             + '      <div class="meta-line">作者：' + escapeHtml(book.authorName || '佚名') + '</div>'
             + '      <div class="meta-line">分类：' + escapeHtml(categoryMap[book.categoryId] || '未分类')
             + '        <span style="margin-left:12px">' + bookStatusTag(book.status) + '</span></div>'
+            + '      <div class="book-meta" id="bookMeta">' + bookMetaHtml(book) + '</div>'
             + '      <div class="desc">' + escapeHtml(book.bookDesc || '这本书还没有简介') + '</div>'
+            + '      <div class="rate-box">'
+            + '        <span>我的评分</span>'
+            + '        <div class="rate-stars" id="rateStars"></div>'
+            + '        <span class="rate-score" id="rateScore">未评分</span>'
+            + '      </div>'
             + '      <div class="actions">'
             + '        <button class="btn btn-primary" onclick="startRead()">开始阅读</button>'
             + '        <button class="btn" id="shelfBtn" onclick="toggleShelf()">收藏</button>'
@@ -94,6 +100,70 @@
         loadChapters();
         loadComments();
         initShelf();
+        loadRating();
+    }
+
+    /** 详情页的辅助信息：评分、总字数、阅读次数、评论数 */
+    function bookMetaHtml(b) {
+        const score = Number(b.score) > 0
+            ? '★ ' + Number(b.score).toFixed(1) + '（' + (b.ratingCount || 0) + ' 人评分）'
+            : '暂无评分';
+        return '<span>' + score + '</span>'
+            + '<span>' + fmtCount(b.wordCount) + ' 字</span>'
+            + '<span>' + fmtCount(b.visitCount) + ' 次阅读</span>'
+            + '<span>' + (b.commentCount || 0) + ' 条评论</span>';
+    }
+
+    /* ---------------- 评分 ---------------- */
+    let myScore = null;
+
+    /**
+     * 我的评分要带 token 才能查，未登录时直接画成未评分，
+     * 不去请求一个必然 401 的接口——那会被公共请求层清掉本地登录态并跳登录页
+     */
+    async function loadRating() {
+        if (!Auth.logged()) {
+            renderRate();
+            return;
+        }
+        try {
+            const data = await get('/rating/' + bookId);
+            myScore = data.myScore;
+        } catch (e) {
+            myScore = null;
+        }
+        renderRate();
+    }
+
+    function renderRate() {
+        const box = document.getElementById('rateStars');
+        if (!box) return;
+        let html = '';
+        for (let i = 1; i <= 5; i++) {
+            html += '<button class="pick' + (myScore && i <= myScore ? ' on' : '') + '"'
+                + ' onclick="rate(' + i + ')" title="' + i + ' 星">★</button>';
+        }
+        box.innerHTML = html;
+        document.getElementById('rateScore').textContent = myScore ? myScore + ' 星' : '未评分';
+    }
+
+    async function rate(value) {
+        if (!Auth.logged()) {
+            location.href = 'login.html?redirect=' + encodeURIComponent(location.href);
+            return;
+        }
+        try {
+            const data = await post('/rating/' + bookId, { score: value });
+            myScore = data.myScore;
+            renderRate();
+            // 平均分与人数用接口返回的最新值就地更新，不整页重绘
+            book.score = data.score;
+            book.ratingCount = data.ratingCount;
+            document.getElementById('bookMeta').innerHTML = bookMetaHtml(book);
+            toast('已评分');
+        } catch (e) {
+            toast(e.message);
+        }
     }
 
     async function loadChapters() {
@@ -141,6 +211,7 @@
                 html += '<div class="reply">'
                     + '<span class="nick">' + escapeHtml(r.nickName || '书友') + '</span>'
                     + ' <span class="time">' + fmtTime(r.createTime) + '</span>'
+                    + deleteLink(r)
                     + '<div>' + escapeHtml(r.content) + '</div></div>';
             });
         });
@@ -151,9 +222,32 @@
         return '<div class="comment-item">'
             + '<div class="head"><span class="nick">' + escapeHtml(c.nickName || '书友') + '</span>'
             + '<span class="time">' + fmtTime(c.createTime) + '</span>'
-            + '<a href="javascript:void(0)" onclick="replyTo(' + c.id + ')" style="font-size:12px">回复</a></div>'
+            // 回复项不再挂「回复」入口：只支持两级，对回复再回复时服务端会把父级提到一级评论下，
+            // 用户看到的层级与点击的对象对不上，索性只允许在一级评论上发起回复
+            + (isReply ? '' : '<a href="javascript:void(0)" onclick="replyTo(' + c.id + ')" style="font-size:12px">回复</a>')
+            + deleteLink(c)
+            + '</div>'
             + '<div class="body">' + escapeHtml(c.content) + '</div>'
             + '</div>';
+    }
+
+    /** 只给自己发过的评论挂删除入口，别人的评论服务端也不允许删 */
+    function deleteLink(c) {
+        const me = Auth.user();
+        if (!me || Number(me.id) !== Number(c.userId)) return '';
+        return ' <a href="javascript:void(0)" onclick="deleteComment(' + c.id + ')"'
+            + ' style="font-size:12px;color:#f56c6c">删除</a>';
+    }
+
+    async function deleteComment(id) {
+        if (!confirm('确定删除这条评论？删除后无法恢复')) return;
+        try {
+            await del('/comment/' + id);
+            toast('已删除');
+            loadComments();
+        } catch (e) {
+            toast(e.message);
+        }
     }
 
     function replyFormHtml() {

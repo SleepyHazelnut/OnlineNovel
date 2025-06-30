@@ -50,6 +50,12 @@
     </div>
 
     <div class="card">
+        <div class="page-title" style="font-size:16px">我的评论</div>
+        <div id="comments"><div class="loading">加载中...</div></div>
+        <div class="pager" id="commentPager"></div>
+    </div>
+
+    <div class="card">
         <div class="page-title" style="font-size:16px">阅读记录</div>
         <div id="history"><div class="loading">加载中...</div></div>
     </div>
@@ -80,6 +86,7 @@
 
             loadSignDays(u.id);
             loadHistory();
+            loadComments();
         } catch (e) {
             toast(e.message);
         }
@@ -114,6 +121,111 @@
             box.innerHTML = html;
         } catch (e) {
             box.innerHTML = '<div class="empty">' + escapeHtml(e.message) + '</div>';
+        }
+    }
+
+    /* ---------------- 我的评论 ---------------- */
+    const commentState = { pageNum: 1, pageSize: 5, editingId: null, list: [] };
+
+    async function loadComments() {
+        const box = document.getElementById('comments');
+        try {
+            const data = await get('/comment/mine', {
+                pageNum: commentState.pageNum, pageSize: commentState.pageSize
+            });
+            const list = data.list || [];
+            commentState.list = list;
+            if (!list.length) {
+                box.innerHTML = '<div class="empty">还没有发过评论</div>';
+                document.getElementById('commentPager').innerHTML = '';
+                return;
+            }
+
+            let html = '';
+            list.forEach(function (c) {
+                const editing = commentState.editingId === c.id;
+                html += '<div class="list-item">'
+                    + '<div class="grow">'
+                    + '  <div class="title">' + escapeHtml(c.bookName || ('书籍 #' + c.bookId)) + '</div>';
+                if (editing) {
+                    html += '<textarea id="edit-' + c.id + '" rows="3" style="width:100%;margin:6px 0;padding:8px;'
+                        + 'border:1px solid var(--border);border-radius:6px;font:inherit">' + escapeHtml(c.content) + '</textarea>';
+                } else {
+                    html += '<div style="margin:4px 0">' + escapeHtml(c.content) + '</div>';
+                }
+                html += '  <div class="meta">' + fmtTime(c.createTime) + '</div>'
+                    + '</div>';
+                if (editing) {
+                    html += '<button class="btn btn-primary btn-sm" onclick="saveComment(' + c.id + ')">保存</button>'
+                        + '<button class="btn btn-sm" onclick="cancelEdit()">取消</button>';
+                } else {
+                    html += '<button class="btn btn-sm" onclick="editComment(' + c.id + ')">编辑</button>'
+                        + '<button class="btn btn-danger btn-sm" onclick="deleteComment(' + c.id + ')">删除</button>';
+                }
+                html += '</div>';
+            });
+            box.innerHTML = html;
+            renderCommentPager(data.total);
+        } catch (e) {
+            box.innerHTML = '<div class="empty">' + escapeHtml(e.message) + '</div>';
+        }
+    }
+
+    function renderCommentPager(total) {
+        const pages = Math.max(1, Math.ceil((total || 0) / commentState.pageSize));
+        document.getElementById('commentPager').innerHTML =
+            '<button onclick="goCommentPage(' + (commentState.pageNum - 1) + ')" '
+            + (commentState.pageNum <= 1 ? 'disabled' : '') + '>上一页</button>'
+            + '<span>第 ' + commentState.pageNum + ' / ' + pages + ' 页 · 共 ' + (total || 0) + ' 条</span>'
+            + '<button onclick="goCommentPage(' + (commentState.pageNum + 1) + ')" '
+            + (commentState.pageNum >= pages ? 'disabled' : '') + '>下一页</button>';
+    }
+
+    function goCommentPage(n) {
+        commentState.pageNum = n;
+        commentState.editingId = null;
+        loadComments();
+    }
+
+    function editComment(id) {
+        commentState.editingId = id;
+        loadComments();
+    }
+
+    function cancelEdit() {
+        commentState.editingId = null;
+        loadComments();
+    }
+
+    async function saveComment(id) {
+        const el = document.getElementById('edit-' + id);
+        const text = el ? el.value.trim() : '';
+        if (!text) {
+            toast('评论不能为空');
+            return;
+        }
+        try {
+            await put('/comment/' + id, { content: text });
+            commentState.editingId = null;
+            toast('已保存');
+            loadComments();
+        } catch (e) {
+            toast(e.message);
+        }
+    }
+
+    async function deleteComment(id) {
+        if (!confirm('确定删除这条评论？删除后无法恢复')) return;
+        try {
+            await del('/comment/' + id);
+            toast('已删除');
+            // 删掉的是当前页最后一条时向前翻一页，否则会停在空页
+            if (commentState.list.length === 1 && commentState.pageNum > 1) {
+                commentState.pageNum--;
+            }
+            loadComments();
+        } catch (e) {
+            toast(e.message);
         }
     }
 </script>

@@ -9,7 +9,8 @@
     -->
     <sql id="Base_Column_List">
         id, book_name, author_name, author_id, category_id, book_desc, cover_url, status,
-        audit_status, audit_remark, create_time, update_time
+        audit_status, audit_remark, visit_count, word_count, comment_count, score, rating_count,
+        create_time, update_time
     </sql>
 
     <!--
@@ -74,6 +75,12 @@
     <select id="countByCategory" resultType="int">
         SELECT COUNT(*) FROM book_info
         <include refid="Library_Where"/>
+    </select>
+
+    <!-- 不过滤上架状态，删除分类前的引用检查用它 -->
+    <select id="countAllByCategory" resultType="int">
+        SELECT COUNT(*) FROM book_info
+        WHERE category_id = #{categoryId}
     </select>
 
     <select id="selectById" resultType="com.inkisle.entity.BookInfo">
@@ -156,6 +163,76 @@
             update_time = #{updateTime}
         WHERE id = #{id}
     </update>
+
+    <!--
+      阅读计数直接写库，不另做缓冲。
+      这个接口每打开一章调一次，单行自增在 InnoDB 里是行锁上的顺序写，
+      比引入 Redis 计数再定时回写要少一条链路，也不会因为缓存丢失把数据清零。
+      详情页读的是带缓存的实体，这个数会滞后到缓存过期，展示上按约数处理。
+    -->
+    <update id="incrementVisitCount">
+        UPDATE book_info
+        SET visit_count = visit_count + 1
+        WHERE id = #{id}
+    </update>
+
+    <!-- 总字数由章节正文字数汇总，章节增删改后重算一次 -->
+    <update id="updateWordCount">
+        UPDATE book_info
+        SET word_count = #{wordCount}
+        WHERE id = #{id}
+    </update>
+
+    <!--
+      评论数按整表重算，不做增量加减。
+      一级评论删除时其回复要一起删，回复条数还得先查一次才能算出减多少；
+      一条 UPDATE ... SELECT 就够，评论是低频写操作，不值得为省这一次查询引入增量维护。
+    -->
+    <update id="syncCommentCount">
+        UPDATE book_info b
+        SET b.comment_count = (SELECT COUNT(*) FROM book_comment c WHERE c.book_id = b.id)
+        WHERE b.id = #{bookId}
+    </update>
+
+    <!-- 评分人数与平均分由 book_rating 聚合后整体覆盖 -->
+    <update id="updateRating">
+        UPDATE book_info
+        SET score = #{score},
+            rating_count = #{ratingCount}
+        WHERE id = #{id}
+    </update>
+
+    <!--
+      三个榜单都是「按某列倒序取前 N」，条件同为已上架。
+      排序方向与排序列都不接受外部传参，故分别写成三条语句，
+      不用 ${} 拼 ORDER BY，避免把列名变成注入点。
+    -->
+    <select id="selectTopByVisit" resultType="com.inkisle.entity.BookInfo">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM book_info
+        WHERE audit_status = 2
+        ORDER BY visit_count DESC, id ASC
+        LIMIT #{top}
+    </select>
+
+    <select id="selectTopByCreateTime" resultType="com.inkisle.entity.BookInfo">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM book_info
+        WHERE audit_status = 2
+        ORDER BY create_time DESC, id DESC
+        LIMIT #{top}
+    </select>
+
+    <select id="selectTopByUpdateTime" resultType="com.inkisle.entity.BookInfo">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM book_info
+        WHERE audit_status = 2
+        ORDER BY update_time DESC, id DESC
+        LIMIT #{top}
+    </select>
 
     <!-- 管理端按上架状态查书：审核通过名单用于下架，已下架名单用于恢复 -->
     <select id="selectByAuditStatus" resultType="com.inkisle.entity.BookInfo">

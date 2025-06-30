@@ -4,6 +4,7 @@ import com.inkisle.entity.BookInfo;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -24,6 +25,13 @@ public interface BookInfoMapper {
                               @Param("categoryId") Long categoryId);
 
     int countByCategory(@Param("categoryId") Long categoryId);
+
+    /**
+     * 该分类下的作品数，不区分上架状态
+     * 删除分类前须用它判断：`countByCategory` 只数已上架作品，
+     * 用那个判断会漏掉未过审与已下架的书，删完分类这些书就指向了不存在的分类
+     */
+    int countAllByCategory(@Param("categoryId") Long categoryId);
 
     BookInfo selectById(@Param("id") Long id);
 
@@ -66,6 +74,43 @@ public interface BookInfoMapper {
                           @Param("auditStatus") Integer auditStatus,
                           @Param("auditRemark") String auditRemark,
                           @Param("updateTime") LocalDateTime updateTime);
+
+    /**
+     * 阅读次数加一。每打开一章调用一次，直接写库，不做额外缓冲
+     */
+    int incrementVisitCount(@Param("id") Long id);
+
+    /**
+     * 覆盖总字数，章节增删改后按正文汇总重算
+     */
+    int updateWordCount(@Param("id") Long id, @Param("wordCount") int wordCount);
+
+    /**
+     * 评论数按评论表重算。增删评论后调用，避免逐次加减导致与实际数据不一致
+     */
+    int syncCommentCount(@Param("bookId") Long bookId);
+
+    /**
+     * 覆盖平均分与评分人数，由评分表聚合后传入
+     */
+    int updateRating(@Param("id") Long id,
+                     @Param("score") BigDecimal score,
+                     @Param("ratingCount") int ratingCount);
+
+    /**
+     * 点击榜：已上架作品中阅读次数最多的前 N 本
+     */
+    List<BookInfo> selectTopByVisit(@Param("top") int top);
+
+    /**
+     * 新书榜：按创建时间倒序
+     */
+    List<BookInfo> selectTopByCreateTime(@Param("top") int top);
+
+    /**
+     * 更新榜：按最近更新时间倒序，有新章节的书会排上来
+     */
+    List<BookInfo> selectTopByUpdateTime(@Param("top") int top);
 
     /**
      * 管理端按上架状态查书，分页。审核通过的书用于下架，已下架的书用于恢复
