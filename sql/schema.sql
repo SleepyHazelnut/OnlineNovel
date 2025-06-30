@@ -200,6 +200,24 @@ CREATE TABLE `book_rating` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='书籍评分表';
 
 -- ----------------------------
+-- 首页推荐位
+-- 只记录「哪本书放在哪个板块」，书名封面等仍从 book_info 读，
+-- 避免同一本书的信息存两份、改了简介推荐位还显示旧内容
+-- section：1 热门推荐，2 精品推荐；最新更新不占推荐位，按更新时间实时取
+-- ----------------------------
+DROP TABLE IF EXISTS `home_book`;
+CREATE TABLE `home_book` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `book_id` bigint NOT NULL COMMENT '书籍ID',
+  `section` tinyint NOT NULL COMMENT '板块 1热门推荐 2精品推荐',
+  `sort` int NOT NULL DEFAULT '0' COMMENT '排序，越大越靠前',
+  `create_time` datetime DEFAULT NULL COMMENT '加入推荐位的时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_section_book` (`section`, `book_id`),
+  KEY `idx_section_sort` (`section`, `sort`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='首页推荐位';
+
+-- ----------------------------
 -- 书架收藏表
 -- ----------------------------
 DROP TABLE IF EXISTS `user_bookshelf`;

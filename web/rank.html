@@ -24,7 +24,7 @@
         }
         .rank-row .name { font-size: 15px; font-weight: 600; cursor: pointer; }
         .rank-row .meta { font-size: 12px; color: #8c9aa8; }
-        .rank-row .heat { color: var(--danger); font-weight: 600; }
+        .rank-row .heat { color: var(--danger); font-weight: 600; font-size: 13px; text-align: right; }
     </style>
 </head>
 <body data-role="reader">
@@ -32,7 +32,10 @@
 <div id="nav"></div>
 
 <div class="container narrow">
-    <div class="page-title">热度榜 <small>按阅读热度实时排</small></div>
+    <div class="row between" style="align-items:flex-start;margin-bottom:14px">
+        <div class="page-title" style="margin:0">排行榜 <small id="tip"></small></div>
+        <div class="section-tabs" id="tabs"></div>
+    </div>
     <div class="list" id="list"><div class="loading">加载中...</div></div>
 </div>
 
@@ -40,10 +43,62 @@
 <script>
     readerNav('rank');
 
+    /**
+     * 四个榜单的接口、说明与右侧数值各不相同：
+     * 热度榜读 Redis 里实时累加的分，点击榜读累计阅读次数，新书与更新榜展示时间
+     * 统一用 TABS 描述，切页签只换接口与渲染方式，不再复制四段 load
+     */
+    const TABS = {
+        hot: {
+            name: '热度榜',
+            api: '/rank/hot',
+            tip: '阅读时实时累加，Redis 清空后从头开始',
+            value: b => b.heat + ' 热度'
+        },
+        click: {
+            name: '点击榜',
+            api: '/rank/click',
+            tip: '按累计阅读次数排，数据在库中',
+            value: b => fmtCount(b.heat) + ' 次阅读'
+        },
+        new: {
+            name: '新书榜',
+            api: '/rank/new',
+            tip: '按建书时间排，新书在前',
+            value: b => fmtTime(b.createTime) + ' 上架'
+        },
+        update: {
+            name: '更新榜',
+            api: '/rank/update',
+            tip: '按最近更新时间排，有新章节的在前',
+            value: b => fmtTime(b.updateTime) + ' 更新'
+        }
+    };
+
+    let current = 'hot';
+
+    function renderTabs() {
+        let html = '';
+        Object.keys(TABS).forEach(function (key) {
+            html += '<button class="btn btn-sm' + (key === current ? ' on' : '') + '"'
+                + ' onclick="switchTab(\'' + key + '\')">' + TABS[key].name + '</button>';
+        });
+        document.getElementById('tabs').innerHTML = html;
+    }
+
+    function switchTab(key) {
+        current = key;
+        renderTabs();
+        load();
+    }
+
     async function load() {
         const box = document.getElementById('list');
+        const tab = TABS[current];
+        document.getElementById('tip').textContent = tab.tip;
+        box.innerHTML = '<div class="loading">加载中...</div>';
         try {
-            const list = await get('/rank/hot', { top: 20 });
+            const list = await get(tab.api, { top: 20 });
             if (!list || !list.length) {
                 box.innerHTML = '<div class="empty">榜单还是空的，多读几本书就有了</div>';
                 return;
@@ -57,9 +112,11 @@
                     + 'onclick="location.href=\'book.html?id=' + b.bookId + '\'">' + coverText(b.coverUrl, b.bookName) + '</div>'
                     + '<div class="grow">'
                     + '  <div class="name" onclick="location.href=\'book.html?id=' + b.bookId + '\'">' + escapeHtml(b.bookName) + '</div>'
-                    + '  <div class="meta">' + escapeHtml(b.authorName || '佚名') + '</div>'
+                    + '  <div class="meta">' + escapeHtml(b.authorName || '佚名')
+                    + (Number(b.score) > 0 ? ' · ★ ' + Number(b.score).toFixed(1) : '')
+                    + ' · ' + fmtCount(b.wordCount) + ' 字</div>'
                     + '</div>'
-                    + '<div class="heat">' + (b.heat || 0) + ' 热度</div>'
+                    + '<div class="heat">' + tab.value(b) + '</div>'
                     + '</div>';
             });
             box.innerHTML = html;
@@ -68,6 +125,7 @@
         }
     }
 
+    renderTabs();
     load();
 </script>
 </body>

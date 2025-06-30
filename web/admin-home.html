@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>首页推荐 - 墨屿小说</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        /* 板块切换：选中态直接复用主色，避免再引一套 tab 组件 */
+        .section-tabs { display: flex; gap: 8px; }
+        .section-tabs .btn.on { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+        /* 搜索结果横向排，每行带「加入」按钮 */
+        .pick-list { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+        .pick-item {
+            display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+            background: #fff; border: 1px solid var(--line); border-radius: var(--radius);
+        }
+        .pick-item .cover {
+            width: 34px; height: 46px; border-radius: 3px; flex-shrink: 0;
+            background: linear-gradient(135deg, #dbe4ee, #c3cfdd);
+            background-size: cover; background-position: center;
+            display: flex; align-items: center; justify-content: center;
+            color: #fff; font-size: 14px;
+        }
+        .pick-item .name { font-size: 13px; font-weight: 600; }
+        .pick-item .author { font-size: 12px; color: var(--ink-light); }
+
+        /* 推荐位列表里的封面缩略图 */
+        .home-cover {
+            width: 36px; height: 48px; border-radius: 3px;
+            background: linear-gradient(135deg, #dbe4ee, #c3cfdd);
+            background-size: cover; background-position: center;
+            display: flex; align-items: center; justify-content: center;
+            color: #fff; font-size: 14px;
+        }
+        .sort-input {
+            width: 64px; padding: 4px 6px; border: 1px solid var(--line);
+            border-radius: 4px; font: inherit; font-size: 13px;
+        }
+    </style>
+</head>
+<body data-role="admin">
+
+<div id="nav"></div>
+
+<div class="layout">
+    <div id="side"></div>
+
+    <div class="main">
+        <div class="page-title">首页推荐 <small>热门推荐与精品推荐由这里配置；最新更新按作品更新时间自动取</small></div>
+
+        <div class="filter-bar">
+            <div class="section-tabs">
+                <button class="btn btn-sm on" id="tab-1" onclick="switchSection(1)">热门推荐</button>
+                <button class="btn btn-sm" id="tab-2" onclick="switchSection(2)">精品推荐</button>
+            </div>
+            <div class="spacer grow"></div>
+            <input type="text" id="kw" placeholder="搜书名 / 作者名" style="width: 220px">
+            <button class="btn btn-primary btn-sm" onclick="searchBook()">搜索</button>
+        </div>
+
+        <div id="searchResult"></div>
+        <div id="list"><div class="loading">加载中...</div></div>
+    </div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+    /** 当前板块，1 热门推荐 2 精品推荐 */
+    let section = 1;
+
+    if (setupBackend('home')) {
+        load();
+    }
+
+    function switchSection(value) {
+        section = value;
+        document.getElementById('tab-1').classList.toggle('on', value === 1);
+        document.getElementById('tab-2').classList.toggle('on', value === 2);
+        // 搜索结果属于上一个板块，切换后要清掉，否则点「加入」会加错板块
+        document.getElementById('searchResult').innerHTML = '';
+        load();
+    }
+
+    async function load() {
+        const box = document.getElementById('list');
+        box.innerHTML = '<div class="loading">加载中...</div>';
+        try {
+            const list = await get('/admin/home/list', { section: section }) || [];
+            if (!list.length) {
+                box.innerHTML = '<div class="empty">这个板块还没有作品，搜索后点「加入」</div>';
+                return;
+            }
+
+            let html = '<table class="table"><thead><tr>'
+                + '<th style="width:60px">封面</th><th>书名</th><th>作者</th>'
+                + '<th style="width:100px">状态</th><th style="width:110px">排序</th><th style="width:100px">操作</th>'
+                + '</tr></thead><tbody>';
+
+            list.forEach(function (b) {
+                // 已下架的书仍留在推荐位里，标出来让管理员知道为什么首页看不到
+                const statusHtml = Number(b.auditStatus) === 2
+                    ? '<span class="tag tag-green">已上架</span>'
+                    : '<span class="tag tag-gray">已失效</span>';
+                html += '<tr>'
+                    + '<td><div class="home-cover" style="' + coverStyle(b.coverUrl) + '">'
+                    + coverText(b.coverUrl, b.bookName) + '</div></td>'
+                    + '<td>' + escapeHtml(b.bookName) + '</td>'
+                    + '<td>' + escapeHtml(b.authorName || '佚名') + '</td>'
+                    + '<td>' + statusHtml + '</td>'
+                    + '<td><input class="sort-input" type="number" value="' + (b.sort || 0) + '" '
+                    + 'onchange="saveSort(' + b.id + ', this.value)"></td>'
+                    + '<td><button class="btn btn-danger btn-sm" onclick="remove(' + b.id + ')">移除</button></td>'
+                    + '</tr>';
+            });
+
+            box.innerHTML = html + '</tbody></table>';
+        } catch (e) {
+            box.innerHTML = '<div class="empty">' + escapeHtml(e.message) + '</div>';
+        }
+    }
+
+    async function searchBook() {
+        const kw = document.getElementById('kw').value.trim();
+        if (!kw) {
+            toast('先输入要搜的词');
+            return;
+        }
+        const box = document.getElementById('searchResult');
+        box.innerHTML = '<div class="loading">搜索中...</div>';
+        try {
+            const data = await get('/book/search', { keyword: kw, pageSize: 10 });
+            const list = (data && data.list) || [];
+            if (!list.length) {
+                box.innerHTML = '<div class="empty">没搜到符合条件的作品</div>';
+                return;
+            }
+            let html = '<div class="pick-list">';
+            list.forEach(function (b) {
+                html += '<div class="pick-item">'
+                    + '<div class="cover" style="' + coverStyle(b.coverUrl) + '">' + coverText(b.coverUrl, b.bookName) + '</div>'
+                    + '<div><div class="name">' + escapeHtml(b.bookName) + '</div>'
+                    + '<div class="author">' + escapeHtml(b.authorName || '佚名') + '</div></div>'
+                    + '<button class="btn btn-primary btn-sm" onclick="add(' + b.id + ')">加入</button>'
+                    + '</div>';
+            });
+            box.innerHTML = html + '</div>';
+        } catch (e) {
+            box.innerHTML = '<div class="empty">' + escapeHtml(e.message) + '</div>';
+        }
+    }
+
+    async function add(bookId) {
+        try {
+            await post('/admin/home/add', { bookId: bookId, section: section, sort: 0 });
+            toast('已加入推荐位');
+            load();
+        } catch (e) {
+            toast(e.message);
+        }
+    }
+
+    async function saveSort(id, value) {
+        try {
+            await put('/admin/home/' + id + '/sort', { sort: Number(value) || 0 });
+            toast('排序已更新');
+            load();
+        } catch (e) {
+            toast(e.message);
+        }
+    }
+
+    async function remove(id) {
+        if (!confirm('从推荐位移除？作品本身不受影响')) return;
+        try {
+            await del('/admin/home/' + id);
+            toast('已移除');
+            load();
+        } catch (e) {
+            toast(e.message);
+        }
+    }
+
+    document.getElementById('kw').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') searchBook();
+    });
+</script>
+</body>
+</html>

@@ -383,3 +383,18 @@ textarea { resize: vertical; line-height: 1.8; }
 }
 .rate-stars .pick.on, .rate-stars .pick:hover { color: #f5b942; }
 .rate-score { font-size: 14px; color: var(--ink); font-weight: 600; }
+
+/* ---------- 首页推荐位 ---------- */
+.home-section { margin-bottom: 16px; }
+.home-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+.home-tip { font-size: 12px; color: var(--ink-light); }
+/* 推荐区固定六列，封面比书库列表矮一些，一屏能看到三个板块 */
+.book-grid.compact { grid-template-columns: repeat(6, 1fr); gap: 12px; }
+.book-grid.compact .book-card .cover { height: 150px; }
+.book-grid.compact .book-card .info { padding: 10px 12px 12px; }
+.book-grid.compact .book-card .name { font-size: 14px; }
+
+/* ---------- 页签 ---------- */
+/* 榜单、推荐位等页面共用：选中态用主色填充，不引额外组件 */
+.section-tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+.section-tabs .btn.on { background: var(--primary); color: #fff; border-color: var(--primary); }

@@ -36,6 +36,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/captcha/**",
                         // 书籍、分类、章节、榜单对外只读，游客也能看
                         "/book/**", "/category/**", "/chapter/**", "/rank/**",
+                        // 首页推荐位同样是公开内容
+                        "/home/**",
                         // 评论列表可匿名浏览，只有发言要登录
                         "/comment/list",
                         // 上传后的图片要能直接被浏览器打开

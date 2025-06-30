@@ -12,6 +12,8 @@
 
 <div class="container">
 
+    <div id="recommend"></div>
+
     <div class="filter-bar">
         <input type="text" id="kw" placeholder="搜书名 / 作者名" style="width: 220px">
         <button class="btn btn-primary" onclick="doSearch()">搜索</button>
@@ -154,6 +156,45 @@
 
     loadCats();
     load();
+    loadRecommend();
+
+    /**
+     * 首页三个推荐板块。推荐位由管理员配置，最新更新按更新时间实时取
+     * 某个板块为空时整块不渲染，不留一个空标题
+     */
+    async function loadRecommend() {
+        const box = document.getElementById('recommend');
+        try {
+            const data = (await get('/home/recommend')) || {};
+            let html = '';
+            html += sectionHtml('热门推荐', '读者读得最多的几本', data.hot);
+            html += sectionHtml('精品推荐', '编辑挑出来的几本', data.quality);
+            html += sectionHtml('最新更新', '最近有新章节的书', data.newest);
+            box.innerHTML = html;
+        } catch (e) {
+            // 推荐位取不到不影响书库列表，留空即可
+            box.innerHTML = '';
+        }
+    }
+
+    function sectionHtml(title, tip, list) {
+        if (!list || !list.length) return '';
+        let html = '<div class="card home-section">'
+            + '<div class="home-head"><span class="page-title" style="margin:0;font-size:16px">' + title + '</span>'
+            + '<span class="home-tip">' + tip + '</span></div>'
+            + '<div class="book-grid compact">';
+        list.forEach(function (b) {
+            html += '<div class="book-card" onclick="location.href=\'book.html?id=' + b.bookId + '\'">'
+                + '<div class="cover" style="' + coverStyle(b.coverUrl) + '">' + coverText(b.coverUrl, b.bookName) + '</div>'
+                + '<div class="info">'
+                + '<div class="name">' + escapeHtml(b.bookName) + '</div>'
+                + '<div class="author">' + escapeHtml(b.authorName || '佚名') + '</div>'
+                + '<div class="book-meta"><span>' + (Number(b.score) > 0 ? '★ ' + Number(b.score).toFixed(1) : '暂无评分')
+                + '</span><span>' + fmtCount(b.wordCount) + ' 字</span></div>'
+                + '</div></div>';
+        });
+        return html + '</div></div>';
+    }
 </script>
 </body>
 </html>
