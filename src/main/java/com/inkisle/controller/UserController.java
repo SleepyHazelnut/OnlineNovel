@@ -2,6 +2,8 @@ package com.inkisle.controller;
 
 import com.inkisle.common.Result;
 import com.inkisle.dto.LoginDTO;
+import com.inkisle.dto.PasswordDTO;
+import com.inkisle.dto.UserProfileDTO;
 import com.inkisle.dto.UserRegisterDTO;
 import com.inkisle.entity.UserInfo;
 import com.inkisle.service.UserService;
@@ -12,6 +14,7 @@ import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -55,6 +58,27 @@ public class UserController {
     public Result<UserInfo> info(HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
         return Result.ok(userService.getById(userId));
+    }
+
+    /**
+     * 修改个人资料。头像地址由前端先调上传接口拿到，这里只落 URL
+     */
+    @PutMapping("/profile")
+    public Result<UserInfo> updateProfile(@Valid @RequestBody UserProfileDTO profileDTO,
+                                          HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        return Result.ok(userService.updateProfile(userId, profileDTO));
+    }
+
+    /**
+     * 修改密码，须提供原密码
+     */
+    @PutMapping("/password")
+    public Result<Void> changePassword(@Valid @RequestBody PasswordDTO passwordDTO,
+                                       HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        userService.changePassword(userId, passwordDTO);
+        return Result.ok();
     }
 
 }

@@ -57,4 +57,29 @@
         WHERE id = #{id}
     </update>
 
+    <!-- 资料修改只动这四个展示字段，用户名与密码不在其中 -->
+    <update id="updateProfile">
+        UPDATE user_info
+        SET nick_name = #{nickName},
+            phone = #{phone},
+            email = #{email},
+            avatar = #{avatar},
+            update_time = #{updateTime}
+        WHERE id = #{id}
+    </update>
+
+    <!-- 只取密码一列，用于校验原密码；不返回整个实体，避免密码随对象流转 -->
+    <select id="selectPasswordById" resultType="java.lang.String">
+        SELECT password
+        FROM user_info
+        WHERE id = #{id}
+    </select>
+
+    <update id="updatePassword">
+        UPDATE user_info
+        SET password = #{password},
+            update_time = #{updateTime}
+        WHERE id = #{id}
+    </update>
+
 </mapper>

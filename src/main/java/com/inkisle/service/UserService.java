@@ -1,6 +1,8 @@
 package com.inkisle.service;
 
 import com.inkisle.common.Result;
+import com.inkisle.dto.PasswordDTO;
+import com.inkisle.dto.UserProfileDTO;
 import com.inkisle.dto.UserRegisterDTO;
 import com.inkisle.entity.UserInfo;
 
@@ -29,5 +31,15 @@ public interface UserService {
      * 封禁 / 解封：1 封禁，0 正常
      */
     void updateStatus(Long userId, Integer status);
+
+    /**
+     * 修改昵称、手机号、邮箱、头像，返回更新后的用户信息（不含密码）
+     */
+    UserInfo updateProfile(Long userId, UserProfileDTO profileDTO);
+
+    /**
+     * 修改密码，须校验原密码
+     */
+    void changePassword(Long userId, PasswordDTO passwordDTO);
 
 }

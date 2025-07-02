@@ -4,6 +4,8 @@ import com.inkisle.common.BusinessException;
 import com.inkisle.common.PageUtils;
 import com.inkisle.common.Result;
 import com.inkisle.common.RoleConstant;
+import com.inkisle.dto.PasswordDTO;
+import com.inkisle.dto.UserProfileDTO;
 import com.inkisle.dto.UserRegisterDTO;
 import com.inkisle.entity.UserInfo;
 import com.inkisle.mapper.UserInfoMapper;
@@ -99,6 +101,52 @@ public class UserServiceImpl implements UserService {
         update.setStatus(status);
         update.setUpdateTime(LocalDateTime.now());
         userInfoMapper.updateStatus(update);
+    }
+
+    @Override
+    public UserInfo updateProfile(Long userId, UserProfileDTO profileDTO) {
+        UserInfo exist = userInfoMapper.selectById(userId);
+        if (exist == null) {
+            throw new BusinessException("用户不存在");
+        }
+
+        String nickName = profileDTO.getNickName() == null ? "" : profileDTO.getNickName().trim();
+        if (nickName.isEmpty()) {
+            throw new BusinessException("昵称不能为空");
+        }
+
+        // 空串一律存 null：页面上「未填」与「填了个空串」应该是一回事，
+        // 否则每次保存都会在库里留下一条 '' 的记录
+        userInfoMapper.updateProfile(userId, nickName,
+                blankToNull(profileDTO.getPhone()),
+                blankToNull(profileDTO.getEmail()),
+                blankToNull(profileDTO.getAvatar()),
+                LocalDateTime.now());
+        // 重新查一次，返回给前端的是库里的最新值；响应里仍不含密码
+        return userInfoMapper.selectById(userId);
+    }
+
+    @Override
+    public void changePassword(Long userId, PasswordDTO passwordDTO) {
+        String stored = userInfoMapper.selectPasswordById(userId);
+        if (stored == null) {
+            throw new BusinessException("用户不存在");
+        }
+        if (!Md5Util.md5(passwordDTO.getOldPassword()).equals(stored)) {
+            throw new BusinessException("原密码不对");
+        }
+        if (passwordDTO.getOldPassword().equals(passwordDTO.getNewPassword())) {
+            throw new BusinessException("新密码不能与原密码相同");
+        }
+        userInfoMapper.updatePassword(userId, Md5Util.md5(passwordDTO.getNewPassword()), LocalDateTime.now());
+    }
+
+    private String blankToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String text = value.trim();
+        return text.isEmpty() ? null : text;
     }
 
 }

@@ -25,6 +25,9 @@
             <div class="grow">
                 <div class="page-title" style="margin:0;font-size:18px" id="nick">-</div>
                 <div style="color:#8c9aa8;font-size:13px" id="account">-</div>
+                <button class="btn btn-sm" style="margin-top:6px" onclick="document.getElementById('avatarFile').click()">更换头像</button>
+                <input type="file" id="avatarFile" accept="image/jpeg,image/png,image/gif,image/webp"
+                       style="display:none" onchange="uploadAvatar(this)">
             </div>
             <div style="text-align:right">
                 <div style="font-size:22px;font-weight:600;color:var(--primary)" id="signDays">0</div>
@@ -34,18 +37,33 @@
     </div>
 
     <div class="card">
-        <div class="page-title" style="font-size:16px">资料</div>
+        <div class="page-title" style="font-size:16px">账号设置</div>
         <table class="table">
             <tbody>
             <tr><th style="width:110px">用户 ID</th><td id="uid">-</td></tr>
-            <tr><th>昵称</th><td id="nick2">-</td></tr>
-            <tr><th>手机号</th><td id="phone">-</td></tr>
-            <tr><th>邮箱</th><td id="email">-</td></tr>
+            <tr><th>昵称</th><td><input class="edit-input" id="editNick" maxlength="50"></td></tr>
+            <tr><th>手机号</th><td><input class="edit-input" id="editPhone" maxlength="20" placeholder="选填"></td></tr>
+            <tr><th>邮箱</th><td><input class="edit-input" id="editEmail" maxlength="100" placeholder="选填"></td></tr>
             <tr><th>注册时间</th><td id="createTime">-</td></tr>
             </tbody>
         </table>
         <div style="margin-top:16px">
+            <button class="btn btn-primary btn-sm" onclick="saveProfile()">保存资料</button>
             <button class="btn btn-danger btn-sm" onclick="Auth.logout()">退出登录</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="page-title" style="font-size:16px">修改密码</div>
+        <table class="table">
+            <tbody>
+            <tr><th style="width:110px">原密码</th><td><input class="edit-input" type="password" id="oldPwd" placeholder="当前密码"></td></tr>
+            <tr><th>新密码</th><td><input class="edit-input" type="password" id="newPwd" placeholder="6-20 位"></td></tr>
+            <tr><th>确认新密码</th><td><input class="edit-input" type="password" id="newPwd2" placeholder="再输一次"></td></tr>
+            </tbody>
+        </table>
+        <div style="margin-top:16px">
+            <button class="btn btn-sm" onclick="changePassword()">修改密码</button>
         </div>
     </div>
 
@@ -71,22 +89,122 @@
         load();
     }
 
+    let me = null;
+
     async function load() {
         try {
             const u = await get('/user/info');
+            me = u;
             document.title = (u.nickName || u.username) + ' - 个人中心';
-            document.getElementById('avatar').textContent = (u.nickName || u.username || '书').slice(0, 1);
             document.getElementById('nick').textContent = u.nickName || u.username;
             document.getElementById('account').textContent = '账号：' + u.username;
             document.getElementById('uid').textContent = u.id;
-            document.getElementById('nick2').textContent = u.nickName || '-';
-            document.getElementById('phone').textContent = u.phone || '未填';
-            document.getElementById('email').textContent = u.email || '未填';
             document.getElementById('createTime').textContent = fmtTime(u.createTime);
+            // 表单回填的是当前值，留空与未填在接口层都会存成 null
+            document.getElementById('editNick').value = u.nickName || '';
+            document.getElementById('editPhone').value = u.phone || '';
+            document.getElementById('editEmail').value = u.email || '';
+            renderAvatar(u.avatar, u.nickName || u.username);
 
             loadSignDays(u.id);
             loadHistory();
             loadComments();
+        } catch (e) {
+            toast(e.message);
+        }
+    }
+
+    /** 有头像就铺成背景图，没有就用昵称首字占位 */
+    function renderAvatar(url, name) {
+        const el = document.getElementById('avatar');
+        if (url) {
+            el.style.backgroundImage = 'url(' + encodeURI(url) + ')';
+            el.style.backgroundSize = 'cover';
+            el.style.backgroundPosition = 'center';
+            el.textContent = '';
+        } else {
+            el.style.backgroundImage = '';
+            el.textContent = (name || '书').slice(0, 1);
+        }
+    }
+
+    /* ---------------- 账号设置 ---------------- */
+    async function saveProfile() {
+        const nickName = document.getElementById('editNick').value.trim();
+        if (!nickName) {
+            toast('昵称不能为空');
+            return;
+        }
+        try {
+            const u = await put('/user/profile', {
+                nickName: nickName,
+                phone: document.getElementById('editPhone').value.trim(),
+                email: document.getElementById('editEmail').value.trim(),
+                avatar: (me && me.avatar) || ''
+            });
+            me = u;
+            document.getElementById('nick').textContent = u.nickName || u.username;
+            document.title = (u.nickName || u.username) + ' - 个人中心';
+            // 导航栏读的是本地缓存里的昵称，不更新的话要刷新页面才会变
+            const cached = Auth.user() || {};
+            cached.nickName = u.nickName;
+            Auth.save(Auth.token(), cached);
+            toast('资料已保存');
+        } catch (e) {
+            toast(e.message);
+        }
+    }
+
+    /**
+     * 头像先走通用上传接口拿 URL，再随资料一起保存
+     * 上传接口返回的是 /upload/yyyy/MM/dd/xxx 这种站内路径，直接存进 avatar 即可
+     */
+    async function uploadAvatar(input) {
+        const file = input.files && input.files[0];
+        if (!file) return;
+        const form = new FormData();
+        form.append('file', file);
+        try {
+            const data = await request('/file/upload', { method: 'POST', body: form });
+            const avatar = data.url;
+            await put('/user/profile', {
+                nickName: (me && me.nickName) || '',
+                phone: (me && me.phone) || '',
+                email: (me && me.email) || '',
+                avatar: avatar
+            });
+            me.avatar = avatar;
+            renderAvatar(avatar, me.nickName);
+            toast('头像已更新');
+        } catch (e) {
+            toast(e.message);
+        }
+        // 清空选择，否则选同一张图不会触发 change
+        input.value = '';
+    }
+
+    async function changePassword() {
+        const oldPassword = document.getElementById('oldPwd').value;
+        const newPassword = document.getElementById('newPwd').value;
+        const confirm = document.getElementById('newPwd2').value;
+        if (!oldPassword || !newPassword) {
+            toast('请把密码填完整');
+            return;
+        }
+        if (newPassword.length < 6 || newPassword.length > 20) {
+            toast('新密码长度要在 6 到 20 之间');
+            return;
+        }
+        if (newPassword !== confirm) {
+            toast('两次输入的新密码不一致');
+            return;
+        }
+        try {
+            await put('/user/password', { oldPassword: oldPassword, newPassword: newPassword });
+            document.getElementById('oldPwd').value = '';
+            document.getElementById('newPwd').value = '';
+            document.getElementById('newPwd2').value = '';
+            toast('密码已修改');
         } catch (e) {
             toast(e.message);
         }

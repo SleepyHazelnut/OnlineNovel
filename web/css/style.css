@@ -398,3 +398,12 @@ textarea { resize: vertical; line-height: 1.8; }
 /* 榜单、推荐位等页面共用：选中态用主色填充，不引额外组件 */
 .section-tabs { display: flex; gap: 8px; flex-wrap: wrap; }
 .section-tabs .btn.on { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+/* ---------- 账号设置 ---------- */
+/* 表格内的编辑输入框，宽度不撑满整行，避免在窄屏上贴到表格边缘 */
+.edit-input {
+    width: 100%; max-width: 320px; padding: 6px 10px;
+    border: 1px solid var(--line); border-radius: 4px;
+    font: inherit; font-size: 13px; color: var(--ink);
+}
+.edit-input:focus { border-color: var(--primary); outline: none; }
