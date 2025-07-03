@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>章节审核 - 墨屿小说</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        /* 正文预览：保留换行，长文在弹层内滚动 */
+        .chapter-text {
+            max-height: 460px; overflow-y: auto; padding: 16px 20px;
+            border: 1px solid var(--line); border-radius: var(--radius);
+            white-space: pre-wrap; line-height: 1.95; font-size: 14px; color: #40505f;
+        }
+    </style>
+</head>
+<body data-role="admin">
+
+<div id="nav"></div>
+
+<div class="layout">
+    <div id="side"></div>
+
+    <div class="main">
+        <div class="page-title">章节审核 <small>作者新增或修改的章节进入待审，通过后才出现在读者端目录</small></div>
+
+        <div class="filter-bar">
+            <div class="section-tabs" id="tabs"></div>
+            <div class="spacer grow"></div>
+            <button class="btn btn-sm" onclick="load()">刷新</button>
+        </div>
+
+        <div id="list"><div class="loading">加载中...</div></div>
+        <div class="pager" id="pager"></div>
+    </div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+    const TABS = [
+        { key: 0, text: '待审' },
+        { key: 1, text: '已通过' },
+        { key: 2, text: '已驳回' }
+    ];
+
+    const state = { pageNum: 1, pageSize: 20, auditStatus: 0 };
+
+    if (setupBackend('chapter')) {
+        renderTabs();
+        load();
+    }
+
+    function renderTabs() {
+        let html = '';
+        TABS.forEach(function (t) {
+            html += '<button class="btn btn-sm' + (t.key === state.auditStatus ? ' on' : '') + '"'
+                + ' onclick="switchTab(' + t.key + ')">' + t.text + '</button>';
+        });
+        document.getElementById('tabs').innerHTML = html;
+    }
+
+    function switchTab(key) {
+        state.auditStatus = key;
+        state.pageNum = 1;
+        renderTabs();
+        load();
+    }
+
+    async function load() {
+        const box = document.getElementById('list');
+        box.innerHTML = '<div class="loading">加载中...</div>';
+        try {
+            const data = await get('/admin/chapter/list', {
+                auditStatus: state.auditStatus,
+                pageNum: state.pageNum,
+                pageSize: state.pageSize
+            });
+            const list = data.list || [];
+            if (!list.length) {
+                box.innerHTML = '<div class="empty">这个状态下没有章节</div>';
+                document.getElementById('pager').innerHTML = '';
+                return;
+            }
+
+            let html = '<table class="table"><thead><tr>'
+                + '<th style="width:60px">ID</th><th style="width:180px">书名</th>'
+                + '<th style="width:60px">章号</th><th>章节名</th><th style="width:80px">字数</th>'
+                + '<th style="width:130px">提交时间</th><th style="width:200px">操作</th>'
+                + '</tr></thead><tbody>';
+
+            list.forEach(function (c) {
+                const pending = Number(c.auditStatus) === 0;
+                html += '<tr>'
+                    + '<td>' + c.id + '</td>'
+                    + '<td>' + escapeHtml(c.bookName || ('书籍 #' + c.bookId)) + '</td>'
+                    + '<td>' + (c.chapterNum || '-') + '</td>'
+                    + '<td>' + escapeHtml(c.chapterName || '-')
+                    + (c.rejectReason ? '<div class="audit-remark">' + escapeHtml(c.rejectReason) + '</div>' : '')
+                    + '</td>'
+                    + '<td>' + fmtCount(c.wordCount) + '</td>'
+                    + '<td>' + fmtTime(c.createTime) + '</td>'
+                    + '<td>'
+                    + '<button class="btn btn-sm" onclick="preview(' + c.id + ')">看正文</button> '
+                    + (pending
+                        ? '<button class="btn btn-success btn-sm" onclick="pass(' + c.id + ')">通过</button> '
+                          + '<button class="btn btn-sm" onclick="reject(' + c.id + ')">驳回</button>'
+                        : '')
+                    + '</td>'
+                    + '</tr>';
+            });
+
+            box.innerHTML = html + '</tbody></table>';
+            renderPager(data.total);
+        } catch (e) {
+            box.innerHTML = '<div class="empty">' + escapeHtml(e.message) + '</div>';
+        }
+    }
+
+    function renderPager(total) {
+        const pages = Math.max(1, Math.ceil((total || 0) / state.pageSize));
+        document.getElementById('pager').innerHTML =
+            '<button onclick="go(' + (state.pageNum - 1) + ')" ' + (state.pageNum <= 1 ? 'disabled' : '') + '>上一页</button>'
+            + '<span>第 ' + state.pageNum + ' / ' + pages + ' 页 · 共 ' + (total || 0) + ' 章</span>'
+            + '<button onclick="go(' + (state.pageNum + 1) + ')" ' + (state.pageNum >= pages ? 'disabled' : '') + '>下一页</button>';
+    }
+
+    function go(n) {
+        state.pageNum = n;
+        load();
+    }
+
+    async function pass(id) {
+        try {
+            await post('/admin/chapter/' + id + '/pass');
+            toast('已通过，章节已公开');
+            load();
+        } catch (e) {
+            toast(e.message);
+        }
+    }
+
+    function reject(id) {
+        openRemarkModal('驳回原因', '写清楚为什么不通过，作者能看到', '确认驳回', 'btn-danger', async function (remark) {
+            await post('/admin/chapter/' + id + '/reject', { remark: remark });
+            toast('已驳回');
+        });
+    }
+
+    /**
+     * 正文预览。未过审的章节请求不到读者端接口，审核员只能从这里看内容，
+     * 因此这个接口走管理端路径、单独返回章节与正文
+     */
+    async function preview(id) {
+        try {
+            const data = await get('/admin/chapter/' + id + '/content');
+            const chapter = data.chapter || {};
+            const mask = document.createElement('div');
+            mask.className = 'modal-mask';
+            mask.onclick = function (e) { if (e.target === mask) mask.remove(); };
+            mask.innerHTML = '<div class="modal modal-lg">'
+                + '<h3>' + escapeHtml(chapter.chapterName || ('章节 #' + id)) + '</h3>'
+                + '<div class="preview-meta">第 ' + (chapter.chapterNum || '-') + ' 章 · '
+                + fmtCount(chapter.wordCount) + ' 字</div>'
+                + '<div class="chapter-text">' + escapeHtml(data.content || '（这一章还没有正文）') + '</div>'
+                + '<div class="modal-foot"><button class="btn" onclick="this.closest(\'.modal-mask\').remove()">关闭</button></div>'
+                + '</div>';
+            document.body.appendChild(mask);
+        } catch (e) {
+            toast(e.message);
+        }
+    }
+
+    /** 与书籍审核的弹层一致：原因不填不放行 */
+    function openRemarkModal(title, placeholder, confirmText, confirmClass, onConfirm) {
+        const mask = document.createElement('div');
+        mask.className = 'modal-mask';
+        mask.innerHTML = '<div class="modal">'
+            + '<h3>' + title + '</h3>'
+            + '<div class="form-item"><textarea rows="3" placeholder="' + placeholder + '"></textarea></div>'
+            + '<div class="form-error"></div>'
+            + '<div class="modal-foot">'
+            + '  <button class="btn" onclick="this.closest(\'.modal-mask\').remove()">取消</button>'
+            + '  <button class="btn ' + confirmClass + '">' + confirmText + '</button>'
+            + '</div></div>';
+        document.body.appendChild(mask);
+
+        const textarea = mask.querySelector('textarea');
+        const tip = mask.querySelector('.form-error');
+        const okBtn = mask.querySelector('.modal-foot .btn:last-child');
+        textarea.focus();
+
+        okBtn.onclick = async function () {
+            const remark = textarea.value.trim();
+            if (!remark) {
+                tip.textContent = '原因不能不填';
+                return;
+            }
+            okBtn.disabled = true;
+            try {
+                await onConfirm(remark);
+                mask.remove();
+                load();
+            } catch (e) {
+                tip.textContent = e.message;
+                okBtn.disabled = false;
+            }
+        };
+    }
+</script>
+</body>
+</html>

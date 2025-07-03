@@ -189,7 +189,8 @@ class BookCommentServiceTest extends BaseIntegrationTest {
         bookCommentService.add(third);
 
         // 若父级仍指向 replyId，组装树时既不是根也挂不到根下，这条评论就查不出来了
-        assertThat(bookCommentService.listByBookId(bookId))
+        // 这些评论都是待审状态，传 viewerId 才能看到自己发的
+        assertThat(bookCommentService.listByBookId(bookId, userId))
                 .flatExtracting(BookComment::getChildren)
                 .hasSize(2);
     }
@@ -220,7 +221,7 @@ class BookCommentServiceTest extends BaseIntegrationTest {
         insertCommentReturnId(bookId, userId, "这本书真好笑", 0L);
         insertCommentReturnId(bookId, userId, "更新太慢了", 0L);
 
-        Map<String, Object> hit = bookCommentService.pageAll("真好笑", 1, 10);
+        Map<String, Object> hit = bookCommentService.pageAll("真好笑", null, 1, 10);
 
         assertThat(hit.get("total")).isEqualTo(1);
     }

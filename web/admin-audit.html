@@ -112,7 +112,7 @@
     function renderBooks(list) {
         const offline = mode === 'offline';
         let html = '<table class="table"><thead><tr>'
-            + '<th>ID</th><th>书名</th><th>作者</th><th>更新时间</th><th>审核意见</th><th style="width:200px">操作</th>'
+            + '<th>ID</th><th>书名</th><th>作者</th><th>更新时间</th><th>审核意见</th><th style="width:300px">操作</th>'
             + '</tr></thead><tbody>';
 
         list.forEach(function (b) {
@@ -125,8 +125,9 @@
                 + '<td>'
                 + '<button class="btn btn-sm" onclick="preview(' + b.id + ')">查看内容</button> '
                 + (offline
-                    ? '<button class="btn btn-sm btn-success" onclick="restore(' + b.id + ')">恢复上架</button>'
-                    : '<button class="btn btn-sm btn-danger" onclick="takeDown(' + b.id + ')">下架</button>')
+                    ? '<button class="btn btn-sm btn-success" onclick="restore(' + b.id + ')">恢复上架</button> '
+                    : '<button class="btn btn-sm btn-danger" onclick="takeDown(' + b.id + ')">下架</button> ')
+                + '<button class="btn btn-sm" onclick="removeBook(' + b.id + ')">删除</button>'
                 + '</td>'
                 + '</tr>';
         });
@@ -163,6 +164,21 @@
         try {
             await post('/admin/audit/restore', { bookId: bookId });
             toast('已恢复上架');
+            load();
+        } catch (e) {
+            toast(e.message);
+        }
+    }
+
+    /**
+     * 删除是硬删，章节、正文、评论、评分、推荐位都会一起清掉
+     * 下架只是让读者看不到，数据还在；两件事分开，别让管理员误以为下架等于删除
+     */
+    async function removeBook(bookId) {
+        if (!confirm('删除后这本书的章节、正文、评论、评分与推荐位都会一并删除，且无法恢复。确定删除？')) return;
+        try {
+            await del('/admin/book/' + bookId);
+            toast('已删除');
             load();
         } catch (e) {
             toast(e.message);

@@ -101,9 +101,11 @@
             let html = '';
             // 「删」按钮位于整行点击区内，若不 stopPropagation，点删除会同时触发编辑进入编辑器
             chapters.forEach(function (c) {
-                html += '<div class="item ' + (c.id === editingId ? 'active' : '') + '" onclick="editChapter(' + c.id + ')">'
+                html += '<div class="item ' + (c.id === editingId ? 'active' : '') + '" onclick="editChapter(' + c.id + ')"'
+                    + (c.rejectReason ? ' title="驳回原因：' + escapeHtml(c.rejectReason) + '"' : '') + '>'
                     + '<span class="no">' + c.chapterNum + '</span>'
                     + '<span class="name">' + escapeHtml(c.chapterName) + '</span>'
+                    + auditTag(c.auditStatus)
                     + '<span class="del" onclick="event.stopPropagation();delChapter(' + c.id + ')">删</span>'
                     + '</div>';
             });
@@ -111,6 +113,13 @@
         } catch (e) {
             box.innerHTML = '<div class="empty">' + escapeHtml(e.message) + '</div>';
         }
+    }
+
+    /** 章节状态标签。已通过的不用占位，避免整列被绿色标签糊满 */
+    function auditTag(status) {
+        if (Number(status) === 0) return '<span class="tag tag-orange">待审</span>';
+        if (Number(status) === 2) return '<span class="tag tag-red">驳回</span>';
+        return '';
     }
 
     /** 点击目录进入编辑器。正文走作者专用预览接口，未通过审核的草稿也能读取 */
@@ -122,6 +131,10 @@
             document.getElementById('chapterName').value = data.chapter.chapterName || '';
             document.getElementById('content').value = data.content || '';
             document.getElementById('wordCount').textContent = (data.content || '').length;
+            // 被驳回的章节打开时把原因带到编辑器上方，作者改完重新保存即回到待审
+            if (data.chapter.rejectReason) {
+                document.getElementById('tip').textContent = '上次驳回：' + data.chapter.rejectReason;
+            }
             loadChapters();
         } catch (e) {
             toast(e.message);
@@ -155,7 +168,7 @@
         tip.textContent = '';
         try {
             await post('/author/chapter/save', body);
-            toast(editingId ? '已更新' : '已新增');
+            toast(editingId ? '已更新，等管理员重新审核' : '已新增，等管理员审核');
             await loadChapters();
         } catch (e) {
             tip.textContent = e.message;

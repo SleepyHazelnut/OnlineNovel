@@ -238,7 +238,24 @@ public class BookServiceImpl implements BookService {
         if (!authorId.equals(exist.getAuthorId())) {
             throw new BusinessException("只能删除自己的作品");
         }
+        deleteCascade(id);
+    }
 
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    @CacheEvict(value = "book", key = "#id")
+    public void adminDelete(Long id) {
+        if (bookInfoMapper.selectById(id) == null) {
+            throw new BusinessException("作品不存在");
+        }
+        deleteCascade(id);
+    }
+
+    /**
+     * 级联清理。作者删自己的书与管理员清理违规作品走同一段逻辑，
+     * 只在入口处区分是否校验归属，避免两处各写一份清理顺序、日后改漏一处
+     */
+    private void deleteCascade(Long id) {
         // 顺序不可调换：正文按章节 id 定位，章节一旦先删，正文就再也找不到
         bookContentMapper.deleteByBookId(id);
         bookChapterMapper.deleteByBookId(id);

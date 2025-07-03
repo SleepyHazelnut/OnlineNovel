@@ -1,6 +1,7 @@
 package com.inkisle.service.impl;
 
 import com.inkisle.common.BusinessException;
+import com.inkisle.common.ContentAuditStatus;
 import com.inkisle.entity.BookChapter;
 import com.inkisle.entity.BookContent;
 import com.inkisle.entity.BookInfo;
@@ -66,6 +67,10 @@ public class BookChapterServiceImpl implements BookChapterService {
         // 直接以章节 id 请求正文，仍可读取被驳回作品的完整内容
         if (!bookService.isVisibleToReader(chapter.getBookId())) {
             throw new BusinessException("作品不存在或未上架");
+        }
+        // 目录已过滤未过审章节，这里再拦一次：知道章节 id 就能直接请求正文
+        if (!ContentAuditStatus.isVisible(chapter.getAuditStatus())) {
+            throw new BusinessException("这一章还没通过审核");
         }
         // 阅读次数在读者打开正文时累加，作者预览走下面的 readForAuthor，不计入
         bookInfoMapper.incrementVisitCount(chapter.getBookId());
@@ -140,7 +145,8 @@ public class BookChapterServiceImpl implements BookChapterService {
     @Override
     public List<BookChapter> listByBookIdForAuthor(Long bookId, Long authorId) {
         checkBookOwner(bookId, authorId);
-        return bookChapterMapper.selectListByBookId(bookId);
+        // 作者端要看到待审与驳回的章节，才能知道哪些还没放出去
+        return bookChapterMapper.selectAllByBookId(bookId);
     }
 
     @Override

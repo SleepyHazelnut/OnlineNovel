@@ -47,6 +47,12 @@ public interface BookAuditService {
     void takeDown(Long bookId, String remark, Long adminId);
 
     /**
+     * 作者主动下架自己的作品。与管理员下架的区别是没有审核意见，
+     * 作品状态同样是「已下架」，之后可重新提交审核
+     */
+    void offlineByAuthor(Long bookId, Long authorId);
+
+    /**
      * 恢复上架，仅对已下架的作品有效。恢复后直接可见，不再走一遍审核
      */
     void restore(Long bookId, Long adminId);

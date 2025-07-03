@@ -187,10 +187,14 @@
       评论数按整表重算，不做增量加减。
       一级评论删除时其回复要一起删，回复条数还得先查一次才能算出减多少；
       一条 UPDATE ... SELECT 就够，评论是低频写操作，不值得为省这一次查询引入增量维护。
+      只统计审核通过的：待审与驳回的评论读者看不到，计入会让列表数字虚高。
     -->
     <update id="syncCommentCount">
         UPDATE book_info b
-        SET b.comment_count = (SELECT COUNT(*) FROM book_comment c WHERE c.book_id = b.id)
+        SET b.comment_count = (
+            SELECT COUNT(*) FROM book_comment c
+            WHERE c.book_id = b.id AND c.audit_status = 1
+        )
         WHERE b.id = #{bookId}
     </update>
 

@@ -7,15 +7,27 @@
       正文单独建表即为此目的：读一章才取一章的内容；
       若与章节同表，查询目录时会连带取出整本书的正文。
     -->
+    <!--
+      读者端目录：只返回审核通过的章节。
+      待审与驳回的章节仍留在库中，作者端与管理端走下面的 selectAllByBookId。
+    -->
     <select id="selectListByBookId" resultType="com.inkisle.entity.BookChapter">
-        SELECT id, book_id, chapter_name, chapter_num, word_count, create_time
+        SELECT id, book_id, chapter_name, chapter_num, word_count, audit_status, reject_reason, create_time
+        FROM book_chapter
+        WHERE book_id = #{bookId} AND audit_status = 1
+        ORDER BY chapter_num ASC
+    </select>
+
+    <!-- 作者端与审核预览用：含待审、驳回的章节 -->
+    <select id="selectAllByBookId" resultType="com.inkisle.entity.BookChapter">
+        SELECT id, book_id, chapter_name, chapter_num, word_count, audit_status, reject_reason, create_time
         FROM book_chapter
         WHERE book_id = #{bookId}
         ORDER BY chapter_num ASC
     </select>
 
     <select id="selectById" resultType="com.inkisle.entity.BookChapter">
-        SELECT id, book_id, chapter_name, chapter_num, word_count, create_time
+        SELECT id, book_id, chapter_name, chapter_num, word_count, audit_status, reject_reason, create_time
         FROM book_chapter
         WHERE id = #{id}
     </select>
@@ -24,11 +36,12 @@
       上一章：取当前章 chapter_num 之前最大的一个。
       未写成 chapter_num = 当前值减 1，因为章节可删除、编号会跳号；
       倒序取一条更可靠，查不到即表示没有上一章。
+      只取已通过审核的章节，否则读者点「上一章」会翻到待审内容。
     -->
     <select id="selectPrevId" resultType="java.lang.Long">
         SELECT id
         FROM book_chapter
-        WHERE book_id = #{bookId} AND chapter_num &lt; #{chapterNum}
+        WHERE book_id = #{bookId} AND chapter_num &lt; #{chapterNum} AND audit_status = 1
         ORDER BY chapter_num DESC
         LIMIT 1
     </select>
@@ -37,7 +50,7 @@
     <select id="selectNextId" resultType="java.lang.Long">
         SELECT id
         FROM book_chapter
-        WHERE book_id = #{bookId} AND chapter_num &gt; #{chapterNum}
+        WHERE book_id = #{bookId} AND chapter_num &gt; #{chapterNum} AND audit_status = 1
         ORDER BY chapter_num ASC
         LIMIT 1
     </select>
@@ -60,18 +73,65 @@
         WHERE book_id = #{bookId}
     </select>
 
-    <!-- 字数在正文写入后才算得出来，新增时实体里通常没有值，用 COALESCE 兜成 0 -->
+    <!--
+      新增章节默认待审（库里的默认值为 0），故不显式写 audit_status。
+      正文写入后由 updateWordCount 补字数。
+    -->
     <insert id="insert" parameterType="com.inkisle.entity.BookChapter" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO book_chapter (book_id, chapter_name, chapter_num, word_count, create_time)
         VALUES (#{bookId}, #{chapterName}, #{chapterNum}, COALESCE(#{wordCount}, 0), #{createTime})
     </insert>
 
+    <!--
+      修改章节名或正文后回到待审：已通过的章节改了内容就该重新看一遍，
+      否则作者可以先发一篇合规内容过审，再改成任意文字。
+    -->
     <update id="updateById" parameterType="com.inkisle.entity.BookChapter">
         UPDATE book_chapter
         SET chapter_name = #{chapterName},
-            chapter_num = #{chapterNum}
+            chapter_num = #{chapterNum},
+            audit_status = 0,
+            reject_reason = NULL
         WHERE id = #{id}
     </update>
+
+    <!-- 审核状态唯一写入口，通过时 reason 传 null 清掉上一次的驳回原因 -->
+    <update id="updateAuditStatus">
+        UPDATE book_chapter
+        SET audit_status = #{auditStatus},
+            reject_reason = #{rejectReason}
+        WHERE id = #{id}
+    </update>
+
+    <!--
+      作品首次过审时把该书全部待审章节一并置为通过：
+      此时整本书已经被审核员完整看过，章节再逐条审一遍是重复劳动。
+      之后新增或修改的章节仍走单个审核。
+    -->
+    <update id="passAllByBookId">
+        UPDATE book_chapter
+        SET audit_status = 1,
+            reject_reason = NULL
+        WHERE book_id = #{bookId} AND audit_status = 0
+    </update>
+
+    <!-- 管理端章节审核列表，联表带出书名 -->
+    <select id="selectPageByStatus" resultType="com.inkisle.entity.BookChapter">
+        SELECT c.id, c.book_id, c.chapter_name, c.chapter_num, c.word_count,
+               c.audit_status, c.reject_reason, c.create_time,
+               b.book_name AS bookName
+        FROM book_chapter c
+        JOIN book_info b ON b.id = c.book_id
+        WHERE c.audit_status = #{auditStatus}
+        ORDER BY c.id ASC
+        LIMIT #{offset}, #{pageSize}
+    </select>
+
+    <select id="countByStatus" resultType="int">
+        SELECT COUNT(*)
+        FROM book_chapter
+        WHERE audit_status = #{auditStatus}
+    </select>
 
     <!--
       字数单独更新，不并入 updateById：

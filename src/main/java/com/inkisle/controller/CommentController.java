@@ -1,10 +1,13 @@
 package com.inkisle.controller;
 
 import com.inkisle.common.Result;
+import com.inkisle.common.RoleConstant;
 import com.inkisle.dto.CommentEditDTO;
 import com.inkisle.entity.BookComment;
 import com.inkisle.service.BookCommentService;
 import com.inkisle.service.BookService;
+import com.inkisle.util.JwtUtil;
+import io.jsonwebtoken.Claims;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,16 +34,45 @@ public class CommentController {
     @Autowired
     private BookService bookService;
 
+    @Autowired
+    private JwtUtil jwtUtil;
+
     /**
      * 评论列表，游客也能看
+     * 登录读者额外能看到自己待审的评论，否则发完立刻消失，会以为没发出去
      */
     @GetMapping("/list")
-    public Result<List<BookComment>> list(@RequestParam Long bookId) {
+    public Result<List<BookComment>> list(@RequestParam Long bookId, HttpServletRequest request) {
         // 与书籍详情同一口径：作品未过审时评论一并隐藏
         if (!bookService.isVisibleToReader(bookId)) {
             return Result.fail("作品不存在或未上架");
         }
-        return Result.ok(bookCommentService.listByBookId(bookId));
+        return Result.ok(bookCommentService.listByBookId(bookId, optionalReaderId(request)));
+    }
+
+    /**
+     * 可选解析读者身份
+     * `/comment/list` 在拦截器的放行名单里，那里不会解析 token，
+     * 这里自行解一次且失败不影响匿名访问：token 过期或缺失都按游客处理
+     */
+    private Long optionalReaderId(HttpServletRequest request) {
+        String header = request.getHeader("Authorization");
+        if (header == null || !header.startsWith("Bearer ")) {
+            return null;
+        }
+        Claims claims = jwtUtil.parse(header.substring("Bearer ".length()));
+        if (claims == null) {
+            return null;
+        }
+        // 作者端、管理端的 sub 是另外两张表的主键，不能当作读者 id 使用
+        if (!RoleConstant.USER.equals(claims.get("role", String.class))) {
+            return null;
+        }
+        try {
+            return Long.valueOf(claims.getSubject());
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     /**

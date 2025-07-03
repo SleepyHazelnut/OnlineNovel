@@ -42,6 +42,12 @@ public interface BookService {
     void delete(Long id, Long authorId);
 
     /**
+     * 管理员删除作品，不做归属校验
+     * 违规作品下架后仍会留在库里，管理端需要一个彻底清理的入口
+     */
+    void adminDelete(Long id);
+
+    /**
      * 修改连载 / 完结状态
      */
     void updateStatus(Long id, Integer status, Long authorId);

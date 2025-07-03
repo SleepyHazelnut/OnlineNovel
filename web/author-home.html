@@ -58,7 +58,7 @@
     function render() {
         const box = document.getElementById('list');
         let html = '<table class="table"><thead><tr>'
-            + '<th>书名</th><th>分类</th><th>连载状态</th><th>上架状态</th><th>更新时间</th><th style="width:330px">操作</th>'
+            + '<th>书名</th><th>分类</th><th>连载状态</th><th>上架状态</th><th>更新时间</th><th style="width:400px">操作</th>'
             + '</tr></thead><tbody>';
 
         books.forEach(function (b) {
@@ -85,6 +85,10 @@
                 + (canSubmit
                     ? '<button class="btn btn-sm btn-primary" onclick="submitAudit(' + b.id + ')">' + submitText + '</button> '
                     : '')
+                // 已上架的书可以自己下架，不用联系管理员；下架后重新上架要再送一次审
+                + (auditStatus === 2
+                    ? '<button class="btn btn-sm" onclick="offlineBook(' + b.id + ')">下架</button> '
+                    : '')
                 + '  <button class="btn btn-sm" onclick="changeStatus(' + b.id + ',' + nextStatus + ')">' + statusText + '</button> '
                 + '  <button class="btn btn-sm btn-danger" onclick="delBook(' + b.id + ')">删除</button>'
                 + '</td>'
@@ -101,6 +105,17 @@
         try {
             await post('/author/book/submit', { bookId: bookId });
             toast('已提交审核，等管理员处理');
+            load();
+        } catch (e) {
+            toast(e.message);
+        }
+    }
+
+    async function offlineBook(bookId) {
+        if (!confirm('下架后读者立刻看不到这本书，确定？')) return;
+        try {
+            await post('/author/book/offline', { bookId: bookId });
+            toast('已下架，重新上架需要再次提交审核');
             load();
         } catch (e) {
             toast(e.message);

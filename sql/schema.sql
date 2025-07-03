@@ -135,9 +135,12 @@ CREATE TABLE `book_chapter` (
   `chapter_name` varchar(200) DEFAULT NULL COMMENT '章节名',
   `chapter_num` int DEFAULT NULL COMMENT '章节序号',
   `word_count` int NOT NULL DEFAULT '0' COMMENT '本章字数',
+  `audit_status` tinyint NOT NULL DEFAULT '0' COMMENT '审核状态 0待审 1通过 2驳回',
+  `reject_reason` varchar(200) DEFAULT NULL COMMENT '驳回原因',
   `create_time` datetime DEFAULT NULL COMMENT '创建时间',
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_book_id_chapter_num` (`book_id`, `chapter_num`)
+  UNIQUE KEY `uk_book_id_chapter_num` (`book_id`, `chapter_num`),
+  KEY `idx_audit_status` (`audit_status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='章节表';
 
 -- ----------------------------
@@ -178,9 +181,12 @@ CREATE TABLE `book_comment` (
   `user_id` bigint NOT NULL COMMENT '评论人ID',
   `content` varchar(500) NOT NULL COMMENT '评论内容',
   `parent_id` bigint DEFAULT '0' COMMENT '父评论ID，0 表示一级评论',
+  `audit_status` tinyint NOT NULL DEFAULT '0' COMMENT '审核状态 0待审 1通过 2驳回',
+  `reject_reason` varchar(200) DEFAULT NULL COMMENT '驳回原因',
   `create_time` datetime DEFAULT NULL COMMENT '创建时间',
   PRIMARY KEY (`id`),
-  KEY `idx_book_id` (`book_id`)
+  KEY `idx_book_id` (`book_id`),
+  KEY `idx_audit_status` (`audit_status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='书籍评论表';
 
 -- ----------------------------

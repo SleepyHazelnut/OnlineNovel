@@ -26,6 +26,15 @@ public class BookChapter {
     /** 本章字数，由正文长度统计 */
     private Integer wordCount;
 
+    /** 审核状态，取值见 ContentAuditStatus：0 待审 1 通过 2 驳回 */
+    private Integer auditStatus;
+
+    /** 驳回原因，作者在章节管理里能看到 */
+    private String rejectReason;
+
+    /** 书名，审核列表联表带出，章节自身不存 */
+    private String bookName;
+
     private LocalDateTime createTime;
 
 }

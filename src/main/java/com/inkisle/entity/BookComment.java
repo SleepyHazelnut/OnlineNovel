@@ -23,6 +23,12 @@ public class BookComment {
     /** 父评论ID，0 表示一级评论 */
     private Long parentId;
 
+    /** 审核状态，取值见 ContentAuditStatus：0 待审 1 通过 2 驳回 */
+    private Integer auditStatus;
+
+    /** 驳回原因，只给作者本人与管理端看 */
+    private String rejectReason;
+
     private LocalDateTime createTime;
 
     /** 评论人昵称，联表带出来 */

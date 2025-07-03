@@ -117,4 +117,15 @@ public class AuthorBookController {
         return Result.ok(bookAuditService.latestAuditForAuthor(bookId, authorId));
     }
 
+    /**
+     * 作者主动下架自己的作品
+     * 下架后读者端立即不可见，想重新上架走 `/author/book/submit` 重新送审
+     */
+    @PostMapping("/offline")
+    public Result<Void> offline(@RequestBody Map<String, Long> params, HttpServletRequest request) {
+        Long authorId = (Long) request.getAttribute("userId");
+        bookAuditService.offlineByAuthor(params.get("bookId"), authorId);
+        return Result.ok();
+    }
+
 }

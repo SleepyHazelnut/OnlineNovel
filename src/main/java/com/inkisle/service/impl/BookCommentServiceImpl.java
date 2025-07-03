@@ -1,11 +1,14 @@
 package com.inkisle.service.impl;
 
 import com.inkisle.common.BusinessException;
+import com.inkisle.common.ContentAuditStatus;
 import com.inkisle.common.PageUtils;
 import com.inkisle.entity.BookComment;
 import com.inkisle.mapper.BookCommentMapper;
 import com.inkisle.mapper.BookInfoMapper;
 import com.inkisle.service.BookCommentService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
@@ -24,6 +27,8 @@ import java.util.Map;
 @Service
 public class BookCommentServiceImpl implements BookCommentService {
 
+    private static final Logger log = LoggerFactory.getLogger(BookCommentServiceImpl.class);
+
     /** 一级评论的 parent_id 约定为 0 */
     private static final long ROOT_ID = 0L;
 
@@ -40,8 +45,8 @@ public class BookCommentServiceImpl implements BookCommentService {
     private CacheManager cacheManager;
 
     @Override
-    public List<BookComment> listByBookId(Long bookId) {
-        List<BookComment> all = bookCommentMapper.selectByBookId(bookId);
+    public List<BookComment> listByBookId(Long bookId, Long viewerId) {
+        List<BookComment> all = bookCommentMapper.selectByBookId(bookId, viewerId);
 
         List<BookComment> roots = new ArrayList<>();
         for (BookComment comment : all) {
@@ -103,6 +108,8 @@ public class BookCommentServiceImpl implements BookCommentService {
     public void updateContent(Long id, Long userId, String content) {
         BookComment exist = requireOwned(id, userId);
         bookCommentMapper.updateContent(exist.getId(), normalizeContent(content));
+        // 改内容后回到待审，这条评论不再计入评论数，需要重算
+        refreshCommentCount(exist.getBookId());
     }
 
     @Override
@@ -112,13 +119,16 @@ public class BookCommentServiceImpl implements BookCommentService {
     }
 
     @Override
-    public Map<String, Object> pageAll(String keyword, Integer pageNum, Integer pageSize) {
+    public Map<String, Object> pageAll(String keyword, Integer auditStatus, Integer pageNum, Integer pageSize) {
+        if (auditStatus != null && !ContentAuditStatus.isValid(auditStatus)) {
+            throw new BusinessException("审核状态不对");
+        }
         int num = PageUtils.pageNum(pageNum);
         int size = PageUtils.pageSize(pageSize, 10);
         String word = keyword == null ? null : keyword.trim();
         Map<String, Object> data = new HashMap<>();
-        data.put("list", bookCommentMapper.selectPage(word, PageUtils.offset(num, size), size));
-        data.put("total", bookCommentMapper.countPage(word));
+        data.put("list", bookCommentMapper.selectPage(word, auditStatus, PageUtils.offset(num, size), size));
+        data.put("total", bookCommentMapper.countPage(word, auditStatus));
         return data;
     }
 
@@ -126,6 +136,48 @@ public class BookCommentServiceImpl implements BookCommentService {
     @Transactional
     public void adminDelete(Long id) {
         remove(id, null);
+    }
+
+    @Override
+    @Transactional
+    public void pass(Long id, Long adminId) {
+        BookComment exist = requirePending(id);
+        bookCommentMapper.updateAuditStatus(id, ContentAuditStatus.PASSED.getCode(), null);
+        // 评论数只统计通过的，状态一变就要重算
+        refreshCommentCount(exist.getBookId());
+        log.info("评论审核通过 commentId={} adminId={}", id, adminId);
+    }
+
+    @Override
+    @Transactional
+    public void reject(Long id, String remark, Long adminId) {
+        String reason = requireRemark(remark);
+        BookComment exist = requirePending(id);
+        bookCommentMapper.updateAuditStatus(id, ContentAuditStatus.REJECTED.getCode(), reason);
+        refreshCommentCount(exist.getBookId());
+        log.info("评论驳回 commentId={} adminId={} reason={}", id, adminId, reason);
+    }
+
+    /**
+     * 只有待审的评论需要处理。已通过或已驳回的再点一次说明列表没刷新，
+     * 直接挡住，避免把一条已驳回的评论又改回通过而不自知
+     */
+    private BookComment requirePending(Long id) {
+        BookComment exist = bookCommentMapper.selectById(id);
+        if (exist == null) {
+            throw new BusinessException("评论不存在");
+        }
+        if (exist.getAuditStatus() == null || exist.getAuditStatus() != ContentAuditStatus.PENDING.getCode()) {
+            throw new BusinessException("这条评论已经审过了");
+        }
+        return exist;
+    }
+
+    private String requireRemark(String remark) {
+        if (remark == null || remark.trim().isEmpty()) {
+            throw new BusinessException("驳回要写原因");
+        }
+        return remark.trim();
     }
 
     /**

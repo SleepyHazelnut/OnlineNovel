@@ -94,9 +94,16 @@ public abstract class BaseIntegrationTest {
                 "测试作品-" + authorId, authorId, status, auditStatus);
     }
 
+    /**
+     * 直接落库一个已过审的章节
+     * 走 saveChapter 会按正常流程置为待审，读者读不到；
+     * 大多数用例关心的是章节之外的行为，这里默认给一个可读的章节，
+     * 需要待审场景的用例请走 Service 保存
+     */
     protected long insertChapter(long bookId, int chapterNum) {
         return insertAndReturnId(
-                "INSERT INTO book_chapter (book_id, chapter_name, chapter_num, create_time) VALUES (?, ?, ?, NOW())",
+                "INSERT INTO book_chapter (book_id, chapter_name, chapter_num, audit_status, create_time) "
+                        + "VALUES (?, ?, ?, 1, NOW())",
                 bookId, "第" + chapterNum + "章", chapterNum);
     }
 

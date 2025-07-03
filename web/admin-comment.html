@@ -14,9 +14,11 @@
     <div id="side"></div>
 
     <div class="main">
-        <div class="page-title">评论管理 <small>删除一级评论时其下回复一并删除</small></div>
+        <div class="page-title">评论管理 <small>新评论待审，通过后才对其他读者展示</small></div>
 
         <div class="filter-bar">
+            <div class="section-tabs" id="tabs"></div>
+            <div class="spacer grow"></div>
             <input type="text" id="keyword" placeholder="评论内容 / 书名 / 昵称" style="width:260px">
             <button class="btn btn-primary btn-sm" onclick="search()">搜索</button>
             <button class="btn btn-sm" onclick="reset()">重置</button>
@@ -29,9 +31,37 @@
 
 <script src="js/api.js"></script>
 <script>
-    const state = { pageNum: 1, pageSize: 10, keyword: '' };
+    /**
+     * auditStatus 为 null 表示全部
+     * 与作品审核的编号不是一套，评论只有 0 待审 / 1 通过 / 2 驳回 三态
+     */
+    const TABS = [
+        { key: null, text: '全部' },
+        { key: 0, text: '待审' },
+        { key: 1, text: '已通过' },
+        { key: 2, text: '已驳回' }
+    ];
+
+    const state = { pageNum: 1, pageSize: 10, keyword: '', auditStatus: null };
 
     if (setupBackend('comment')) {
+        renderTabs();
+        load();
+    }
+
+    function renderTabs() {
+        let html = '';
+        TABS.forEach(function (t) {
+            html += '<button class="btn btn-sm' + (t.key === state.auditStatus ? ' on' : '') + '"'
+                + ' onclick="switchTab(' + (t.key === null ? 'null' : t.key) + ')">' + t.text + '</button>';
+        });
+        document.getElementById('tabs').innerHTML = html;
+    }
+
+    function switchTab(key) {
+        state.auditStatus = key;
+        state.pageNum = 1;
+        renderTabs();
         load();
     }
 
@@ -40,28 +70,41 @@
         box.innerHTML = '<div class="loading">加载中...</div>';
         try {
             const data = await get('/admin/comment/list', {
-                keyword: state.keyword, pageNum: state.pageNum, pageSize: state.pageSize
+                keyword: state.keyword,
+                auditStatus: state.auditStatus,
+                pageNum: state.pageNum,
+                pageSize: state.pageSize
             });
             const list = data.list || [];
             if (!list.length) {
-                box.innerHTML = '<div class="empty">' + (state.keyword ? '没有匹配的评论' : '还没有评论') + '</div>';
+                box.innerHTML = '<div class="empty">' + (state.keyword ? '没有匹配的评论' : '这个状态下还没有评论') + '</div>';
                 document.getElementById('pager').innerHTML = '';
                 return;
             }
 
             let html = '<table class="table"><thead><tr>'
-                + '<th style="width:60px">ID</th><th style="width:180px">书名</th><th style="width:110px">评论人</th>'
-                + '<th>内容</th><th style="width:130px">时间</th><th style="width:80px">操作</th>'
+                + '<th style="width:60px">ID</th><th style="width:160px">书名</th><th style="width:100px">评论人</th>'
+                + '<th>内容</th><th style="width:80px">状态</th><th style="width:130px">时间</th><th style="width:170px">操作</th>'
                 + '</tr></thead><tbody>';
 
             list.forEach(function (c) {
+                const pending = Number(c.auditStatus) === 0;
                 html += '<tr>'
                     + '<td>' + c.id + '</td>'
                     + '<td>' + escapeHtml(c.bookName || ('书籍 #' + c.bookId)) + '</td>'
                     + '<td>' + escapeHtml(c.nickName || ('用户 #' + c.userId)) + '</td>'
-                    + '<td title="' + escapeHtml(c.content) + '">' + escapeHtml(shorten(c.content, 60)) + '</td>'
+                    + '<td title="' + escapeHtml(c.content) + '">' + escapeHtml(shorten(c.content, 50))
+                    + (c.rejectReason ? '<div class="audit-remark">' + escapeHtml(c.rejectReason) + '</div>' : '')
+                    + '</td>'
+                    + '<td>' + auditTag(c.auditStatus) + '</td>'
                     + '<td>' + fmtTime(c.createTime) + '</td>'
-                    + '<td><button class="btn btn-danger btn-sm" onclick="remove(' + c.id + ')">删除</button></td>'
+                    + '<td>'
+                    + (pending
+                        ? '<button class="btn btn-success btn-sm" onclick="pass(' + c.id + ')">通过</button> '
+                          + '<button class="btn btn-sm" onclick="reject(' + c.id + ')">驳回</button> '
+                        : '')
+                    + '<button class="btn btn-danger btn-sm" onclick="remove(' + c.id + ')">删除</button>'
+                    + '</td>'
                     + '</tr>';
             });
 
@@ -71,6 +114,17 @@
         } catch (e) {
             box.innerHTML = '<div class="empty">' + escapeHtml(e.message) + '</div>';
         }
+    }
+
+    /** 评论的三态标签，与作品上架状态分开，不要复用 bookAuditTag */
+    function auditTag(status) {
+        const map = {
+            0: ['tag-orange', '待审'],
+            1: ['tag-green', '已通过'],
+            2: ['tag-red', '已驳回']
+        };
+        const it = map[Number(status)] || ['tag-gray', '未知'];
+        return '<span class="tag ' + it[0] + '">' + it[1] + '</span>';
     }
 
     /** 表格单行放不下整段评论，截断显示，完整内容放在 title 里悬停可看 */
@@ -105,6 +159,23 @@
         load();
     }
 
+    async function pass(id) {
+        try {
+            await post('/admin/comment/' + id + '/pass');
+            toast('已通过，评论已公开');
+            load();
+        } catch (e) {
+            toast(e.message);
+        }
+    }
+
+    function reject(id) {
+        openRemarkModal('驳回原因', '写清楚为什么不通过，评论人能看到', '确认驳回', 'btn-danger', async function (remark) {
+            await post('/admin/comment/' + id + '/reject', { remark: remark });
+            toast('已驳回');
+        });
+    }
+
     async function remove(id) {
         if (!confirm('确定删除这条评论？其下的回复会一并删除，且无法恢复')) return;
         try {
@@ -114,6 +185,43 @@
         } catch (e) {
             toast(e.message);
         }
+    }
+
+    /** 与书籍审核的弹层一致：原因不填不放行，提交失败把错误写在弹层里 */
+    function openRemarkModal(title, placeholder, confirmText, confirmClass, onConfirm) {
+        const mask = document.createElement('div');
+        mask.className = 'modal-mask';
+        mask.innerHTML = '<div class="modal">'
+            + '<h3>' + title + '</h3>'
+            + '<div class="form-item"><textarea rows="3" placeholder="' + placeholder + '"></textarea></div>'
+            + '<div class="form-error"></div>'
+            + '<div class="modal-foot">'
+            + '  <button class="btn" onclick="this.closest(\'.modal-mask\').remove()">取消</button>'
+            + '  <button class="btn ' + confirmClass + '">' + confirmText + '</button>'
+            + '</div></div>';
+        document.body.appendChild(mask);
+
+        const textarea = mask.querySelector('textarea');
+        const tip = mask.querySelector('.form-error');
+        const okBtn = mask.querySelector('.modal-foot .btn:last-child');
+        textarea.focus();
+
+        okBtn.onclick = async function () {
+            const remark = textarea.value.trim();
+            if (!remark) {
+                tip.textContent = '原因不能不填';
+                return;
+            }
+            okBtn.disabled = true;
+            try {
+                await onConfirm(remark);
+                mask.remove();
+                load();
+            } catch (e) {
+                tip.textContent = e.message;
+                okBtn.disabled = false;
+            }
+        };
     }
 </script>
 </body>

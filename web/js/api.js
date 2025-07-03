@@ -298,6 +298,7 @@ const SIDE_MENUS = {
         { key: 'stat', text: '数据看板', href: 'admin-stat.html' },
         { key: 'home', text: '首页推荐', href: 'admin-home.html' },
         { key: 'audit', text: '书籍审核', href: 'admin-audit.html' },
+        { key: 'chapter', text: '章节审核', href: 'admin-chapter.html' },
         { key: 'author', text: '作者审核', href: 'admin-author.html' },
         { key: 'comment', text: '评论管理', href: 'admin-comment.html' },
         { key: 'category', text: '分类管理', href: 'admin-category.html' },

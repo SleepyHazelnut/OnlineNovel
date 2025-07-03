@@ -15,6 +15,12 @@ public interface BookChapterMapper {
      */
     List<BookChapter> selectListByBookId(@Param("bookId") Long bookId);
 
+    /**
+     * 某本书的全部章节，含待审与驳回的
+     * 作者端要看自己的稿件状态，审核预览也要能看到未通过的章节
+     */
+    List<BookChapter> selectAllByBookId(@Param("bookId") Long bookId);
+
     BookChapter selectById(@Param("id") Long id);
 
     /**
@@ -36,6 +42,27 @@ public interface BookChapterMapper {
     int insert(BookChapter chapter);
 
     int updateById(BookChapter chapter);
+
+    /**
+     * 审核状态唯一写入口。通过时 rejectReason 传 null，清掉上一次的驳回原因
+     */
+    int updateAuditStatus(@Param("id") Long id,
+                          @Param("auditStatus") Integer auditStatus,
+                          @Param("rejectReason") String rejectReason);
+
+    /**
+     * 作品过审时把该书全部待审章节置为通过
+     */
+    int passAllByBookId(@Param("bookId") Long bookId);
+
+    /**
+     * 管理端按审核状态分页查章节，联表带出书名
+     */
+    List<BookChapter> selectPageByStatus(@Param("auditStatus") Integer auditStatus,
+                                         @Param("offset") int offset,
+                                         @Param("pageSize") int pageSize);
+
+    int countByStatus(@Param("auditStatus") Integer auditStatus);
 
     /**
      * 更新章节字数，正文保存后由正文长度算出

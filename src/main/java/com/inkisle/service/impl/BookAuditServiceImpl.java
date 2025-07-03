@@ -84,6 +84,9 @@ public class BookAuditServiceImpl implements BookAuditService {
         bookAuditRecordMapper.updateAudit(update);
 
         markBook(record.getBookId(), BookAuditStatus.PASSED, null);
+        // 审核员看的是整本书，章节不必再逐条审一遍；
+        // 之后新增或修改的章节仍会回到待审，由章节审核单独处理
+        bookChapterMapper.passAllByBookId(record.getBookId());
     }
 
     @Override
@@ -157,8 +160,22 @@ public class BookAuditServiceImpl implements BookAuditService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void restore(Long bookId, Long adminId) {
-        BookInfo book = bookInfoMapper.selectById(bookId);
+    public void offlineByAuthor(Long bookId, Long authorId) {
+        BookInfo book = requireOwnBook(bookId, authorId);
+        if (!BookAuditStatus.isVisible(book.getAuditStatus())) {
+            throw new BusinessException("只有已上架的作品可以下架");
+        }
+
+        // 审核意见写「作者自主下架」：作者列表上这一列会展示，
+        // 不写的话作者过几天自己也分不清是管理员下架的还是自己下架的
+        markBook(bookId, BookAuditStatus.OFFLINE, "作者自主下架");
+        // 记录表不动，原因与管理员下架一致：它不是一次送审，没有审核结论可记
+        log.info("作者自主下架 bookId={} authorId={}", bookId, authorId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void restore(Long bookId, Long adminId) {        BookInfo book = bookInfoMapper.selectById(bookId);
         if (book == null) {
             throw new BusinessException("作品不存在");
         }
@@ -196,7 +213,8 @@ public class BookAuditServiceImpl implements BookAuditService {
         }
         Map<String, Object> data = new HashMap<>();
         data.put("book", book);
-        data.put("chapters", bookChapterMapper.selectListByBookId(bookId));
+        // 审核要看全部章节，包括待审与驳回的
+        data.put("chapters", bookChapterMapper.selectAllByBookId(bookId));
         return data;
     }
 
@@ -266,7 +284,7 @@ public class BookAuditServiceImpl implements BookAuditService {
     }
 
     private void requireChapter(Long bookId, String message) {
-        if (bookChapterMapper.selectListByBookId(bookId).isEmpty()) {
+        if (bookChapterMapper.selectAllByBookId(bookId).isEmpty()) {
             throw new BusinessException(message);
         }
     }

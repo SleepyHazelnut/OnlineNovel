@@ -88,7 +88,7 @@ class BookStatsTest extends BaseIntegrationTest {
     }
 
     @Test
-    @DisplayName("评论增删后评论数随之变化")
+    @DisplayName("评论审核通过后才计入评论数，删除后回落")
     void commentCountFollowsComments() {
         long authorId = insertAuthor("stat-comment");
         long bookId = insertBook(authorId, 0, 2);
@@ -99,6 +99,10 @@ class BookStatsTest extends BaseIntegrationTest {
         comment.setContent("写得好");
         bookCommentService.add(comment);
 
+        // 新评论待审，读者看不到，列表上的数字也不该先涨上去
+        assertThat(commentCountOf(bookId)).isZero();
+
+        bookCommentService.pass(comment.getId(), 1L);
         assertThat(commentCountOf(bookId)).isEqualTo(1);
 
         bookCommentService.delete(comment.getId(), 1L);

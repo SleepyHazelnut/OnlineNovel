@@ -271,7 +271,10 @@
                 } else {
                     html += '<div style="margin:4px 0">' + escapeHtml(c.content) + '</div>';
                 }
-                html += '  <div class="meta">' + fmtTime(c.createTime) + '</div>'
+                html += '  <div class="meta">' + fmtTime(c.createTime)
+                    + ' · ' + commentAuditTag(c.auditStatus)
+                    + (c.auditStatus === 2 && c.rejectReason ? ' ' + escapeHtml(c.rejectReason) : '')
+                    + '</div>'
                     + '</div>';
                 if (editing) {
                     html += '<button class="btn btn-primary btn-sm" onclick="saveComment(' + c.id + ')">保存</button>'
@@ -289,8 +292,14 @@
         }
     }
 
-    function renderCommentPager(total) {
-        const pages = Math.max(1, Math.ceil((total || 0) / commentState.pageSize));
+    /** 评论审核状态：待审与驳回要让本人看见，否则改完不知道有没有生效 */
+    function commentAuditTag(status) {
+        if (status === 0) return '<span class="tag tag-orange">待审</span>';
+        if (status === 2) return '<span class="tag tag-red">驳回</span>';
+        return '';
+    }
+
+    function renderCommentPager(total) {        const pages = Math.max(1, Math.ceil((total || 0) / commentState.pageSize));
         document.getElementById('commentPager').innerHTML =
             '<button onclick="goCommentPage(' + (commentState.pageNum - 1) + ')" '
             + (commentState.pageNum <= 1 ? 'disabled' : '') + '>上一页</button>'
@@ -325,7 +334,7 @@
         try {
             await put('/comment/' + id, { content: text });
             commentState.editingId = null;
-            toast('已保存');
+            toast('已保存，等管理员重新审核');
             loadComments();
         } catch (e) {
             toast(e.message);
