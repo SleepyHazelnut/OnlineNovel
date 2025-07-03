@@ -20,11 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 作者端的作品管理
- * 所有接口均只服务作者查看自己的作品，校验的是作品归属；
- * 与读者端接口是两条独立路径，互不复用
- */
+/** 作者端作品管理，authorId 一律取自 token */
 @RestController
 @RequestMapping("/author/book")
 public class AuthorBookController {
@@ -35,29 +31,19 @@ public class AuthorBookController {
     @Autowired
     private BookAuditService bookAuditService;
 
-    /**
-     * 当前作者的作品，authorId 只取 token 中的值，忽略请求参数
-     */
     @GetMapping("/list")
     public Result<List<BookInfo>> list(HttpServletRequest request) {
         Long authorId = (Long) request.getAttribute("userId");
         return Result.ok(bookService.listByAuthor(authorId));
     }
 
-    /**
-     * 自己的作品详情，编辑页回填用
-     * 不复用读者端的 `/book/{id}`：该路径会拦截未过审的作品，
-     * 作品被驳回后作者点击编辑将无法看到稿件
-     */
+    /** 驳回后还要能打开原稿，所以不走读者端的 /book/{id} */
     @GetMapping("/detail")
     public Result<BookInfo> detail(@RequestParam Long id, HttpServletRequest request) {
         Long authorId = (Long) request.getAttribute("userId");
         return Result.ok(bookService.getForAuthor(id, authorId));
     }
 
-    /**
-     * 保存作品，带 id 是改，不带是新增
-     */
     @PostMapping("/save")
     public Result<Void> save(@Valid @RequestBody BookSaveDTO bookSaveDTO, HttpServletRequest request) {
         Long authorId = (Long) request.getAttribute("userId");
@@ -65,9 +51,6 @@ public class AuthorBookController {
         return Result.ok();
     }
 
-    /**
-     * 删除作品
-     */
     @PostMapping("/delete")
     public Result<Void> delete(@RequestBody Map<String, Long> params, HttpServletRequest request) {
         Long authorId = (Long) request.getAttribute("userId");
@@ -75,9 +58,6 @@ public class AuthorBookController {
         return Result.ok();
     }
 
-    /**
-     * 连载 / 完结 切换，这个作者自己说了算
-     */
     @PostMapping("/status")
     public Result<Void> updateStatus(@RequestBody Map<String, Object> params, HttpServletRequest request) {
         Long authorId = (Long) request.getAttribute("userId");
@@ -87,19 +67,13 @@ public class AuthorBookController {
         return Result.ok();
     }
 
-    /**
-     * 作品数据统计
-     */
     @GetMapping("/stat")
     public Result<Map<String, Object>> stat(@RequestParam Long bookId, HttpServletRequest request) {
         Long authorId = (Long) request.getAttribute("userId");
         return Result.ok(bookService.stat(bookId, authorId));
     }
 
-    /**
-     * 提交审核，上架前先送审
-     * 连续快速点击会提交多条待审记录，故加 `@RepeatSubmit` 拦截
-     */
+    /** 连点会插进多条待审记录，这里用 @RepeatSubmit 挡一下 */
     @RepeatSubmit
     @PostMapping("/submit")
     public Result<Void> submit(@RequestBody Map<String, Long> params, HttpServletRequest request) {
@@ -108,19 +82,13 @@ public class AuthorBookController {
         return Result.ok();
     }
 
-    /**
-     * 查询该书最近一次审核结果，用于了解被驳回的原因
-     */
     @GetMapping("/audit")
     public Result<BookAuditRecord> audit(@RequestParam Long bookId, HttpServletRequest request) {
         Long authorId = (Long) request.getAttribute("userId");
         return Result.ok(bookAuditService.latestAuditForAuthor(bookId, authorId));
     }
 
-    /**
-     * 作者主动下架自己的作品
-     * 下架后读者端立即不可见，想重新上架走 `/author/book/submit` 重新送审
-     */
+    /** 下架后读者端立刻不可见，想回来走 /author/book/submit 重新送审 */
     @PostMapping("/offline")
     public Result<Void> offline(@RequestBody Map<String, Long> params, HttpServletRequest request) {
         Long authorId = (Long) request.getAttribute("userId");

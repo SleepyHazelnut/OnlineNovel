@@ -6,6 +6,10 @@
 --
 -- 存量数据一律置为「通过」：它们已经在线展示过，若按默认值落成待审，
 -- 升级后全书章节与评论会从读者端一次性消失
+--
+-- 只执行一次。末尾两条 UPDATE 会把所有待审内容置为通过，
+-- 上线后重跑等于把新提交的稿件一键放行；ADD COLUMN 会在重跑时报错中断，
+-- 但若只挑 UPDATE 单独执行则没有这层保护
 -- ----------------------------
 ALTER TABLE `book_chapter`
     ADD COLUMN `audit_status` tinyint NOT NULL DEFAULT '0' COMMENT '审核状态 0待审 1通过 2驳回' AFTER `word_count`,

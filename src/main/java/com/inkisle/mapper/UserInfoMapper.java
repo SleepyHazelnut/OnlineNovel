@@ -31,14 +31,9 @@ public interface UserInfoMapper {
 
     int countAll();
 
-    /**
-     * 只更新 status，封禁 / 解封用
-     */
     int updateStatus(UserInfo userInfo);
 
-    /**
-     * 更新个人资料。密码不在这个语句里改，避免资料保存顺手把密码覆盖
-     */
+    /** 只改资料，密码不在这条语句里 */
     int updateProfile(@Param("id") Long id,
                       @Param("nickName") String nickName,
                       @Param("phone") String phone,
@@ -46,10 +41,7 @@ public interface UserInfoMapper {
                       @Param("avatar") String avatar,
                       @Param("updateTime") LocalDateTime updateTime);
 
-    /**
-     * 单独取密码摘要，供修改密码时校验原密码
-     * 常规查询的列清单刻意不含 password，不能为了这一处又把密码带进所有响应
-     */
+    /** 密码单独取，常规查询的列清单里不带 password */
     String selectPasswordById(@Param("id") Long id);
 
     int updatePassword(@Param("id") Long id,

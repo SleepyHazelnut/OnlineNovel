@@ -39,9 +39,7 @@
 
 <script src="js/api.js"></script>
 <script>
-    if (!setupBackend('stat')) {
-        // setupBackend 未通过，已跳转登录页
-    } else {
+    if (setupBackend('stat')) {
         load();
     }
 
@@ -65,7 +63,7 @@
         }
     }
 
-    /** 未引入图表库，直接用 div 高度绘制柱状图 */
+    /** 没引图表库，用 div 高度画柱状图 */
     function renderChart(rows) {
         const box = document.getElementById('daily');
         if (!rows.length) {
@@ -73,7 +71,7 @@
             return;
         }
 
-        // max 从 1 起，避免七天全为 0 时计算比例出现除零
+        // max 从 1 起，七天全 0 时不用除零
         let max = 1;
         rows.forEach(function (r) {
             max = Math.max(max, r.userNum || 0, r.bookNum || 0, r.commentNum || 0);

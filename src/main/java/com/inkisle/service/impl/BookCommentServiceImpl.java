@@ -21,8 +21,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 评论
- * 与分类相同，为两级结构：一级评论 `parent_id` 为 0，回复挂载于其下
+ * 评论两级：一级的 parent_id 为 0，回复挂在一级评论下面
  */
 @Service
 public class BookCommentServiceImpl implements BookCommentService {
@@ -32,7 +31,7 @@ public class BookCommentServiceImpl implements BookCommentService {
     /** 一级评论的 parent_id 约定为 0 */
     private static final long ROOT_ID = 0L;
 
-    /** 与 `book_comment.content` 的 varchar(500) 保持一致，超长由数据库报错不如提前拦下 */
+    /** 与表里的 varchar(500) 对齐 */
     private static final int MAX_CONTENT = 500;
 
     @Autowired
@@ -49,11 +48,10 @@ public class BookCommentServiceImpl implements BookCommentService {
         List<BookComment> all = bookCommentMapper.selectByBookId(bookId, viewerId);
 
         List<BookComment> roots = new ArrayList<>();
-        // 先按父评论分组：评论多时逐条去比对全表是 O(n²)，一次分组即可
+        // 一次分组，避免每条一级评论都去遍历全表
         Map<Long, List<BookComment>> childrenByParent = new HashMap<>();
         for (BookComment comment : all) {
-            // parent_id 为 0 是一级评论。历史数据里可能是 null，一并按一级处理，
-            // 直接与 0 比较会拆箱空指针
+            // 历史数据里 parent_id 可能是 null，一并按一级处理
             if (comment.getParentId() == null || comment.getParentId() == ROOT_ID) {
                 roots.add(comment);
                 continue;
@@ -84,8 +82,7 @@ public class BookCommentServiceImpl implements BookCommentService {
             if (!parent.getBookId().equals(comment.getBookId())) {
                 throw new BusinessException("要回复的评论不属于这本书");
             }
-            // 只保留两级。对回复再回复时挂到该回复所属的一级评论下，
-            // 否则父节点是一条回复，列表组装时它既不是根也挂不到任何根下，评论会凭空消失
+            // 只留两级：对回复再回复时，挂到它所属的一级评论下
             if (parent.getParentId() != ROOT_ID) {
                 comment.setParentId(parent.getParentId());
             }
@@ -110,7 +107,7 @@ public class BookCommentServiceImpl implements BookCommentService {
     public void updateContent(Long id, Long userId, String content) {
         BookComment exist = requireOwned(id, userId);
         bookCommentMapper.updateContent(exist.getId(), normalizeContent(content));
-        // 改内容后回到待审，这条评论不再计入评论数，需要重算
+        // 改完回待审，评论数跟着变
         refreshCommentCount(exist.getBookId());
     }
 
@@ -146,7 +143,6 @@ public class BookCommentServiceImpl implements BookCommentService {
         BookComment exist = requirePending(id);
         requireParentPassed(exist);
         bookCommentMapper.updateAuditStatus(id, ContentAuditStatus.PASSED.getCode(), null);
-        // 评论数只统计通过的，状态一变就要重算
         refreshCommentCount(exist.getBookId());
         log.info("评论审核通过 commentId={} adminId={}", id, adminId);
     }
@@ -161,10 +157,7 @@ public class BookCommentServiceImpl implements BookCommentService {
         log.info("评论驳回 commentId={} adminId={} reason={}", id, adminId, reason);
     }
 
-    /**
-     * 只有待审的评论需要处理。已通过或已驳回的再点一次说明列表没刷新，
-     * 直接挡住，避免把一条已驳回的评论又改回通过而不自知
-     */
+    /** 只处理待审的，已审过的再点一次说明列表没刷新 */
     private BookComment requirePending(Long id) {
         BookComment exist = bookCommentMapper.selectById(id);
         if (exist == null) {
@@ -176,10 +169,7 @@ public class BookCommentServiceImpl implements BookCommentService {
         return exist;
     }
 
-    /**
-     * 回复挂在一级评论下。父评论没通过时，这条回复就算通过了，
-     * 列表组装也找不到根节点，读者端照样看不到，等于白审一次
-     */
+    /** 父评论没通过的话，这条回复通过了也挂不上，读者看不到 */
     private void requireParentPassed(BookComment comment) {
         if (comment.getParentId() == null || comment.getParentId() == ROOT_ID) {
             return;
@@ -197,10 +187,7 @@ public class BookCommentServiceImpl implements BookCommentService {
         return remark.trim();
     }
 
-    /**
-     * 删除评论。userId 为空表示管理员操作，不做归属校验
-     * 一级评论被删时其回复失去父节点，需一并清理，否则会变成查不出来的脏数据
-     */
+    /** userId 为空表示管理员删，一级评论的回复一并清掉 */
     private void remove(Long id, Long userId) {
         BookComment exist = userId == null
                 ? bookCommentMapper.selectById(id)
@@ -213,10 +200,7 @@ public class BookCommentServiceImpl implements BookCommentService {
         refreshCommentCount(exist.getBookId());
     }
 
-    /**
-     * 评论数是作品列表与详情上展示的字段，增删后重算并清掉详情缓存
-     * 不增量加减的原因见 BookInfoMapper.syncCommentCount 上方注释
-     */
+    /** 整表重算，不做增量加减；评论数变了详情缓存也要清 */
     private void refreshCommentCount(Long bookId) {
         bookInfoMapper.syncCommentCount(bookId);
         Cache cache = cacheManager.getCache("book");
@@ -225,10 +209,7 @@ public class BookCommentServiceImpl implements BookCommentService {
         }
     }
 
-    /**
-     * 取出评论并确认归属。评论是用户自己发的内容，只有本人能改能删，
-     * 否则任何人拿到 id 就能改动别人的发言
-     */
+    /** 只有本人能改能删，否则拿到 id 就能改别人的话 */
     private BookComment requireOwned(Long id, Long userId) {
         BookComment exist = bookCommentMapper.selectById(id);
         if (exist == null) {

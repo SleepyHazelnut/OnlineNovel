@@ -17,29 +17,19 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 签到记录存储于 Redis 位图
- * <p>
- * 每个用户每年一张位图，第 N 天对应第 N 个 bit
- * 若按天写入数据库，每个用户每年需 365 行记录；
- * 改用位图后 365 bit 仅约 46 字节，空间占用显著降低
+ * 签到存 Redis 位图，一人一年一张，第 N 天对应第 N 个 bit
  */
 @Service
 public class SignServiceImpl implements SignService {
 
-    /** 键长这样：sign:12:2025 */
     private static final String KEY_PREFIX = "sign:";
 
-    /** 按年存储，多留一个多月余量，避免跨年时读取失败 */
+    /** 跨年那几天还要读上一年的位图，所以多留一个多月 */
     private static final Duration EXPIRE = Duration.ofDays(400);
 
-    /** 连续天数的计算上限，一年零一天；再往前追也没有实际意义 */
     private static final int MAX_CONTINUOUS_DAYS = 366;
 
-    /**
-     * 判断与置位放在同一条脚本里执行
-     * 拆成 GETBIT + SETBIT 两条命令时，两个并发请求可能都读到 0，
-     * 于是同一天被记成「签到成功」两次，连续天数也会跟着算错
-     */
+    /** 判断与置位放一条脚本里，否则并发请求会都读到未签到，同一天签两次 */
     private static final DefaultRedisScript<Long> SIGN_SCRIPT = new DefaultRedisScript<>(
             "if redis.call('GETBIT', KEYS[1], ARGV[1]) == 1 then "
                     + "  return 0 "
@@ -67,7 +57,7 @@ public class SignServiceImpl implements SignService {
     @Override
     public Map<String, Object> monthStatus(Long userId) {
         LocalDate today = LocalDate.now();
-        // 整张位图一次取回，再在内存里逐日取位；逐日 GETBIT 一个月要往返 28–31 次
+        // 一次取整张位图，逐日 GETBIT 一个月要往返 30 次
         byte[] bitmap = readBitmap(buildKey(userId, today));
 
         List<Integer> days = new ArrayList<>();
@@ -94,20 +84,8 @@ public class SignServiceImpl implements SignService {
                 today);
     }
 
-    /**
-     * 从两张位图里数出连续签到天数
-     * <p>
-     * 拆出来是为了能直接构造位图测试跨年：今天是 1 月 1 日时，昨天落在去年那张位图上，
-     * 早先的实现拿 {@code cursor.getYear() == today.getYear()} 当循环条件，
-     * 一跨年条件立刻不成立，连续天数直接返回 0
-     *
-     * @param thisYear 今年的位图
-     * @param lastYear 去年的位图
-     * @param today    今天
-     * @return 连续签到天数，最多一年零一天
-     */
+    /** 昨天可能落在去年那张位图上，所以两张一起传进来 */
     static int countContinuous(byte[] thisYear, byte[] lastYear, LocalDate today) {
-        // 当天未签到时从昨天开始算，否则进入页面时连续天数会显示为 0
         LocalDate cursor = bitAt(thisYear, offsetOf(today)) ? today : today.minusDays(1);
 
         int count = 0;
@@ -123,26 +101,18 @@ public class SignServiceImpl implements SignService {
         return count;
     }
 
-    /**
-     * 取整张位图的原始字节。位图不是文本，必须走二进制命令读，
-     * 用 String 读取会按 UTF-8 解码，字节被改写后就再也解析不出位
-     */
+    /** 位图必须按字节读，用 String 取会按 UTF-8 解码，位就废了 */
     private byte[] readBitmap(String key) {
         byte[] raw = stringRedisTemplate.execute((RedisCallback<byte[]>) connection ->
                 connection.stringCommands().get(key.getBytes(StandardCharsets.UTF_8)));
         return raw == null ? new byte[0] : raw;
     }
 
-    /**
-     * 第几天转换为位图偏移，偏移从 0 开始，故减 1
-     */
     private static int offsetOf(LocalDate date) {
         return date.getDayOfYear() - 1;
     }
 
-    /**
-     * 取指定位。Redis 的位序是每字节从最高位开始：偏移 0 对应首字节的 0x80
-     */
+    /** Redis 的位序从每字节最高位开始，偏移 0 是首字节的 0x80 */
     private static boolean bitAt(byte[] bitmap, int offset) {
         int index = offset >> 3;
         if (index < 0 || index >= bitmap.length) {

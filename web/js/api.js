@@ -1,18 +1,15 @@
 /**
- * 墨屿小说 · 前端公共脚本
- * 项目不引入 Vue / React，也不使用打包工具，web/ 目录由 Spring Boot 的静态资源映射托管，
- * 页面为原始 HTML，公共逻辑统一通过 <script> 引入本文件
- * 读者 / 作者 / 管理三端连同一个后端，页面在 body 上声明 data-role，脚本据此选用对应的登录态
+ * 前端公共脚本。页面是原始 HTML，不引框架也不打包，三端共用这一份
  */
 
-// 三端各自独立的存储 key。若共用同一份，作者端登录会覆盖读者端登录态，导致两端互相跳转登录页，故按角色分开
+// 三端的登录态分开存，否则作者端登录会把读者端顶掉
 const ROLES = {
     reader: { token: 'inkisle_token', user: 'inkisle_user', login: 'login.html' },
     author: { token: 'inkisle_author_token', user: 'inkisle_author', login: 'author-login.html' },
     admin: { token: 'inkisle_admin_token', user: 'inkisle_admin', login: 'admin-login.html' }
 };
 
-// 页面未声明 data-role 时默认按读者端处理
+// 页面没写 data-role 就当读者端
 function currentRole() {
     return (document.body && document.body.dataset.role) || 'reader';
 }
@@ -36,7 +33,7 @@ const Auth = {
         localStorage.removeItem(r.user);
     },
     logged() { return !!this.token(); },
-    /** 未登录时跳转到对应端的登录页，并将当前地址写入 redirect，登录后可返回原页面 */
+    /** 未登录跳对应端的登录页，带上 redirect 好回来 */
     require(redirect) {
         if (!this.logged()) {
             location.href = ROLES[currentRole()].login + '?redirect=' + encodeURIComponent(redirect || location.pathname);
@@ -54,10 +51,7 @@ const Auth = {
 const BASE = '';
 
 /**
- * 所有接口统一经由本函数发起。项目刻意保持零依赖、零构建，不使用 axios，
- * 自写一层便于控制每一步
- * 内部完成四件事：携带 token、序列化请求体、将 401 跳转回登录页、
- * 拆解后端统一返回的 {code, msg, data}，业务代码直接拿到 data
+ * 统一请求口：带 token、拼请求体、拆 {code, msg, data}，业务里直接拿 data
  */
 async function request(path, options) {
     options = options || {};
@@ -80,8 +74,7 @@ async function request(path, options) {
 
     const resp = await fetch(BASE + path, opt);
 
-    // 后端拦截器拦截时返回 401。此处先清除本地登录态，再按当前页面所属端跳转对应登录页：
-    // 读者 → login.html、作者 → author-login.html、管理 → admin-login.html，不能统一跳同一个
+    // 401 按当前页面所属端跳，不能统一跳读者登录页
     if (resp.status === 401) {
         Auth.clear();
         const back = encodeURIComponent(location.pathname + location.search);
@@ -93,7 +86,7 @@ async function request(path, options) {
     try {
         data = await resp.json();
     } catch (e) {
-        // 正常错误体是 JSON；但 500 抛异常或网关直接拦截时可能返回 HTML，解析会失败
+        // 500 或者网关拦截时可能返回 HTML，解析会失败
         throw new Error('服务返回异常（HTTP ' + resp.status + '）');
     }
 
@@ -184,11 +177,7 @@ function auditStatusTag(status) {
     return '<span class="tag ' + it[0] + '">' + it[1] + '</span>';
 }
 
-/**
- * 作品上架状态：0 未提交 1 待审核 2 已通过 3 已驳回 4 已下架
- * 与上面 auditStatusTag 的编号不是一套：那个读的是审核记录，只有三种状态
- * 混用会显示成错误的标签，两者不要互换
- */
+/* 作品上架状态 0-4，与上面审核记录的 0-2 不是一套，别混用 */
 function bookAuditTag(status) {
     const map = {
         0: ['tag-gray', '未提交'],

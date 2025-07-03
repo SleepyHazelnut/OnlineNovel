@@ -37,13 +37,10 @@ public class CommentController {
     @Autowired
     private JwtUtil jwtUtil;
 
-    /**
-     * 评论列表，游客也能看
-     * 登录读者额外能看到自己待审的评论，否则发完立刻消失，会以为没发出去
-     */
+    /** 游客也能看；登录读者额外能看到自己待审的那几条 */
     @GetMapping("/list")
     public Result<List<BookComment>> list(@RequestParam Long bookId, HttpServletRequest request) {
-        // 与书籍详情同一口径：作品未过审时评论一并隐藏
+        // 与书籍详情同一口径，作品没过审评论也一起藏起来
         if (!bookService.isVisibleToReader(bookId)) {
             return Result.fail("作品不存在或未上架");
         }
@@ -51,9 +48,8 @@ public class CommentController {
     }
 
     /**
-     * 可选解析读者身份
-     * `/comment/list` 在拦截器的放行名单里，那里不会解析 token，
-     * 这里自行解一次且失败不影响匿名访问：token 过期或缺失都按游客处理
+     * /comment/list 在拦截器放行名单里，拿不到 userId，这里自己解一次；
+     * 解析失败按游客处理，匿名访问不受影响
      */
     private Long optionalReaderId(HttpServletRequest request) {
         String header = request.getHeader("Authorization");
@@ -64,7 +60,7 @@ public class CommentController {
         if (claims == null) {
             return null;
         }
-        // 作者端、管理端的 sub 是另外两张表的主键，不能当作读者 id 使用
+        // 作者、管理的 sub 是另外两张表的主键，不能当读者 id 用
         if (!RoleConstant.USER.equals(claims.get("role", String.class))) {
             return null;
         }
@@ -75,9 +71,6 @@ public class CommentController {
         }
     }
 
-    /**
-     * 发表评论或回复，要登录
-     */
     @PostMapping("/add")
     public Result<Void> add(@RequestBody BookComment comment, HttpServletRequest request) {
         if (comment.getBookId() == null) {
@@ -87,15 +80,12 @@ public class CommentController {
             return Result.fail("作品不存在或未上架");
         }
         Long userId = (Long) request.getAttribute("userId");
-        // 以登录态的 userId 覆盖请求体中携带的值，不接收前端传入
+        // 归属以登录态为准，不用请求体里的
         comment.setUserId(userId);
         bookCommentService.add(comment);
         return Result.ok();
     }
 
-    /**
-     * 我的评论，分页返回，按时间倒序
-     */
     @GetMapping("/mine")
     public Result<Map<String, Object>> mine(@RequestParam(defaultValue = "1") Integer pageNum,
                                             @RequestParam(defaultValue = "10") Integer pageSize,
@@ -104,9 +94,6 @@ public class CommentController {
         return Result.ok(bookCommentService.pageByUser(userId, pageNum, pageSize));
     }
 
-    /**
-     * 修改自己的评论
-     */
     @PutMapping("/{id}")
     public Result<Void> update(@PathVariable Long id,
                                @Valid @RequestBody CommentEditDTO dto,
@@ -116,9 +103,6 @@ public class CommentController {
         return Result.ok();
     }
 
-    /**
-     * 删除自己的评论。归属在服务层按库中记录校验，不信任前端
-     */
     @DeleteMapping("/{id}")
     public Result<Void> delete(@PathVariable Long id, HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");

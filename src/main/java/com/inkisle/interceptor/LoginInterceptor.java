@@ -18,10 +18,7 @@ import org.springframework.web.servlet.HandlerInterceptor;
 import java.io.IOException;
 
 /**
- * 登录 + 角色拦截器
- * 统一校验 token 并判断角色，避免每个 Service 各自重复写权限判断
- * 角色按路径前缀划分：`/admin/**` 只放行管理员，`/author/**` 只放行作者，
- * 其余需登录的接口一律要求读者
+ * 统一校验 token 与角色：/admin/** 只放管理员，/author/** 只放作者，其余按读者处理
  */
 @Component
 public class LoginInterceptor implements HandlerInterceptor {
@@ -42,7 +39,7 @@ public class LoginInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
-        // 浏览器跨域会先发 OPTIONS 预检请求，该请求不带 token，不放行会导致跨域请求被拦截
+        // 跨域预检不带 token
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
             return true;
         }
@@ -63,10 +60,8 @@ public class LoginInterceptor implements HandlerInterceptor {
         }
 
         Long userId = Long.valueOf(claims.getSubject());
-        // token 有效期 24 小时，签发之后账号状态可能已变。只拦登录入口不够：
-        // 封禁或删除后，手里那个旧 token 仍能一直用到过期，故每次请求都回查一次
-        // 三张表各按主键查一次，代价是一次索引等值查询；不加缓存是刻意的——
-        // 缓存会让封禁延迟生效，而封禁要立刻生效正是这里要解决的问题
+        // token 有 24 小时有效期，签发之后可能已被封禁，只拦登录入口不够
+        // 这里不缓存，缓存会让封禁延迟生效
         if (!enabled(role, userId)) {
             return reject(response, ResultCode.FORBIDDEN.getCode(), "账号已被封禁或不存在");
         }
@@ -77,10 +72,8 @@ public class LoginInterceptor implements HandlerInterceptor {
     }
 
     /**
-     * 按路径前缀判断这个接口该由哪种角色访问
-     * 非 admin / author 前缀的接口都是读者端功能（书架、阅读进度、评论、签到、个人中心），
-     * 统一要求读者角色：三张账号表各自自增，作者 id=1 与读者 id=1 指向的是两个人，
-     * 若按「登录即可」放行，作者 token 调评论接口就会记到读者 1 名下
+     * 读者端接口必须要求读者：三张账号表各自自增，作者 id=1 和读者 id=1 是两个人，
+     * 按「登录即可」放行的话作者能拿自己的 token 操作读者的数据
      */
     private boolean checkRole(String uri, String role) {
         if (uri.startsWith("/admin/")) {
@@ -89,18 +82,14 @@ public class LoginInterceptor implements HandlerInterceptor {
         if (uri.startsWith("/author/")) {
             return RoleConstant.AUTHOR.equals(role);
         }
-        // 图片上传是读者与作者共用的：个人中心换头像用读者身份，作者建书传封面用作者身份
-        // 路径不在 /author/ 下，若按「其余一律读者」处理，作者传封面会被判成越权
+        // 换头像用读者身份，作者传封面用作者身份，两边都走 /file/upload
         if (uri.startsWith("/file/")) {
             return RoleConstant.USER.equals(role) || RoleConstant.AUTHOR.equals(role);
         }
         return RoleConstant.USER.equals(role);
     }
 
-    /**
-     * 账号当前是否可用
-     * admin_info 没有状态列，管理员停用靠删除记录实现，这里只要求记录仍存在
-     */
+    /** 管理员没有状态列，停用靠删记录，这里只要求记录还在 */
     private boolean enabled(String role, Long userId) {
         if (RoleConstant.USER.equals(role)) {
             UserInfo user = userInfoMapper.selectById(userId);
@@ -113,19 +102,15 @@ public class LoginInterceptor implements HandlerInterceptor {
         if (RoleConstant.ADMIN.equals(role)) {
             return adminInfoMapper.selectById(userId) != null;
         }
-        // 未知角色一律不放行
         return false;
     }
 
-    /** 状态列：0 正常，1 封禁（作者表注释写作「禁用」，含义相同） */
+    /** 0 正常，1 封禁（作者表写作「禁用」） */
     private boolean disabled(Integer status) {
         return status != null && status == 1;
     }
 
-    /**
-     * 拦截器执行早于 Controller，全局异常处理器尚未生效，
-     * 因此需在此手动构造与 `Result` 同结构的 JSON 写入响应
-     */
+    /** 拦截器早于全局异常处理器执行，这里只能自己拼 JSON */
     private boolean reject(HttpServletResponse response, int code, String msg) throws IOException {
         response.setStatus(code);
         response.setContentType("application/json;charset=UTF-8");

@@ -26,27 +26,18 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 作品审核
- * <p>
- * 一次流转要落两处：审核记录表留历史，book_info.audit_status 表示作品当前状态
- * 读者只看后者，管理端的审核列表看前者，两者必须同事务写入，
- * 否则会出现「记录已通过、作品仍不可见」这种对不上的情况
- * <p>
- * 记录表的状态是 0待审 / 1通过 / 2驳回，作品状态另有「未提交」「已下架」，
- * 编号不一致，故统一用 BookAuditStatus 表达，不直接互传数字
+ * 审核要落两处：记录表留历史，book_info.audit_status 表示当前状态，同事务写入
+ * 两套编号不同，统一走 BookAuditStatus，不互相传数字
  */
 @Service
 public class BookAuditServiceImpl implements BookAuditService {
 
     private static final Logger log = LoggerFactory.getLogger(BookAuditServiceImpl.class);
 
-    /** 审核记录：待审 */
     private static final int RECORD_PENDING = 0;
 
-    /** 审核记录：通过 */
     private static final int RECORD_PASS = 1;
 
-    /** 审核记录：驳回 */
     private static final int RECORD_REJECT = 2;
 
     @Autowired
@@ -73,7 +64,7 @@ public class BookAuditServiceImpl implements BookAuditService {
     @Transactional(rollbackFor = Exception.class)
     public void pass(Long id, Long adminId) {
         BookAuditRecord record = checkPending(id);
-        // 提交后作者仍可能把章节删光，通过前再确认一次，避免上架一本空书
+        // 作者提交之后可能又把章节删光，通过前再确认一次
         requireChapter(record.getBookId(), "作品没有章节，不能通过审核");
 
         BookAuditRecord update = new BookAuditRecord();
@@ -84,15 +75,13 @@ public class BookAuditServiceImpl implements BookAuditService {
         bookAuditRecordMapper.updateAudit(update);
 
         markBook(record.getBookId(), BookAuditStatus.PASSED, null);
-        // 审核员看的是整本书，章节不必再逐条审一遍；
-        // 之后新增或修改的章节仍会回到待审，由章节审核单独处理
+        // 审核看的是整本书，章节不再逐条审；之后新增或修改的章节会重新回到待审
         bookChapterMapper.passAllByBookId(record.getBookId());
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void reject(Long id, String remark, Long adminId) {
-        // 驳回必须有原因，为空时直接拒绝
         String reason = requireRemark(remark, "驳回要写原因");
         BookAuditRecord record = checkPending(id);
 
@@ -117,7 +106,6 @@ public class BookAuditServiceImpl implements BookAuditService {
             throw new BusinessException("已经提交过了，等审核结果");
         }
         if (current != null && current == BookAuditStatus.PASSED.getCode()) {
-            // 已上架的作品不需要手动送审，改展示信息会自动触发
             throw new BusinessException("作品已在架上，修改书名、简介或封面后会自动重新送审");
         }
         if (!BookAuditStatus.canSubmit(current)) {
@@ -132,7 +120,7 @@ public class BookAuditServiceImpl implements BookAuditService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void resubmitAfterEdit(Long bookId, Long authorId) {
-        // 已有待审记录时不再插入：作者连续改两次，管理端只该看到一条
+        // 已经有待审记录就不再插入，作者连改两次，管理端只该看到一条
         if (bookAuditRecordMapper.countPending(bookId) == 0) {
             insertPendingRecord(bookId, authorId);
         }
@@ -152,9 +140,7 @@ public class BookAuditServiceImpl implements BookAuditService {
         }
 
         markBook(bookId, BookAuditStatus.OFFLINE, reason);
-        // 记录表不改：它记的是作者送审的那一次，下架是管理员动作，没有对应的送审，
-        // 硬塞一条「驳回」会让作者看到一条并不存在的审核结论
-        // 操作人先记在应用日志里，审计需求变重时再补独立的操作日志表
+        // 记录表不动：下架不是一次送审，硬塞一条驳回会让作者看到不存在的结论
         log.info("作品下架 bookId={} adminId={} reason={}", bookId, adminId, reason);
     }
 
@@ -166,16 +152,15 @@ public class BookAuditServiceImpl implements BookAuditService {
             throw new BusinessException("只有已上架的作品可以下架");
         }
 
-        // 审核意见写「作者自主下架」：作者列表上这一列会展示，
-        // 不写的话作者过几天自己也分不清是管理员下架的还是自己下架的
+        // 作者列表会展示这一列，不写作者自己都分不清是谁下架的
         markBook(bookId, BookAuditStatus.OFFLINE, "作者自主下架");
-        // 记录表不动，原因与管理员下架一致：它不是一次送审，没有审核结论可记
         log.info("作者自主下架 bookId={} authorId={}", bookId, authorId);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void restore(Long bookId, Long adminId) {        BookInfo book = bookInfoMapper.selectById(bookId);
+    public void restore(Long bookId, Long adminId) {
+        BookInfo book = bookInfoMapper.selectById(bookId);
         if (book == null) {
             throw new BusinessException("作品不存在");
         }
@@ -189,8 +174,7 @@ public class BookAuditServiceImpl implements BookAuditService {
 
     @Override
     public Map<String, Object> listBooks(Integer auditStatus, Integer pageNum, Integer pageSize) {
-        // 管理端只提供两个入口：已通过的书用于下架，已下架的书用于恢复
-        // 待审的书走审核记录列表，未提交和已驳回的书不该由管理员直接处理
+        // 待审的走审核记录列表，这里只处理已上架和已下架的书
         if (auditStatus == null
                 || (auditStatus != BookAuditStatus.PASSED.getCode()
                 && auditStatus != BookAuditStatus.OFFLINE.getCode())) {
@@ -213,7 +197,6 @@ public class BookAuditServiceImpl implements BookAuditService {
         }
         Map<String, Object> data = new HashMap<>();
         data.put("book", book);
-        // 审核要看全部章节，包括待审与驳回的
         data.put("chapters", bookChapterMapper.selectAllByBookId(bookId));
         return data;
     }
@@ -234,9 +217,7 @@ public class BookAuditServiceImpl implements BookAuditService {
         return bookAuditRecordMapper.selectLatestByBookId(book.getId());
     }
 
-    /**
-     * 取出待审记录并拦截已审核的记录；通过与驳回均经此校验，避免两处重复判断
-     */
+    /** 通过和驳回都先走这里，已审过的记录直接挡掉 */
     private BookAuditRecord checkPending(Long id) {
         BookAuditRecord record = bookAuditRecordMapper.selectById(id);
         if (record == null) {
@@ -249,11 +230,8 @@ public class BookAuditServiceImpl implements BookAuditService {
     }
 
     /**
-     * 作品上架状态的唯一写入口，同时刷新更新时间
-     * remark 传 null 即清空，审核通过时会顺带抹掉上一次的驳回意见
-     * <p>
-     * 顺带清掉详情缓存：缓存里存的是整个 BookInfo，
-     * 不清理的话最长 30 分钟内读到的还是旧的上架状态
+     * 作品状态的唯一写入口。remark 传 null 即清空，通过时顺带抹掉上次的驳回意见
+     * 顺便清详情缓存，不然 30 分钟内读到的还是旧状态
      */
     private void markBook(Long bookId, BookAuditStatus status, String remark) {
         bookInfoMapper.updateAuditStatus(bookId, status.getCode(), remark, LocalDateTime.now());

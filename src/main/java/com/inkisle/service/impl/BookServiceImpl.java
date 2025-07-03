@@ -33,9 +33,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * 作品
- * 详情页读多写少，使用 @Cacheable 缓存；数据变更后需清除缓存，
- * 故写方法均标注 @CacheEvict；新建时 id 尚未生成，无法按 key 清除，故清空整片缓存
+ * 作品。详情读多写少，加了缓存，写方法统一清缓存
  */
 @Service
 public class BookServiceImpl implements BookService {
@@ -94,9 +92,6 @@ public class BookServiceImpl implements BookService {
         return data;
     }
 
-    /**
-     * 详情页读多写少，加入缓存
-     */
     @Override
     @Cacheable(value = "book", key = "#id")
     public BookInfo getById(Long id) {
@@ -117,7 +112,7 @@ public class BookServiceImpl implements BookService {
 
     @Override
     public Map<String, Object> search(Integer pageNum, Integer pageSize, String keyword) {
-        // 空关键词会退化成 LIKE '%%'，等于把整个书库当成搜索结果返回，页码也对不上，直接返回空
+        // 空关键词会变成 LIKE '%%'，等于返回整个书库
         String kw = keyword == null ? "" : keyword.trim();
         if (kw.isEmpty()) {
             return emptyPage();
@@ -148,13 +143,11 @@ public class BookServiceImpl implements BookService {
         return bookInfoMapper.selectByAuthorId(authorId);
     }
 
-    /**
-     * 新增与修改共用同一方法：新建时 id 为空，无法按 key 清除缓存，故清空整片缓存
-     */
+    /** 新建时拿不到 id，清不了单条缓存，只能整片清 */
     @Override
     @CacheEvict(value = "book", allEntries = true)
     public void save(BookSaveDTO bookSaveDTO, Long authorId) {
-        // 资质未过审的作者不可发布作品，否则书城会出现未审核内容
+        // 作者资质没过审不能发书
         AuthorInfo author = authorInfoMapper.selectById(authorId);
         if (author == null || author.getAuditStatus() == null || author.getAuditStatus() != 1) {
             throw new BusinessException("作者资质还没通过审核，暂时不能发布作品");
@@ -166,16 +159,13 @@ public class BookServiceImpl implements BookService {
         bookInfo.setCategoryId(bookSaveDTO.getCategoryId());
         bookInfo.setBookDesc(bookSaveDTO.getBookDesc());
         bookInfo.setCoverUrl(bookSaveDTO.getCoverUrl());
-        // 未填写作者名时使用笔名，避免列表显示为空
         bookInfo.setAuthorName(bookSaveDTO.getAuthorName() == null || bookSaveDTO.getAuthorName().isEmpty()
                 ? author.getPenName() : bookSaveDTO.getAuthorName());
 
         if (bookInfo.getId() == null) {
             bookInfo.setAuthorId(authorId);
-            // 新建作品默认为连载中
             bookInfo.setStatus(0);
-            // 上架状态从「未提交」起步：读者端只认「已通过」，
-            // 建完就能在书库看到等于审核流程形同虚设
+            // 建完就上架等于审核没用，所以从「未提交」起步
             bookInfo.setAuditStatus(BookAuditStatus.DRAFT.getCode());
             bookInfo.setCreateTime(LocalDateTime.now());
             bookInfoMapper.insert(bookInfo);
@@ -186,29 +176,22 @@ public class BookServiceImpl implements BookService {
         if (exist == null) {
             throw new BusinessException("作品不存在");
         }
-        // 此处为手写校验，后续多个作者接口均需使用，宜抽取复用
         if (!authorId.equals(exist.getAuthorId())) {
             throw new BusinessException("只能修改自己的作品");
         }
         bookInfo.setAuthorId(authorId);
-        // 编辑只改书名、简介这些展示信息。连载状态由 updateStatus 单独维护，
-        // 这里必须带回归档值：updateById 会无条件写入 status，
-        // 不带上就会把「已完结」覆盖成 null
+        // updateById 会无条件写 status，编辑时得把原值带回去，否则「已完结」被置空
         bookInfo.setStatus(exist.getStatus());
         bookInfo.setUpdateTime(LocalDateTime.now());
         bookInfoMapper.updateById(bookInfo);
 
-        // 已上架的作品改了展示信息，必须重新送审，否则改完简介就绕过了审核
-        // 章节正文不在此列：若每次更新都要重审，作者每更一章书都得下架等审，功能没法用
+        // 改书名、简介这类展示信息要重审，改章节正文不用，否则每更一章都得等审
         if (BookAuditStatus.isVisible(exist.getAuditStatus()) && displayChanged(exist, bookInfo)) {
             bookAuditService.resubmitAfterEdit(exist.getId(), authorId);
         }
     }
 
-    /**
-     * 只比较对外展示、审核员会看的字段
-     * 空串与 null 视为相同：编辑页回填时空值可能变成 ""，不算改动，否则每次保存都会触发重审
-     */
+    /** 空串和 null 算同一个值，否则编辑页每次保存都会触发重审 */
     private boolean displayChanged(BookInfo before, BookInfo after) {
         return textChanged(before.getBookName(), after.getBookName())
                 || textChanged(before.getAuthorName(), after.getAuthorName())
@@ -221,12 +204,6 @@ public class BookServiceImpl implements BookService {
         return !Objects.equals(before == null ? "" : before.trim(), after == null ? "" : after.trim());
     }
 
-    /**
-     * 删除作品
-     * 章节、正文、评论、收藏、阅读记录、审核记录都以 book_id 关联本表，
-     * 只删 book_info 会把这些数据留成读不到也清不掉的孤儿，故按依赖顺序逐表清理
-     * 正文挂在章节上，必须先于章节删除，否则子查询已定位不到它
-     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     @CacheEvict(value = "book", key = "#id")
@@ -251,12 +228,9 @@ public class BookServiceImpl implements BookService {
         deleteCascade(id);
     }
 
-    /**
-     * 级联清理。作者删自己的书与管理员清理违规作品走同一段逻辑，
-     * 只在入口处区分是否校验归属，避免两处各写一份清理顺序、日后改漏一处
-     */
+    /** 作者删书和管理员删书共用这一段，只是入口处校验不同 */
     private void deleteCascade(Long id) {
-        // 顺序不可调换：正文按章节 id 定位，章节一旦先删，正文就再也找不到
+        // 顺序不能换：正文按章节 id 定位，章节先删就找不到了
         bookContentMapper.deleteByBookId(id);
         bookChapterMapper.deleteByBookId(id);
         bookCommentMapper.deleteByBookId(id);
@@ -278,7 +252,7 @@ public class BookServiceImpl implements BookService {
         if (!authorId.equals(exist.getAuthorId())) {
             throw new BusinessException("只能操作自己的作品");
         }
-        // 0 连载，1 完结，其他值不接受
+        // 0 连载，1 完结
         if (status == null || (status != 0 && status != 1)) {
             throw new BusinessException("状态值不对");
         }
@@ -308,7 +282,6 @@ public class BookServiceImpl implements BookService {
             return false;
         }
         BookInfo book = bookInfoMapper.selectById(bookId);
-        // 只认作品自身的上架状态，不再每次回查审核记录表
         return book != null && BookAuditStatus.isVisible(book.getAuditStatus());
     }
 

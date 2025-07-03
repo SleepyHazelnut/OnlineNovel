@@ -16,9 +16,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 首页推荐位
- */
+/** 首页推荐位，三个板块：热门、精品、最新更新 */
 @Service
 public class HomeBookServiceImpl implements HomeBookService {
 

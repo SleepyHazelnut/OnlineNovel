@@ -5,11 +5,7 @@ import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-/**
- * 书籍信息
- * 书籍基础信息：书名、简介、封面等。目录见 BookChapter，正文见 BookContent
- * 简介单独占一个字段，列表页直接读取，无需加载正文
- */
+/** 书籍信息，目录在 BookChapter，正文在 BookContent */
 @Data
 public class BookInfo {
 

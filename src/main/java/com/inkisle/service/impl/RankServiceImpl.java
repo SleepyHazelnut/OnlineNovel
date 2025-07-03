@@ -18,21 +18,13 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 榜单实现
- * <p>
- * 热度榜存放于 Redis 的 ZSet：按阅读量排序需全表扫描并排序，数据量增大后性能下降；
- * ZSet 按 score 自动排序，取前 N 名与增加热度均为对数级复杂度
- * <p>
- * 点击、新书、更新三个榜单读的是 book_info 上的列，配合索引直接倒序取前 N 条，
- * 不另存一份排行榜——那需要处理缓存与库的同步，而排序依据本身就在库里
+ * 热度榜放 Redis ZSet；其余三个榜直接读 book_info 上的列，不另存一份排行
  */
 @Service
 public class RankServiceImpl implements RankService {
 
-    /** 榜单的 key：ZSet 里 member 是书籍 id，score 是热度 */
     private static final String HOT_KEY = "rank:book:hot";
 
-    /** 一次最多取 100 条，避免调用方传入超大值把整张表拉回来 */
     private static final int MAX_TOP = 100;
 
     @Autowired
@@ -55,7 +47,6 @@ public class RankServiceImpl implements RankService {
     @Override
     public List<Map<String, Object>> hotList(int top) {
         int size = clampTop(top);
-        // 榜单需由高到低排序，故使用 reverseRangeWithScores，普通 range 为升序
         Set<ZSetOperations.TypedTuple<String>> tuples =
                 stringRedisTemplate.opsForZSet().reverseRangeWithScores(HOT_KEY, 0, (long) size - 1);
         if (tuples == null || tuples.isEmpty()) {
@@ -66,15 +57,12 @@ public class RankServiceImpl implements RankService {
         int rank = 1;
         for (ZSetOperations.TypedTuple<String> tuple : tuples) {
             Long bookId = Long.valueOf(tuple.getValue());
-            // 通过 BookService 获取，可复用其缓存
             BookInfo book = bookService.getById(bookId);
             if (book == null) {
-                // 作品已删除但榜单仍有残留记录时跳过，避免前端返回空数据
+                // 书删了但 ZSet 里的记录还在
                 continue;
             }
-            // 作品可能过审上榜后又被驳回或下架，榜单中该条同样不应显示
-            // 直接用上面取到的实体判断：再调一次 isVisibleToReader 等于每本书多查一次库，
-            // 榜单 10 条就是 10 次多余查询
+            // 下架或驳回的书不该留在榜上。直接用查出来的实体判断，不再多查一次库
             if (!BookAuditStatus.isVisible(book.getAuditStatus())) {
                 continue;
             }
@@ -98,10 +86,7 @@ public class RankServiceImpl implements RankService {
         return toRankList(bookInfoMapper.selectTopByUpdateTime(clampTop(top)));
     }
 
-    /**
-     * SQL 的 LIMIT 不接受负数，top 传 0 或负数会让查询直接报错；
-     * 传几千也没意义，这里统一收敛到 1-100
-     */
+    /** LIMIT 不接受 0 和负数，统一收到 1-100 */
     private int clampTop(int top) {
         return Math.max(1, Math.min(top, MAX_TOP));
     }
@@ -115,11 +100,7 @@ public class RankServiceImpl implements RankService {
         return list;
     }
 
-    /**
-     * 三个榜单共用的返回结构
-     * 热度、创建时间、更新时间都带上，前端按当前页签决定显示哪一个，
-     * 不必为每个榜单各写一套字段名
-     */
+    /** 四个榜共用一个返回结构，前端按页签取对应字段 */
     private Map<String, Object> toItem(int rank, BookInfo book, Double heat) {
         Map<String, Object> item = new HashMap<>();
         item.put("rank", rank);
