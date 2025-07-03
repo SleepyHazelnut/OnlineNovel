@@ -4,7 +4,6 @@ import com.inkisle.entity.BookInfo;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -86,16 +85,23 @@ public interface BookInfoMapper {
     int updateWordCount(@Param("id") Long id, @Param("wordCount") int wordCount);
 
     /**
+     * 只刷新更新时间
+     * 章节增删改后调用：首页「最新更新」与更新榜都按 update_time 排序，
+     * 不刷新的话作者更了章，这两个位置仍停在作品信息最后一次修改的时间
+     */
+    int touchUpdateTime(@Param("id") Long id, @Param("updateTime") LocalDateTime updateTime);
+
+    /**
      * 评论数按评论表重算。增删评论后调用，避免逐次加减导致与实际数据不一致
      */
     int syncCommentCount(@Param("bookId") Long bookId);
 
     /**
-     * 覆盖平均分与评分人数，由评分表聚合后传入
+     * 按评分表重算平均分与评分人数并写回
+     * 聚合写在 UPDATE 的子查询里，子查询是当前读，能看到其他事务已提交的评分；
+     * 若在应用层先查一次再写回，并发打分时读到的是旧快照，后写的会覆盖先写的
      */
-    int updateRating(@Param("id") Long id,
-                     @Param("score") BigDecimal score,
-                     @Param("ratingCount") int ratingCount);
+    int refreshRating(@Param("bookId") Long bookId);
 
     /**
      * 点击榜：已上架作品中阅读次数最多的前 N 本

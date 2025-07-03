@@ -66,6 +66,10 @@ public class BookCategoryServiceImpl implements BookCategoryService {
         if (exist == null) {
             throw new BusinessException("分类不存在");
         }
+        // 编辑只开放名称与排序。改父级会让整棵树移位：把一个带子分类的一级分类
+        // 挂到另一个一级分类下，它的子分类就成了三级，树组装时再也遍历不到，
+        // 而作品仍在引用它们。故忽略请求体里的 parentId，一律沿用库中的值
+        dto.setParentId(exist.getParentId());
         fill(exist, dto, id);
         bookCategoryMapper.update(exist);
     }

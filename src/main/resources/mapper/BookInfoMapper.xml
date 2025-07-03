@@ -184,6 +184,17 @@
     </update>
 
     <!--
+      章节有增删改时单独刷新更新时间。
+      与 updateWordCount 分开：总字数不变（比如只改了章节名）时也要刷新，
+      而阅读计数不能走这里，否则刷点击会把书顶到更新榜上。
+    -->
+    <update id="touchUpdateTime">
+        UPDATE book_info
+        SET update_time = #{updateTime}
+        WHERE id = #{id}
+    </update>
+
+    <!--
       评论数按整表重算，不做增量加减。
       一级评论删除时其回复要一起删，回复条数还得先查一次才能算出减多少；
       一条 UPDATE ... SELECT 就够，评论是低频写操作，不值得为省这一次查询引入增量维护。
@@ -198,12 +209,25 @@
         WHERE b.id = #{bookId}
     </update>
 
-    <!-- 评分人数与平均分由 book_rating 聚合后整体覆盖 -->
-    <update id="updateRating">
-        UPDATE book_info
-        SET score = #{score},
-            rating_count = #{ratingCount}
-        WHERE id = #{id}
+    <!--
+      平均分与评分人数由 book_rating 聚合并整体覆盖。
+      聚合不拆到应用层算：UPDATE 里的子查询是当前读，能看到其他事务已提交的评分，
+      两个读者同时打分时不会各自拿着旧快照互相覆盖。
+      保留一位小数与 Service 中的展示口径一致。
+    -->
+    <update id="refreshRating">
+        UPDATE book_info b
+        SET b.score = (
+                SELECT ROUND(COALESCE(AVG(r.score), 0), 1)
+                FROM book_rating r
+                WHERE r.book_id = b.id
+            ),
+            b.rating_count = (
+                SELECT COUNT(*)
+                FROM book_rating r
+                WHERE r.book_id = b.id
+            )
+        WHERE b.id = #{bookId}
     </update>
 
     <!--

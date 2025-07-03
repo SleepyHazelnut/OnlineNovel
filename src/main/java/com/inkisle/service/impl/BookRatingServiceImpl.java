@@ -77,14 +77,14 @@ public class BookRatingServiceImpl implements BookRatingService {
     }
 
     /**
-     * 聚合后覆盖 book_info 的两列，并清掉详情缓存
-     * 不清的话详情页最长一个缓存周期内还是旧分数
+     * 重算并写回 book_info 的两列，同时清掉详情缓存
+     * 聚合放在 SQL 里做（见 BookInfoMapper.refreshRating），不在这里先查再写，
+     * 否则并发打分时两个事务会拿着各自的旧快照互相覆盖
+     * 不清缓存的话详情页最长一个缓存周期内还是旧分数
      */
     private Map<String, Object> refreshBookScore(Long bookId) {
+        bookInfoMapper.refreshRating(bookId);
         Map<String, Object> data = aggregate(bookId);
-        bookInfoMapper.updateRating(bookId,
-                (BigDecimal) data.get("score"),
-                (Integer) data.get("ratingCount"));
 
         Cache cache = cacheManager.getCache("book");
         if (cache != null) {

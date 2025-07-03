@@ -49,26 +49,27 @@ public class BookCommentServiceImpl implements BookCommentService {
         List<BookComment> all = bookCommentMapper.selectByBookId(bookId, viewerId);
 
         List<BookComment> roots = new ArrayList<>();
+        // 先按父评论分组：评论多时逐条去比对全表是 O(n²)，一次分组即可
+        Map<Long, List<BookComment>> childrenByParent = new HashMap<>();
         for (BookComment comment : all) {
-            if (comment.getParentId() == ROOT_ID) {
+            // parent_id 为 0 是一级评论。历史数据里可能是 null，一并按一级处理，
+            // 直接与 0 比较会拆箱空指针
+            if (comment.getParentId() == null || comment.getParentId() == ROOT_ID) {
                 roots.add(comment);
+                continue;
             }
+            childrenByParent.computeIfAbsent(comment.getParentId(), key -> new ArrayList<>()).add(comment);
         }
 
-        // 评论一次全部查出并在内存中组装，避免为每条回复单独查询父评论
         for (BookComment root : roots) {
-            List<BookComment> children = new ArrayList<>();
-            for (BookComment comment : all) {
-                if (comment.getParentId().equals(root.getId())) {
-                    children.add(comment);
-                }
-            }
-            root.setChildren(children);
+            List<BookComment> children = childrenByParent.get(root.getId());
+            root.setChildren(children == null ? new ArrayList<>() : children);
         }
         return roots;
     }
 
     @Override
+    @Transactional
     public void add(BookComment comment) {
         comment.setContent(normalizeContent(comment.getContent()));
         if (comment.getParentId() == null) {
@@ -105,6 +106,7 @@ public class BookCommentServiceImpl implements BookCommentService {
     }
 
     @Override
+    @Transactional
     public void updateContent(Long id, Long userId, String content) {
         BookComment exist = requireOwned(id, userId);
         bookCommentMapper.updateContent(exist.getId(), normalizeContent(content));
@@ -142,6 +144,7 @@ public class BookCommentServiceImpl implements BookCommentService {
     @Transactional
     public void pass(Long id, Long adminId) {
         BookComment exist = requirePending(id);
+        requireParentPassed(exist);
         bookCommentMapper.updateAuditStatus(id, ContentAuditStatus.PASSED.getCode(), null);
         // 评论数只统计通过的，状态一变就要重算
         refreshCommentCount(exist.getBookId());
@@ -171,6 +174,20 @@ public class BookCommentServiceImpl implements BookCommentService {
             throw new BusinessException("这条评论已经审过了");
         }
         return exist;
+    }
+
+    /**
+     * 回复挂在一级评论下。父评论没通过时，这条回复就算通过了，
+     * 列表组装也找不到根节点，读者端照样看不到，等于白审一次
+     */
+    private void requireParentPassed(BookComment comment) {
+        if (comment.getParentId() == null || comment.getParentId() == ROOT_ID) {
+            return;
+        }
+        BookComment parent = bookCommentMapper.selectById(comment.getParentId());
+        if (parent == null || !ContentAuditStatus.isVisible(parent.getAuditStatus())) {
+            throw new BusinessException("它回复的那条评论还没通过，先审那条");
+        }
     }
 
     private String requireRemark(String remark) {

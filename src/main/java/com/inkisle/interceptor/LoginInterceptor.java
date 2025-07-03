@@ -89,6 +89,11 @@ public class LoginInterceptor implements HandlerInterceptor {
         if (uri.startsWith("/author/")) {
             return RoleConstant.AUTHOR.equals(role);
         }
+        // 图片上传是读者与作者共用的：个人中心换头像用读者身份，作者建书传封面用作者身份
+        // 路径不在 /author/ 下，若按「其余一律读者」处理，作者传封面会被判成越权
+        if (uri.startsWith("/file/")) {
+            return RoleConstant.USER.equals(role) || RoleConstant.AUTHOR.equals(role);
+        }
         return RoleConstant.USER.equals(role);
     }
 
