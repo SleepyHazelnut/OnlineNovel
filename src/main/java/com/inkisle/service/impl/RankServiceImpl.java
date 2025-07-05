@@ -5,6 +5,7 @@ import com.inkisle.entity.BookInfo;
 import com.inkisle.mapper.BookInfoMapper;
 import com.inkisle.service.BookService;
 import com.inkisle.service.RankService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
@@ -20,6 +21,7 @@ import java.util.Set;
 /**
  * 热度榜放 Redis ZSet；其余三个榜直接读 book_info 上的列，不另存一份排行
  */
+@Slf4j
 @Service
 public class RankServiceImpl implements RankService {
 
@@ -56,7 +58,18 @@ public class RankServiceImpl implements RankService {
         List<Map<String, Object>> list = new ArrayList<>(tuples.size());
         int rank = 1;
         for (ZSetOperations.TypedTuple<String> tuple : tuples) {
-            Long bookId = Long.valueOf(tuple.getValue());
+            String member = tuple.getValue();
+            if (member == null) {
+                continue;
+            }
+            long bookId;
+            try {
+                bookId = Long.parseLong(member);
+            } catch (NumberFormatException e) {
+                // ZSet 里混进非数字成员时跳过这一条，不该让整个榜单 500
+                log.warn("热度榜出现非法成员 member={}", member);
+                continue;
+            }
             BookInfo book = bookService.getById(bookId);
             if (book == null) {
                 // 书删了但 ZSet 里的记录还在

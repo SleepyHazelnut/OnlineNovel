@@ -79,13 +79,20 @@
 
         let html = '<div class="bar-chart">';
         rows.forEach(function (r) {
-            const total = (r.userNum || 0) + (r.bookNum || 0) + (r.commentNum || 0);
+            const user = r.userNum || 0;
+            const book = r.bookNum || 0;
+            const comment = r.commentNum || 0;
+            const total = user + book + comment;
             const h = Math.round(total / max * 160);
             const day = String(r.day || '').slice(5);
             html += '<div class="bar-col">'
                 + '<span class="bar-val">' + total + '</span>'
                 + '<div class="bar" style="height:' + Math.max(h, total > 0 ? 6 : 2) + 'px" title="用户 '
-                + (r.userNum || 0) + ' / 书籍 ' + (r.bookNum || 0) + ' / 评论 ' + (r.commentNum || 0) + '"></div>'
+                + user + ' / 书籍 ' + book + ' / 评论 ' + comment + '">'
+                + '<i class="seg seg-user" style="height:' + (user / max * 160) + 'px"></i>'
+                + '<i class="seg seg-book" style="height:' + (book / max * 160) + 'px"></i>'
+                + '<i class="seg seg-comment" style="height:' + (comment / max * 160) + 'px"></i>'
+                + '</div>'
                 + '<span class="bar-label">' + day + '</span>'
                 + '</div>';
         });

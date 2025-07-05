@@ -1,5 +1,6 @@
 package com.inkisle.service.impl;
 
+import com.inkisle.common.BookAuditStatus;
 import com.inkisle.common.BusinessException;
 import com.inkisle.dto.HomeBookDTO;
 import com.inkisle.entity.BookInfo;
@@ -19,9 +20,6 @@ import java.util.Map;
 /** 首页推荐位，三个板块：热门、精品、最新更新 */
 @Service
 public class HomeBookServiceImpl implements HomeBookService {
-
-    /** 编号与 book_info.audit_status 的「已通过」对应，改动时两处需同步 */
-    private static final int AUDIT_PASSED = 2;
 
     /** 最新更新板块的条数，与前端一屏放得下的数量一致 */
     private static final int NEWEST_SIZE = 6;
@@ -53,7 +51,7 @@ public class HomeBookServiceImpl implements HomeBookService {
             throw new BusinessException("作品不存在");
         }
         // 未上架的书放进推荐位，读者端也要被过滤掉，等于配了个看不见的条目
-        if (book.getAuditStatus() == null || book.getAuditStatus() != AUDIT_PASSED) {
+        if (!BookAuditStatus.isVisible(book.getAuditStatus())) {
             throw new BusinessException("只有已上架的作品可以上推荐位");
         }
         if (homeBookMapper.countBySectionAndBook(dto.getSection(), dto.getBookId()) > 0) {
