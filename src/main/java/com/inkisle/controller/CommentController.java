@@ -1,5 +1,6 @@
 package com.inkisle.controller;
 
+import com.inkisle.annotation.RepeatSubmit;
 import com.inkisle.common.Result;
 import com.inkisle.common.RoleConstant;
 import com.inkisle.dto.CommentEditDTO;
@@ -71,6 +72,7 @@ public class CommentController {
         }
     }
 
+    @RepeatSubmit
     @PostMapping("/add")
     public Result<Void> add(@RequestBody BookComment comment, HttpServletRequest request) {
         if (comment.getBookId() == null) {

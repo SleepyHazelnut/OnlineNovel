@@ -43,6 +43,9 @@ public interface BookInfoMapper {
                           @Param("auditRemark") String auditRemark,
                           @Param("updateTime") LocalDateTime updateTime);
 
+    /** 置为待审，返回 0 说明已经在待审了；靠这一条挡住并发重复投稿 */
+    int markPendingIfNotPending(@Param("id") Long id, @Param("updateTime") LocalDateTime updateTime);
+
     int incrementVisitCount(@Param("id") Long id);
 
     int updateWordCount(@Param("id") Long id, @Param("wordCount") int wordCount);

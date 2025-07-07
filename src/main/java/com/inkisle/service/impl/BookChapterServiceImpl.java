@@ -120,7 +120,7 @@ public class BookChapterServiceImpl implements BookChapterService {
         }
 
         saveContent(chapter.getId(), content);
-        refreshBookStat(chapter.getBookId());
+        refreshBookStat(chapter.getBookId(), true);
     }
 
     @Override
@@ -142,7 +142,8 @@ public class BookChapterServiceImpl implements BookChapterService {
         bookContentMapper.deleteByChapterId(chapterId);
         // 阅读进度指向的章节没了，读者续读会跳到不存在的页
         userReadHistoryMapper.deleteByChapterId(chapterId);
-        refreshBookStat(chapter.getBookId());
+        // 删章只改总字数：删掉一章不是更新，推了更新时间会把它顶到更新榜前面
+        refreshBookStat(chapter.getBookId(), false);
     }
 
     /** 整本导入放一个事务里，失败不留半本书 */
@@ -179,7 +180,7 @@ public class BookChapterServiceImpl implements BookChapterService {
             saveContent(chapter.getId(), entry.getValue());
         }
 
-        refreshBookStat(bookId);
+        refreshBookStat(bookId, true);
         return chapters.size();
     }
 
@@ -203,12 +204,14 @@ public class BookChapterServiceImpl implements BookChapterService {
     }
 
     /**
-     * 章节变动后重算总字数，并推一下更新时间：首页「最新更新」和更新榜都按它排序
-     * 详情缓存里存着整个 BookInfo，不清会停在旧值
+     * 章节变动后重算总字数；新增或修改时顺带推一下更新时间，
+     * 首页「最新更新」和更新榜都按它排序。详情缓存里存着整个 BookInfo，不清会停在旧值
      */
-    private void refreshBookStat(Long bookId) {
+    private void refreshBookStat(Long bookId, boolean touchUpdateTime) {
         bookInfoMapper.updateWordCount(bookId, bookChapterMapper.selectTotalWordCount(bookId));
-        bookInfoMapper.touchUpdateTime(bookId, LocalDateTime.now());
+        if (touchUpdateTime) {
+            bookInfoMapper.touchUpdateTime(bookId, LocalDateTime.now());
+        }
         Cache cache = cacheManager.getCache("book");
         if (cache != null) {
             cache.evict(bookId);

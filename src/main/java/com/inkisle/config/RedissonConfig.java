@@ -8,11 +8,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Redisson 客户端配置
- * <p>
- * 引入 Redisson 用于实现防重复提交所需的分布式锁
- * 连接地址复用 `spring.data.redis` 的 host / port，不重复配置，
- * 避免修改 Redis 地址时遗漏其一
+ * Redisson 客户端。地址跟 spring.data.redis 保持一致
  */
 @Configuration
 public class RedissonConfig {
@@ -29,5 +25,4 @@ public class RedissonConfig {
         config.useSingleServer().setAddress("redis://" + host + ":" + port);
         return Redisson.create(config);
     }
-
 }

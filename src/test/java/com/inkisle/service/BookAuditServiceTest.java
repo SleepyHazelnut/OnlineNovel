@@ -181,7 +181,7 @@ class BookAuditServiceTest extends BaseIntegrationTest {
 
         assertThatThrownBy(() -> bookAuditService.submit(bookId, authorId))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("还没有章节");
+                .hasMessageContaining("至少发布一章");
         assertThat(auditStatusOf(bookId)).isEqualTo(DRAFT);
     }
 
@@ -195,7 +195,7 @@ class BookAuditServiceTest extends BaseIntegrationTest {
 
         assertThatThrownBy(() -> bookAuditService.submit(bookId, authorId))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("已经提交过了");
+                .hasMessageContaining("作品已在审核中");
         assertThat(countBy("book_audit_record", "book_id", bookId)).isEqualTo(1);
     }
 

@@ -1,9 +1,12 @@
 package com.inkisle.controller;
 
 import com.inkisle.common.Result;
+import com.inkisle.dto.AuditHandleDTO;
+import com.inkisle.dto.BookActionDTO;
 import com.inkisle.entity.BookAuditRecord;
 import com.inkisle.service.BookAuditService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -29,17 +32,16 @@ public class AdminAuditController {
     }
 
     @PostMapping("/pass")
-    public Result<Void> pass(@RequestBody Map<String, Long> params, HttpServletRequest request) {
+    public Result<Void> pass(@Valid @RequestBody AuditHandleDTO dto, HttpServletRequest request) {
         Long adminId = (Long) request.getAttribute("userId");
-        bookAuditService.pass(params.get("id"), adminId);
+        bookAuditService.pass(dto.getId(), adminId);
         return Result.ok();
     }
 
     @PostMapping("/reject")
-    public Result<Void> reject(@RequestBody Map<String, Object> params, HttpServletRequest request) {
+    public Result<Void> reject(@Valid @RequestBody AuditHandleDTO dto, HttpServletRequest request) {
         Long adminId = (Long) request.getAttribute("userId");
-        Long id = Long.valueOf(params.get("id").toString());
-        bookAuditService.reject(id, (String) params.get("remark"), adminId);
+        bookAuditService.reject(dto.getId(), dto.getRemark(), adminId);
         return Result.ok();
     }
 
@@ -52,17 +54,16 @@ public class AdminAuditController {
     }
 
     @PostMapping("/take-down")
-    public Result<Void> takeDown(@RequestBody Map<String, Object> params, HttpServletRequest request) {
+    public Result<Void> takeDown(@Valid @RequestBody BookActionDTO dto, HttpServletRequest request) {
         Long adminId = (Long) request.getAttribute("userId");
-        Long bookId = Long.valueOf(params.get("bookId").toString());
-        bookAuditService.takeDown(bookId, (String) params.get("remark"), adminId);
+        bookAuditService.takeDown(dto.getBookId(), dto.getRemark(), adminId);
         return Result.ok();
     }
 
     @PostMapping("/restore")
-    public Result<Void> restore(@RequestBody Map<String, Long> params, HttpServletRequest request) {
+    public Result<Void> restore(@Valid @RequestBody BookActionDTO dto, HttpServletRequest request) {
         Long adminId = (Long) request.getAttribute("userId");
-        bookAuditService.restore(params.get("bookId"), adminId);
+        bookAuditService.restore(dto.getBookId(), adminId);
         return Result.ok();
     }
 

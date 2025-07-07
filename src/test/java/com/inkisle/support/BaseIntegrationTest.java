@@ -1,7 +1,10 @@
 package com.inkisle.support;
 
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestInstance;
+import org.mockito.Mockito;
+import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -40,12 +43,18 @@ public abstract class BaseIntegrationTest {
     @Autowired
     protected JdbcTemplate jdbcTemplate;
 
-    /**
-     * Redisson 的客户端在构造时就会建立连接，本机没起 Redis 时上下文起不来
-     * 测试不涉及防重复提交，替换成 mock 即可
-     */
+    /** 本机没起 Redis 时 Redisson 建连失败，测试里换成 mock */
     @MockBean
     protected RedissonClient redissonClient;
+
+    /** 防重复提交切面直接放行，测试要验的是接口本身 */
+    @BeforeEach
+    void allowRepeatSubmit() throws InterruptedException {
+        RLock lock = Mockito.mock(RLock.class);
+        Mockito.when(lock.tryLock(Mockito.anyLong(), Mockito.anyLong(), Mockito.any())).thenReturn(true);
+        Mockito.when(lock.isHeldByCurrentThread()).thenReturn(true);
+        Mockito.when(redissonClient.getLock(Mockito.anyString())).thenReturn(lock);
+    }
 
     @BeforeAll
     void prepareSchema() {

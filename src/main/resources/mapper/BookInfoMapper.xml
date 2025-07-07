@@ -164,6 +164,16 @@
         WHERE id = #{id}
     </update>
 
+    <!-- 状态判断和写入放在同一条语句里，两个人同时点投稿只有一个能改到行 -->
+    <update id="markPendingIfNotPending">
+        UPDATE book_info
+        SET audit_status = 1,
+            audit_remark = NULL,
+            update_time = #{updateTime}
+        WHERE id = #{id}
+          AND audit_status &lt;&gt; 1
+    </update>
+
     <!--
       阅读计数直接写库，不另做缓冲。
       这个接口每打开一章调一次，单行自增在 InnoDB 里是行锁上的顺序写，

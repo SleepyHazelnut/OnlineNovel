@@ -64,12 +64,13 @@
         try {
             const data = await get('/sign/month');
             const month = data.month;
+            const year = data.year || new Date().getFullYear();
             const signed = data.days || [];
             const today = new Date();
-            const first = new Date(today.getFullYear(), month - 1, 1);
-            const len = new Date(today.getFullYear(), month, 0).getDate();
+            const first = new Date(year, month - 1, 1);
+            const len = new Date(year, month, 0).getDate();
 
-            document.getElementById('monthTitle').innerHTML = month + ' 月签到';
+            document.getElementById('monthTitle').innerHTML = year + ' 年 ' + month + ' 月签到';
 
             if (data.todaySigned) {
                 const btn = document.getElementById('signBtn');
@@ -79,6 +80,7 @@
             }
 
             let html = '';
+            const sameMonth = today.getFullYear() === year && today.getMonth() + 1 === month;
             WEEK.forEach(function (w) { html += '<div class="week">' + w + '</div>'; });
             // 1 号之前补空格子，日期才会对上星期
             for (let i = 0; i < first.getDay(); i++) {
@@ -87,7 +89,7 @@
             for (let d = 1; d <= len; d++) {
                 const cls = ['day'];
                 if (signed.indexOf(d) >= 0) cls.push('signed');
-                if (d === today.getDate()) cls.push('today');
+                if (sameMonth && d === today.getDate()) cls.push('today');
                 html += '<div class="' + cls.join(' ') + '">' + d + '</div>';
             }
             box.innerHTML = html;
@@ -101,7 +103,7 @@
         try {
             const data = await post('/sign/in');
             document.getElementById('continuous').textContent = data.continuousDays || 0;
-            toast(data.repeat ? '今天已经签过啦' : '签到成功');
+            toast(data.repeat ? '今天已签到' : '签到成功');
             const btn = document.getElementById('signBtn');
             btn.textContent = '今天已签到';
             btn.disabled = true;

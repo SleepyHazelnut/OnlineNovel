@@ -69,6 +69,8 @@ public class SignServiceImpl implements SignService {
         }
 
         Map<String, Object> data = new HashMap<>();
+        // 年月一并返回：前端只认自己的本地日期时，跨年零点前后会和服务端差一天
+        data.put("year", today.getYear());
         data.put("month", today.getMonthValue());
         data.put("days", days);
         data.put("count", days.size());

@@ -1,5 +1,6 @@
 package com.inkisle.controller;
 
+import com.inkisle.annotation.RepeatSubmit;
 import com.inkisle.common.Result;
 import com.inkisle.entity.BookChapter;
 import com.inkisle.service.BookChapterService;
@@ -37,6 +38,7 @@ public class AuthorChapterController {
         return Result.ok(bookChapterService.readForAuthor(id, authorId));
     }
 
+    @RepeatSubmit
     @PostMapping("/save")
     public Result<Void> save(@RequestBody Map<String, Object> params, HttpServletRequest request) {
         Long authorId = (Long) request.getAttribute("userId");

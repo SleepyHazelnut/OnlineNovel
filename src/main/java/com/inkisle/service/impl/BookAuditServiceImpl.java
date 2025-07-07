@@ -103,7 +103,7 @@ public class BookAuditServiceImpl implements BookAuditService {
 
         Integer current = book.getAuditStatus();
         if (current != null && current == BookAuditStatus.PENDING.getCode()) {
-            throw new BusinessException("已经提交过了，等审核结果");
+            throw new BusinessException("作品已在审核中，请等待结果");
         }
         if (current != null && current == BookAuditStatus.PASSED.getCode()) {
             throw new BusinessException("作品已在架上，修改书名、简介或封面后会自动重新送审");
@@ -112,9 +112,13 @@ public class BookAuditServiceImpl implements BookAuditService {
             throw new BusinessException("当前状态不能提交审核");
         }
 
-        requireChapter(bookId, "还没有章节，先写点内容再提交");
+        requireChapter(bookId, "至少发布一章后才能提交审核");
+        // 先改状态再插记录：状态没改成说明别人已经提交过，此时不该再插一条待审记录
+        if (bookInfoMapper.markPendingIfNotPending(bookId, LocalDateTime.now()) == 0) {
+            throw new BusinessException("作品已在审核中，请等待结果");
+        }
+        evictBookCache(bookId);
         insertPendingRecord(bookId, authorId);
-        markBook(bookId, BookAuditStatus.PENDING, null);
     }
 
     @Override
@@ -235,6 +239,10 @@ public class BookAuditServiceImpl implements BookAuditService {
      */
     private void markBook(Long bookId, BookAuditStatus status, String remark) {
         bookInfoMapper.updateAuditStatus(bookId, status.getCode(), remark, LocalDateTime.now());
+        evictBookCache(bookId);
+    }
+
+    private void evictBookCache(Long bookId) {
         Cache cache = cacheManager.getCache("book");
         if (cache != null) {
             cache.evict(bookId);
