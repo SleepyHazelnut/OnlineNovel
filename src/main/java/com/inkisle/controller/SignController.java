@@ -1,5 +1,6 @@
 package com.inkisle.controller;
 
+import com.inkisle.common.CurrentUser;
 import com.inkisle.common.Result;
 import com.inkisle.service.SignService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -27,7 +28,7 @@ public class SignController {
      */
     @PostMapping("/in")
     public Result<Map<String, Object>> signIn(HttpServletRequest request) {
-        Long userId = (Long) request.getAttribute("userId");
+        Long userId = CurrentUser.id(request);
         boolean first = signService.sign(userId);
 
         Map<String, Object> data = new HashMap<>();
@@ -42,7 +43,7 @@ public class SignController {
      */
     @GetMapping("/month")
     public Result<Map<String, Object>> month(HttpServletRequest request) {
-        Long userId = (Long) request.getAttribute("userId");
+        Long userId = CurrentUser.id(request);
         return Result.ok(signService.monthStatus(userId));
     }
 
@@ -51,7 +52,7 @@ public class SignController {
      */
     @GetMapping("/continuous")
     public Result<Integer> continuous(HttpServletRequest request) {
-        Long userId = (Long) request.getAttribute("userId");
+        Long userId = CurrentUser.id(request);
         return Result.ok(signService.continuousDays(userId));
     }
 

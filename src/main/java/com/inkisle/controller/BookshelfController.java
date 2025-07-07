@@ -1,5 +1,6 @@
 package com.inkisle.controller;
 
+import com.inkisle.common.CurrentUser;
 import com.inkisle.common.Result;
 import com.inkisle.entity.UserBookshelf;
 import com.inkisle.service.UserBookshelfService;
@@ -36,7 +37,7 @@ public class BookshelfController {
         if (!bookService.isVisibleToReader(bookId)) {
             return Result.fail("作品不存在或未上架");
         }
-        Long userId = (Long) request.getAttribute("userId");
+        Long userId = CurrentUser.id(request);
         userBookshelfService.add(userId, bookId);
         return Result.ok();
     }
@@ -46,7 +47,7 @@ public class BookshelfController {
      */
     @PostMapping("/remove")
     public Result<Void> remove(@RequestBody Map<String, Long> params, HttpServletRequest request) {
-        Long userId = (Long) request.getAttribute("userId");
+        Long userId = CurrentUser.id(request);
         userBookshelfService.remove(userId, params.get("bookId"));
         return Result.ok();
     }
@@ -56,7 +57,7 @@ public class BookshelfController {
      */
     @GetMapping("/list")
     public Result<List<UserBookshelf>> list(HttpServletRequest request) {
-        Long userId = (Long) request.getAttribute("userId");
+        Long userId = CurrentUser.id(request);
         return Result.ok(userBookshelfService.listByUserId(userId));
     }
 
@@ -65,7 +66,7 @@ public class BookshelfController {
      */
     @GetMapping("/check")
     public Result<Boolean> check(@RequestParam Long bookId, HttpServletRequest request) {
-        Long userId = (Long) request.getAttribute("userId");
+        Long userId = CurrentUser.id(request);
         return Result.ok(userBookshelfService.isCollected(userId, bookId));
     }
 

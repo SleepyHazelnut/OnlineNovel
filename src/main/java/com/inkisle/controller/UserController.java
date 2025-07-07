@@ -1,5 +1,6 @@
 package com.inkisle.controller;
 
+import com.inkisle.common.CurrentUser;
 import com.inkisle.common.Result;
 import com.inkisle.dto.LoginDTO;
 import com.inkisle.dto.PasswordDTO;
@@ -43,21 +44,21 @@ public class UserController {
 
     @GetMapping("/info")
     public Result<UserInfo> info(HttpServletRequest request) {
-        Long userId = (Long) request.getAttribute("userId");
+        Long userId = CurrentUser.id(request);
         return Result.ok(userService.getById(userId));
     }
 
     @PutMapping("/profile")
     public Result<UserInfo> updateProfile(@Valid @RequestBody UserProfileDTO profileDTO,
                                           HttpServletRequest request) {
-        Long userId = (Long) request.getAttribute("userId");
+        Long userId = CurrentUser.id(request);
         return Result.ok(userService.updateProfile(userId, profileDTO));
     }
 
     @PutMapping("/password")
     public Result<Void> changePassword(@Valid @RequestBody PasswordDTO passwordDTO,
                                        HttpServletRequest request) {
-        Long userId = (Long) request.getAttribute("userId");
+        Long userId = CurrentUser.id(request);
         userService.changePassword(userId, passwordDTO);
         return Result.ok();
     }

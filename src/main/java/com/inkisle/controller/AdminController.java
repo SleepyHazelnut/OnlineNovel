@@ -1,5 +1,6 @@
 package com.inkisle.controller;
 
+import com.inkisle.common.CurrentUser;
 import com.inkisle.common.Result;
 import com.inkisle.dto.LoginDTO;
 import com.inkisle.entity.AdminInfo;
@@ -42,7 +43,7 @@ public class AdminController {
      */
     @GetMapping("/info")
     public Result<AdminInfo> info(HttpServletRequest request) {
-        Long adminId = (Long) request.getAttribute("userId");
+        Long adminId = CurrentUser.id(request);
         return Result.ok(adminService.getById(adminId));
     }
 

@@ -212,20 +212,6 @@ function fmtCount(n) {
     return String(v);
 }
 
-/**
- * 评分的星星。按四舍五入取整颗星，小数点后一位单独显示在文字里，
- * 不做半颗星图标——项目没有图标库，半星只能用字符拼，反而更乱
- */
-function starHtml(score) {
-    const value = Number(score) || 0;
-    const full = Math.round(value);
-    let stars = '';
-    for (let i = 1; i <= 5; i++) {
-        stars += '<span class="star' + (i <= full ? ' on' : '') + '">★</span>';
-    }
-    return '<span class="stars">' + stars + '</span>';
-}
-
 /* ---------------- 导航 ---------------- */
 /**
  * role 三选一，items 是 [{key, text, href}]，active 匹配 key

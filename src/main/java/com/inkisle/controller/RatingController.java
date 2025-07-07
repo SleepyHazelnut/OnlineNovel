@@ -1,5 +1,6 @@
 package com.inkisle.controller;
 
+import com.inkisle.common.CurrentUser;
 import com.inkisle.common.Result;
 import com.inkisle.dto.RatingDTO;
 import com.inkisle.service.BookRatingService;
@@ -34,7 +35,7 @@ public class RatingController {
     public Result<Map<String, Object>> rate(@PathVariable Long bookId,
                                             @Valid @RequestBody RatingDTO ratingDTO,
                                             HttpServletRequest request) {
-        Long userId = (Long) request.getAttribute("userId");
+        Long userId = CurrentUser.id(request);
         return Result.ok(bookRatingService.rate(bookId, userId, ratingDTO.getScore()));
     }
 
@@ -43,7 +44,7 @@ public class RatingController {
      */
     @GetMapping("/{bookId}")
     public Result<Map<String, Object>> summary(@PathVariable Long bookId, HttpServletRequest request) {
-        Long userId = (Long) request.getAttribute("userId");
+        Long userId = CurrentUser.id(request);
         return Result.ok(bookRatingService.summary(bookId, userId));
     }
 

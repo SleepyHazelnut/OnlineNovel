@@ -1,6 +1,7 @@
 package com.inkisle.controller;
 
 import com.inkisle.annotation.RepeatSubmit;
+import com.inkisle.common.CurrentUser;
 import com.inkisle.common.Result;
 import com.inkisle.entity.BookChapter;
 import com.inkisle.service.BookChapterService;
@@ -27,21 +28,21 @@ public class AuthorChapterController {
 
     @GetMapping("/list")
     public Result<List<BookChapter>> list(@RequestParam Long bookId, HttpServletRequest request) {
-        Long authorId = (Long) request.getAttribute("userId");
+        Long authorId = CurrentUser.id(request);
         return Result.ok(bookChapterService.listByBookIdForAuthor(bookId, authorId));
     }
 
     /** 读者端 /chapter/{id} 会拦未过审的作品，作者预览草稿得另开一条 */
     @GetMapping("/read")
     public Result<Map<String, Object>> read(@RequestParam Long id, HttpServletRequest request) {
-        Long authorId = (Long) request.getAttribute("userId");
+        Long authorId = CurrentUser.id(request);
         return Result.ok(bookChapterService.readForAuthor(id, authorId));
     }
 
     @RepeatSubmit
     @PostMapping("/save")
     public Result<Void> save(@RequestBody Map<String, Object> params, HttpServletRequest request) {
-        Long authorId = (Long) request.getAttribute("userId");
+        Long authorId = CurrentUser.id(request);
 
         BookChapter chapter = new BookChapter();
         if (params.get("id") != null) {
@@ -56,7 +57,7 @@ public class AuthorChapterController {
 
     @PostMapping("/delete")
     public Result<Void> delete(@RequestBody Map<String, Long> params, HttpServletRequest request) {
-        Long authorId = (Long) request.getAttribute("userId");
+        Long authorId = CurrentUser.id(request);
         bookChapterService.deleteChapter(params.get("id"), authorId);
         return Result.ok();
     }
@@ -65,7 +66,7 @@ public class AuthorChapterController {
     public Result<Integer> importTxt(@RequestParam("file") MultipartFile file,
                                      @RequestParam Long bookId,
                                      HttpServletRequest request) {
-        Long authorId = (Long) request.getAttribute("userId");
+        Long authorId = CurrentUser.id(request);
         int count = bookChapterService.importChapters(bookId, file, authorId);
         return Result.ok(count);
     }

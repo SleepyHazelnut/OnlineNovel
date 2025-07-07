@@ -1,6 +1,8 @@
 package com.inkisle.controller;
 
+import com.inkisle.common.CurrentUser;
 import com.inkisle.common.Result;
+import com.inkisle.dto.RemarkDTO;
 import com.inkisle.service.ChapterAuditService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,17 +47,17 @@ public class AdminChapterController {
 
     @PostMapping("/{id}/pass")
     public Result<Void> pass(@PathVariable Long id, HttpServletRequest request) {
-        Long adminId = (Long) request.getAttribute("userId");
+        Long adminId = CurrentUser.id(request);
         chapterAuditService.pass(id, adminId);
         return Result.ok();
     }
 
     @PostMapping("/{id}/reject")
     public Result<Void> reject(@PathVariable Long id,
-                               @RequestBody Map<String, Object> params,
+                               @RequestBody RemarkDTO dto,
                                HttpServletRequest request) {
-        Long adminId = (Long) request.getAttribute("userId");
-        chapterAuditService.reject(id, (String) params.get("remark"), adminId);
+        Long adminId = CurrentUser.id(request);
+        chapterAuditService.reject(id, dto.getRemark(), adminId);
         return Result.ok();
     }
 

@@ -1,6 +1,7 @@
 package com.inkisle.controller;
 
 import com.inkisle.annotation.RepeatSubmit;
+import com.inkisle.common.CurrentUser;
 import com.inkisle.common.Result;
 import com.inkisle.common.RoleConstant;
 import com.inkisle.dto.CommentEditDTO;
@@ -81,7 +82,7 @@ public class CommentController {
         if (!bookService.isVisibleToReader(comment.getBookId())) {
             return Result.fail("作品不存在或未上架");
         }
-        Long userId = (Long) request.getAttribute("userId");
+        Long userId = CurrentUser.id(request);
         // 归属以登录态为准，不用请求体里的
         comment.setUserId(userId);
         bookCommentService.add(comment);
@@ -92,7 +93,7 @@ public class CommentController {
     public Result<Map<String, Object>> mine(@RequestParam(defaultValue = "1") Integer pageNum,
                                             @RequestParam(defaultValue = "10") Integer pageSize,
                                             HttpServletRequest request) {
-        Long userId = (Long) request.getAttribute("userId");
+        Long userId = CurrentUser.id(request);
         return Result.ok(bookCommentService.pageByUser(userId, pageNum, pageSize));
     }
 
@@ -100,14 +101,14 @@ public class CommentController {
     public Result<Void> update(@PathVariable Long id,
                                @Valid @RequestBody CommentEditDTO dto,
                                HttpServletRequest request) {
-        Long userId = (Long) request.getAttribute("userId");
+        Long userId = CurrentUser.id(request);
         bookCommentService.updateContent(id, userId, dto.getContent());
         return Result.ok();
     }
 
     @DeleteMapping("/{id}")
     public Result<Void> delete(@PathVariable Long id, HttpServletRequest request) {
-        Long userId = (Long) request.getAttribute("userId");
+        Long userId = CurrentUser.id(request);
         bookCommentService.delete(id, userId);
         return Result.ok();
     }

@@ -1,5 +1,6 @@
 package com.inkisle.controller;
 
+import com.inkisle.common.CurrentUser;
 import com.inkisle.common.Result;
 import com.inkisle.dto.AuditHandleDTO;
 import com.inkisle.dto.BookActionDTO;
@@ -33,14 +34,14 @@ public class AdminAuditController {
 
     @PostMapping("/pass")
     public Result<Void> pass(@Valid @RequestBody AuditHandleDTO dto, HttpServletRequest request) {
-        Long adminId = (Long) request.getAttribute("userId");
+        Long adminId = CurrentUser.id(request);
         bookAuditService.pass(dto.getId(), adminId);
         return Result.ok();
     }
 
     @PostMapping("/reject")
     public Result<Void> reject(@Valid @RequestBody AuditHandleDTO dto, HttpServletRequest request) {
-        Long adminId = (Long) request.getAttribute("userId");
+        Long adminId = CurrentUser.id(request);
         bookAuditService.reject(dto.getId(), dto.getRemark(), adminId);
         return Result.ok();
     }
@@ -55,14 +56,14 @@ public class AdminAuditController {
 
     @PostMapping("/take-down")
     public Result<Void> takeDown(@Valid @RequestBody BookActionDTO dto, HttpServletRequest request) {
-        Long adminId = (Long) request.getAttribute("userId");
+        Long adminId = CurrentUser.id(request);
         bookAuditService.takeDown(dto.getBookId(), dto.getRemark(), adminId);
         return Result.ok();
     }
 
     @PostMapping("/restore")
     public Result<Void> restore(@Valid @RequestBody BookActionDTO dto, HttpServletRequest request) {
-        Long adminId = (Long) request.getAttribute("userId");
+        Long adminId = CurrentUser.id(request);
         bookAuditService.restore(dto.getBookId(), adminId);
         return Result.ok();
     }

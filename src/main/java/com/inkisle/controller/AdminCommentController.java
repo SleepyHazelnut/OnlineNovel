@@ -1,6 +1,8 @@
 package com.inkisle.controller;
 
+import com.inkisle.common.CurrentUser;
 import com.inkisle.common.Result;
+import com.inkisle.dto.RemarkDTO;
 import com.inkisle.service.BookCommentService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,31 +41,25 @@ public class AdminCommentController {
         return Result.ok(bookCommentService.pageAll(keyword, auditStatus, pageNum, pageSize));
     }
 
-    /**
-     * 审核通过
-     */
+    /** 通过 */
     @PostMapping("/{id}/pass")
     public Result<Void> pass(@PathVariable Long id, HttpServletRequest request) {
-        Long adminId = (Long) request.getAttribute("userId");
+        Long adminId = CurrentUser.id(request);
         bookCommentService.pass(id, adminId);
         return Result.ok();
     }
 
-    /**
-     * 审核驳回，必须写原因
-     */
+    /** 驳回，必须写原因 */
     @PostMapping("/{id}/reject")
     public Result<Void> reject(@PathVariable Long id,
-                               @RequestBody Map<String, Object> params,
+                               @RequestBody RemarkDTO dto,
                                HttpServletRequest request) {
-        Long adminId = (Long) request.getAttribute("userId");
-        bookCommentService.reject(id, (String) params.get("remark"), adminId);
+        Long adminId = CurrentUser.id(request);
+        bookCommentService.reject(id, dto.getRemark(), adminId);
         return Result.ok();
     }
 
-    /**
-     * 删除评论，一级评论的回复一并删除
-     */
+    /** 删除，一级评论的回复一并删除 */
     @DeleteMapping("/{id}")
     public Result<Void> delete(@PathVariable Long id) {
         bookCommentService.adminDelete(id);

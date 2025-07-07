@@ -1,5 +1,6 @@
 package com.inkisle.controller;
 
+import com.inkisle.common.CurrentUser;
 import com.inkisle.common.Result;
 import com.inkisle.dto.AuthorRegisterDTO;
 import com.inkisle.dto.LoginDTO;
@@ -51,7 +52,7 @@ public class AuthorController {
      */
     @GetMapping("/info")
     public Result<AuthorInfo> info(HttpServletRequest request) {
-        Long authorId = (Long) request.getAttribute("userId");
+        Long authorId = CurrentUser.id(request);
         return Result.ok(authorService.getById(authorId));
     }
 

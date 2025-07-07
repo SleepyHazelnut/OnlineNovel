@@ -1,5 +1,6 @@
 package com.inkisle.controller;
 
+import com.inkisle.common.CurrentUser;
 import com.inkisle.common.Result;
 import com.inkisle.entity.UserReadHistory;
 import com.inkisle.service.UserReadHistoryService;
@@ -32,20 +33,20 @@ public class ReadHistoryController {
         if (!bookService.isVisibleToReader(history.getBookId())) {
             return Result.fail("作品不存在或未上架");
         }
-        history.setUserId((Long) request.getAttribute("userId"));
+        history.setUserId(CurrentUser.id(request));
         userReadHistoryService.save(history);
         return Result.ok();
     }
 
     @GetMapping("/list")
     public Result<List<UserReadHistory>> list(HttpServletRequest request) {
-        Long userId = (Long) request.getAttribute("userId");
+        Long userId = CurrentUser.id(request);
         return Result.ok(userReadHistoryService.listByUserId(userId));
     }
 
     @GetMapping("/last")
     public Result<UserReadHistory> last(@RequestParam Long bookId, HttpServletRequest request) {
-        Long userId = (Long) request.getAttribute("userId");
+        Long userId = CurrentUser.id(request);
         return Result.ok(userReadHistoryService.lastRead(userId, bookId));
     }
 
