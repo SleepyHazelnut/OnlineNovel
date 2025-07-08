@@ -30,11 +30,14 @@ public class CacheConfig {
         objectMapper.registerModule(new JavaTimeModule());
         objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         // 为保证取出后能还原原类型，需开启默认类型信息；
-        // 但仅白名单放开本项目与 java.util，避免反序列化被利用
+        // 但仅白名单放开本项目、集合与数值类型，避免反序列化被利用
+        // java.math 不能漏：BookInfo.score 是 BigDecimal，非 final 类型会带类型标记，
+        // 未放行时写入正常、回读抛 InvalidTypeIdException
         objectMapper.activateDefaultTyping(
                 BasicPolymorphicTypeValidator.builder()
                         .allowIfSubType("com.inkisle.")
                         .allowIfSubType("java.util.")
+                        .allowIfSubType("java.math.")
                         .build(),
                 ObjectMapper.DefaultTyping.NON_FINAL,
                 JsonTypeInfo.As.PROPERTY);

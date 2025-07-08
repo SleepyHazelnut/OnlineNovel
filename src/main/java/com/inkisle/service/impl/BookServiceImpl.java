@@ -145,6 +145,7 @@ public class BookServiceImpl implements BookService {
 
     /** 新建时拿不到 id，清不了单条缓存，只能整片清 */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     @CacheEvict(value = "book", allEntries = true)
     public void save(BookSaveDTO bookSaveDTO, Long authorId) {
         // 作者资质没过审不能发书
