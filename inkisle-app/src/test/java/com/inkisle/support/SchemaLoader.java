@@ -22,19 +22,34 @@ import java.sql.SQLException;
  */
 public final class SchemaLoader {
 
-    private static final Path SCHEMA = Path.of("sql", "schema.sql");
-
     private SchemaLoader() {
     }
 
+    /**
+     * 拆成多模块后，测试的工作目录是模块目录而非仓库根，脚本在根下的 sql/ 里
+     * 从当前目录逐级向上找，找不到再退回相对路径
+     */
+    private static Path schemaPath() {
+        Path dir = Path.of("").toAbsolutePath();
+        for (int i = 0; i < 5 && dir != null; i++) {
+            Path candidate = dir.resolve("sql").resolve("schema.sql");
+            if (Files.exists(candidate)) {
+                return candidate;
+            }
+            dir = dir.getParent();
+        }
+        return Path.of("sql", "schema.sql");
+    }
+
     public static void load(DataSource dataSource) {
+        Path schema = schemaPath();
         String script;
         try {
-            script = Files.readString(SCHEMA, StandardCharsets.UTF_8)
+            script = Files.readString(schema, StandardCharsets.UTF_8)
                     .replaceAll("(?m)^\\s*CREATE\\s+DATABASE[^;]*;", "")
                     .replaceAll("(?m)^\\s*USE\\s+[^;]*;", "");
         } catch (IOException e) {
-            throw new IllegalStateException("读不到建表脚本：" + SCHEMA.toAbsolutePath(), e);
+            throw new IllegalStateException("读不到建表脚本：" + schema.toAbsolutePath(), e);
         }
 
         try (Connection connection = dataSource.getConnection()) {

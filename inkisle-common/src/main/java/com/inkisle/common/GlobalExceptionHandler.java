@@ -28,7 +28,7 @@ public class GlobalExceptionHandler {
         return Result.fail(ResultCode.PARAM_ERROR, msg);
     }
 
-    /** 静态资源 404 不单独接的话会掉进兜底分支，变成「操作失败」 */
+    /** 静态资源 404 不单独处理会进入兜底分支，变成「操作失败」 */
     @ExceptionHandler(NoResourceFoundException.class)
     public Result<Void> handleNotFound(NoResourceFoundException e) {
         return Result.fail(ResultCode.NOT_FOUND);

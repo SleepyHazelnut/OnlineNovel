@@ -2,8 +2,8 @@ package com.inkisle.common;
 
 /**
  * 作品上架状态，存 book_info.audit_status
- * 与 book_audit_record.status 不是一套编号（那边只有 0 待审 / 1 通过 / 2 驳回），
- * 两边不要互相赋值
+ * 与 book_audit_record.status 不是一套编号（后者只有 0 待审 / 1 通过 / 2 驳回），
+ * 两者不可互相赋值
  */
 public enum BookAuditStatus {
 
