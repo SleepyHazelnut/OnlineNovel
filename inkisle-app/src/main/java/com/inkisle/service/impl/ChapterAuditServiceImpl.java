@@ -20,8 +20,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 章节审核
- * 审核状态只有三态，写入统一走 updateAuditStatus，不在别处顺手改这一列
+ * 章节审核。状态只有三态，改这一列统一走 updateAuditStatus
  */
 @Service
 public class ChapterAuditServiceImpl implements ChapterAuditService {

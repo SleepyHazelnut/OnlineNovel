@@ -3,8 +3,7 @@ package com.inkisle.common;
 import lombok.Data;
 
 /**
- * 接口统一返回结构：code + msg + data
- * 成功与失败结果均由本类构造，避免各接口自行组装 Map 导致字段名不一致，也便于前端统一处理
+ * 接口返回结构：code + msg + data
  *
  * @param <T> 业务数据类型
  */

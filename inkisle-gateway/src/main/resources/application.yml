@@ -1,0 +1,29 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: inkisle-gateway
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_ADDR:localhost:8848}
+    gateway:
+      # 后端服务尚未拆完，先整体透传给老服务，逐个切走后再改为 lb://服务名
+      # 只把接口前缀转走：写成 /** 会把 html、css 一起当接口转，静态页反而打不开
+      routes:
+        - id: legacy
+          uri: ${LEGACY_URI:http://localhost:9000}
+          predicates:
+            - Path=/user/**,/author/**,/admin/**,/book/**,/bookshelf/**,/chapter/**,/category/**,/comment/**,/file/**,/history/**,/home/**,/rank/**,/rating/**,/sign/**,/captcha/**,/ai/**
+  web:
+    resources:
+      # 静态页由网关托管，页面里全是相对路径，根目录必须是这些文件所在位置
+      static-locations: classpath:/static/
+
+jwt:
+  secret: ${JWT_SECRET:inkisle-dev-secret-key-change-me-before-release}
+
+file:
+  # 与后端服务指向同一个目录，故都取上一级
+  upload-path: ${FILE_UPLOAD_PATH:../upload}

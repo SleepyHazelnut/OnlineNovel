@@ -1,0 +1,16 @@
+services:
+  # 注册与配置中心。本地单机模式，数据落在内存，重启即清空
+  nacos:
+    image: nacos/nacos-server:v2.3.2
+    container_name: inkisle-nacos
+    environment:
+      MODE: standalone
+      # 本地开发不启用鉴权，免得多一层登录
+      NACOS_AUTH_ENABLE: "false"
+      JVM_XMS: 256m
+      JVM_XMX: 512m
+    ports:
+      - "8848:8848"
+      # 2.x 起客户端走 gRPC，9848 不开会一直重连
+      - "9848:9848"
+    restart: unless-stopped

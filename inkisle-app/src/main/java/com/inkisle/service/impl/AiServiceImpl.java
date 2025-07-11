@@ -8,10 +8,7 @@ import org.springframework.stereotype.Service;
 import java.util.Map;
 
 /**
- * 创作助手
- * <p>
- * 润色、扩写、缩写各对应一句提示词，统一集中于此，
- * 调整语气或措辞只需修改此处，无需改动业务代码
+ * 创作助手。润色、扩写、缩写各一句提示词，改措辞就改这里
  */
 @Service
 public class AiServiceImpl implements AiService {

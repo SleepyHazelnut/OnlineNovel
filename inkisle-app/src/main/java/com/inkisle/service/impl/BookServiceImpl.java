@@ -41,7 +41,7 @@ public class BookServiceImpl implements BookService {
     /** 未指定每页条数时的默认值 */
     private static final int DEFAULT_PAGE_SIZE = 10;
 
-    /** 搜索关键词长度上限：再长也没有实际匹配意义，只会让 LIKE 更慢 */
+    /** 搜索关键词长度上限，再长只会拖慢 LIKE */
     private static final int MAX_KEYWORD_LENGTH = 64;
 
     @Autowired
@@ -112,7 +112,7 @@ public class BookServiceImpl implements BookService {
 
     @Override
     public Map<String, Object> search(Integer pageNum, Integer pageSize, String keyword) {
-        // 空关键词会变成 LIKE '%%'，等于返回整个书库
+        // 空关键词会变成 LIKE '%%'，等于查全表
         String kw = keyword == null ? "" : keyword.trim();
         if (kw.isEmpty()) {
             return emptyPage();

@@ -70,6 +70,12 @@
             <artifactId>spring-boot-starter-aop</artifactId>
         </dependency>
 
+        <!-- 拆分期间仍需注册到 Nacos，网关按服务名找它 -->
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
+        </dependency>
+
         <!-- Spring AI，接 DeepSeek 做创作助手 -->
         <dependency>
             <groupId>org.springframework.ai</groupId>

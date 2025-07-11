@@ -5,8 +5,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
 /**
- * MD5 摘要工具
- * 用户密码存储与上传文件的按内容去重均需计算 MD5，故统一抽取至此
+ * MD5 摘要。密码和上传文件的去重都用它
  */
 public class Md5Util {
 

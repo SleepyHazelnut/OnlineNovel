@@ -2,7 +2,7 @@
  * 前端公共脚本。页面是原始 HTML，不引框架也不打包，三端共用这一份
  */
 
-// 三端的登录态分开存，否则作者端登录会把读者端顶掉
+// 三端的登录态分开存，否则作者端登录会使读者端失效
 const ROLES = {
     reader: { token: 'inkisle_token', user: 'inkisle_user', login: 'login.html' },
     author: { token: 'inkisle_author_token', user: 'inkisle_author', login: 'author-login.html' },
