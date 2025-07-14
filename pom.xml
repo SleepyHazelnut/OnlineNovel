@@ -22,6 +22,7 @@
         <module>inkisle-common</module>
         <module>inkisle-app</module>
         <module>inkisle-gateway</module>
+        <module>inkisle-user</module>
     </modules>
 
     <properties>
