@@ -3,7 +3,7 @@ server:
 
 spring:
   application:
-    name: inkisle-app
+    name: inkisle-user
   cloud:
     nacos:
       discovery:
@@ -13,7 +13,19 @@ spring:
     username: root
     password: ${MYSQL_PASSWORD:123456}
     driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      database: 0
+      timeout: 3s
 
 jwt:
   secret: ${JWT_SECRET:inkisle-dev-secret-key-change-me-before-release}
   expire-hours: 24
+
+mybatis:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  type-aliases-package: com.inkisle.entity
+  configuration:
+    map-underscore-to-camel-case: true
