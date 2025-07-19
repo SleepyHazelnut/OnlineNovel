@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.inkisle.mapper.HomeBookMapper">
+
+    <!--
+      推荐位只存 book_id，展示字段全部联表取。
+      INNER JOIN 而非 LEFT JOIN：书被删掉后条目本就不该再展示，
+      留下一条空书名反而更难排查。管理端另有删除按钮清理这类记录。
+    -->
+    <sql id="Home_Book_Columns">
+        h.id            AS id,
+        h.book_id       AS bookId,
+        h.section       AS section,
+        h.sort          AS sort,
+        b.book_name     AS bookName,
+        b.author_name   AS authorName,
+        b.cover_url     AS coverUrl,
+        b.book_desc     AS bookDesc,
+        b.word_count    AS wordCount,
+        b.visit_count   AS visitCount,
+        b.score         AS score,
+        b.audit_status  AS auditStatus
+    </sql>
+
+    <select id="selectBySection" resultType="java.util.Map">
+        SELECT
+        <include refid="Home_Book_Columns"/>
+        FROM home_book h
+        JOIN book_info b ON b.id = h.book_id
+        WHERE h.section = #{section}
+        ORDER BY h.sort DESC, h.id ASC
+    </select>
+
+    <select id="selectVisibleBySection" resultType="java.util.Map">
+        SELECT
+        <include refid="Home_Book_Columns"/>
+        FROM home_book h
+        JOIN book_info b ON b.id = h.book_id
+        WHERE h.section = #{section} AND b.audit_status = 2
+        ORDER BY h.sort DESC, h.id ASC
+    </select>
+
+    <select id="countBySectionAndBook" resultType="int">
+        SELECT COUNT(*)
+        FROM home_book
+        WHERE section = #{section} AND book_id = #{bookId}
+    </select>
+
+    <insert id="insert" parameterType="com.inkisle.entity.HomeBook" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO home_book (book_id, section, sort, create_time)
+        VALUES (#{bookId}, #{section}, #{sort}, #{createTime})
+    </insert>
+
+    <update id="updateSort">
+        UPDATE home_book
+        SET sort = #{sort}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM home_book
+        WHERE id = #{id}
+    </delete>
+
+    <delete id="deleteByBookId">
+        DELETE FROM home_book
+        WHERE book_id = #{bookId}
+    </delete>
+
+</mapper>

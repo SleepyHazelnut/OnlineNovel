@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.inkisle.mapper.BookCommentMapper">
+
+    <!--
+      读者端评论列表：只展示审核通过的，外加当前登录读者自己的评论。
+      自己的评论即使待审也要能看到，否则发完就消失，用户会以为没发出去；
+      viewerId 为 null 表示游客，只看通过的。
+      昵称 LEFT JOIN user_info，用户被删后评论仍保留展示。
+    -->
+    <select id="selectByBookId" resultType="com.inkisle.entity.BookComment">
+        SELECT c.id, c.book_id, c.user_id, c.content, c.parent_id,
+               c.audit_status, c.reject_reason, c.create_time,
+               u.nick_name
+        FROM book_comment c
+        LEFT JOIN user_info u ON u.id = c.user_id
+        WHERE c.book_id = #{bookId}
+        <choose>
+            <when test="viewerId != null">
+                AND (c.audit_status = 1 OR c.user_id = #{viewerId})
+            </when>
+            <otherwise>
+                AND c.audit_status = 1
+            </otherwise>
+        </choose>
+        ORDER BY c.create_time ASC
+    </select>
+
+    <!-- 归属校验只看评论自身，不联表 -->
+    <select id="selectById" resultType="com.inkisle.entity.BookComment">
+        SELECT id, book_id, user_id, content, parent_id, audit_status, reject_reason, create_time
+        FROM book_comment
+        WHERE id = #{id}
+    </select>
+
+    <!-- 我的评论：带上书名，便于直接定位到作品；审核状态也要带出，作者能看到是否被驳回 -->
+    <select id="selectByUserId" resultType="com.inkisle.entity.BookComment">
+        SELECT c.id, c.book_id, c.user_id, c.content, c.parent_id,
+               c.audit_status, c.reject_reason, c.create_time,
+               b.book_name, u.nick_name
+        FROM book_comment c
+        LEFT JOIN book_info b ON b.id = c.book_id
+        LEFT JOIN user_info u ON u.id = c.user_id
+        WHERE c.user_id = #{userId}
+        ORDER BY c.create_time DESC, c.id DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="countByUserId" resultType="int">
+        SELECT COUNT(*)
+        FROM book_comment
+        WHERE user_id = #{userId}
+    </select>
+
+    <!--
+      管理端列表：关键字同时匹配评论内容、书名、昵称，三者皆无索引，量小可直接 LIKE。
+      auditStatus 为空表示不按状态筛。
+    -->
+    <sql id="Admin_Where">
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (c.content LIKE CONCAT('%', #{keyword}, '%')
+                     OR b.book_name LIKE CONCAT('%', #{keyword}, '%')
+                     OR u.nick_name LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+            <if test="auditStatus != null">
+                AND c.audit_status = #{auditStatus}
+            </if>
+        </where>
+    </sql>
+
+    <select id="selectPage" resultType="com.inkisle.entity.BookComment">
+        SELECT c.id, c.book_id, c.user_id, c.content, c.parent_id,
+               c.audit_status, c.reject_reason, c.create_time,
+               b.book_name, u.nick_name
+        FROM book_comment c
+        LEFT JOIN book_info b ON b.id = c.book_id
+        LEFT JOIN user_info u ON u.id = c.user_id
+        <include refid="Admin_Where"/>
+        ORDER BY c.create_time DESC, c.id DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="countPage" resultType="int">
+        SELECT COUNT(*)
+        FROM book_comment c
+        LEFT JOIN book_info b ON b.id = c.book_id
+        LEFT JOIN user_info u ON u.id = c.user_id
+        <include refid="Admin_Where"/>
+    </select>
+
+    <!-- 时间直接用 NOW()，以数据库时间为准，避免多机时钟不一致；新增评论默认待审 -->
+    <insert id="insert" parameterType="com.inkisle.entity.BookComment" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO book_comment (book_id, user_id, content, parent_id, create_time)
+        VALUES (#{bookId}, #{userId}, #{content}, #{parentId}, NOW())
+    </insert>
+
+    <!-- 修改内容后重新进入待审：过审后再改成别的内容，等于绕开审核 -->
+    <update id="updateContent">
+        UPDATE book_comment
+        SET content = #{content},
+            audit_status = 0,
+            reject_reason = NULL
+        WHERE id = #{id}
+    </update>
+
+    <!-- 审核状态唯一写入口，通过时 reason 传 null 清掉上一次的驳回原因 -->
+    <update id="updateAuditStatus">
+        UPDATE book_comment
+        SET audit_status = #{auditStatus},
+            reject_reason = #{rejectReason}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM book_comment
+        WHERE id = #{id}
+    </delete>
+
+    <delete id="deleteByParentId">
+        DELETE FROM book_comment
+        WHERE parent_id = #{parentId}
+    </delete>
+
+    <delete id="deleteByBookId">
+        DELETE FROM book_comment
+        WHERE book_id = #{bookId}
+    </delete>
+
+</mapper>

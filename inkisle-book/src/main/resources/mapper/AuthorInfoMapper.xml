@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.inkisle.mapper.AuthorInfoMapper">
+
+    <!-- 仅登录查询需要 password，其余查询均不得返回该列 -->
+    <sql id="Base_Column_List">
+        id, username, password, pen_name, phone, email, intro, audit_status, audit_remark, status, create_time, update_time
+    </sql>
+
+    <!-- 对外查询（作者资料、审核列表）使用该清单，不包含 password 列 -->
+    <sql id="Safe_Column_List">
+        id, username, pen_name, phone, email, intro, audit_status, audit_remark, status, create_time, update_time
+    </sql>
+
+    <!-- 登录校验用，取的是含 password 的完整清单 -->
+    <select id="selectByUsername" resultType="com.inkisle.entity.AuthorInfo">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM author_info
+        WHERE username = #{username}
+    </select>
+
+    <select id="countByUsername" resultType="int">
+        SELECT COUNT(*)
+        FROM author_info
+        WHERE username = #{username}
+    </select>
+
+    <select id="selectById" resultType="com.inkisle.entity.AuthorInfo">
+        SELECT
+        <include refid="Safe_Column_List"/>
+        FROM author_info
+        WHERE id = #{id}
+    </select>
+
+    <insert id="insert" parameterType="com.inkisle.entity.AuthorInfo" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO author_info (username, password, pen_name, phone, email, intro, audit_status, status, create_time, update_time)
+        VALUES (#{username}, #{password}, #{penName}, #{phone}, #{email}, #{intro}, #{auditStatus}, #{status}, #{createTime}, #{updateTime})
+    </insert>
+
+    <select id="selectByAuditStatus" resultType="com.inkisle.entity.AuthorInfo">
+        SELECT
+        <include refid="Safe_Column_List"/>
+        FROM author_info
+        WHERE audit_status = #{auditStatus}
+        ORDER BY id DESC
+    </select>
+
+    <update id="updateAudit" parameterType="com.inkisle.entity.AuthorInfo">
+        UPDATE author_info
+        SET audit_status = #{auditStatus},
+            audit_remark = #{auditRemark},
+            update_time = #{updateTime}
+        WHERE id = #{id}
+    </update>
+
+</mapper>
