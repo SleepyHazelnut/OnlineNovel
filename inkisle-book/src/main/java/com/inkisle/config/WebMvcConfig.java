@@ -20,7 +20,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         // 书籍、章节、榜单游客也能看，可见性由接口自己判
                         "/book/**", "/chapter/**", "/rank/**",
                         "/category/**", "/home/**",
-                        "/comment/list"
+                        "/comment/list",
+                        // 内部接口由网关挡在外面，服务间调用不带用户 token
+                        "/internal/**"
                 );
     }
 

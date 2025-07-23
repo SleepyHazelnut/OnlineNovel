@@ -24,6 +24,7 @@
         <module>inkisle-gateway</module>
         <module>inkisle-user</module>
         <module>inkisle-book</module>
+        <module>inkisle-audit</module>
     </modules>
 
     <properties>
