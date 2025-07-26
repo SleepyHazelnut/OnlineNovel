@@ -1,11 +1,11 @@
 package com.inkisle.controller;
 
+import com.inkisle.client.AuditClient;
 import com.inkisle.common.CurrentUser;
 import com.inkisle.common.Result;
 import com.inkisle.dto.BookSaveDTO;
 import com.inkisle.entity.BookAuditRecord;
 import com.inkisle.entity.BookInfo;
-import com.inkisle.service.BookAuditService;
 import com.inkisle.service.BookService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -29,7 +29,7 @@ public class AuthorBookController {
     private BookService bookService;
 
     @Autowired
-    private BookAuditService bookAuditService;
+    private AuditClient auditClient;
 
     @GetMapping("/list")
     public Result<List<BookInfo>> list(HttpServletRequest request) {
@@ -76,21 +76,21 @@ public class AuthorBookController {
     @PostMapping("/submit")
     public Result<Void> submit(@RequestBody Map<String, Long> params, HttpServletRequest request) {
         Long authorId = CurrentUser.id(request);
-        bookAuditService.submit(params.get("bookId"), authorId);
+        auditClient.submit(params.get("bookId"), authorId);
         return Result.ok();
     }
 
     @GetMapping("/audit")
     public Result<BookAuditRecord> audit(@RequestParam Long bookId, HttpServletRequest request) {
         Long authorId = CurrentUser.id(request);
-        return Result.ok(bookAuditService.latestAuditForAuthor(bookId, authorId));
+        return Result.ok(auditClient.latestAudit(bookId, authorId));
     }
 
     /** 下架后读者端立刻不可见，想回来走 /author/book/submit 重新送审 */
     @PostMapping("/offline")
     public Result<Void> offline(@RequestBody Map<String, Long> params, HttpServletRequest request) {
         Long authorId = CurrentUser.id(request);
-        bookAuditService.offlineByAuthor(params.get("bookId"), authorId);
+        auditClient.offlineByAuthor(params.get("bookId"), authorId);
         return Result.ok();
     }
 

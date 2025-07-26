@@ -6,7 +6,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
-/** 审核接口全部在 /admin 下，只有管理员能进，没有需要放行的路径 */
+/** 管理端接口卡管理员；内部接口放行，服务之间调不带用户 token */
 @Configuration
 public class WebMvcConfig implements WebMvcConfigurer {
 
@@ -16,7 +16,11 @@ public class WebMvcConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(loginInterceptor)
-                .addPathPatterns("/**");
+                .addPathPatterns("/**")
+                .excludePathPatterns(
+                        // 内部接口由网关挡在外面，服务间调用不带用户 token
+                        "/internal/**"
+                );
     }
 
 }

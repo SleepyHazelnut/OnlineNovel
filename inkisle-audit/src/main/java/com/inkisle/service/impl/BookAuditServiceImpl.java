@@ -1,22 +1,18 @@
 package com.inkisle.service.impl;
 
+import com.inkisle.client.BookClient;
 import com.inkisle.common.BookAuditStatus;
 import com.inkisle.common.BusinessException;
 import com.inkisle.common.PageUtils;
+import com.inkisle.dto.AuditStatusDTO;
 import com.inkisle.entity.BookAuditRecord;
 import com.inkisle.entity.BookChapter;
-import com.inkisle.entity.BookContent;
 import com.inkisle.entity.BookInfo;
 import com.inkisle.mapper.BookAuditRecordMapper;
-import com.inkisle.mapper.BookChapterMapper;
-import com.inkisle.mapper.BookContentMapper;
-import com.inkisle.mapper.BookInfoMapper;
 import com.inkisle.service.BookAuditService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cache.Cache;
-import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,8 +22,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 审核要落两处：记录表留历史，book_info.audit_status 表示当前状态，同事务写入
- * 两套编号不同，统一走 BookAuditStatus，不互相传数字
+ * 审核。记录表在本服务，作品状态在书籍服务，改状态走 Feign
+ * <p>
+ * 事务只管得住本地这张表：远程调用失败不会跟着回滚，
+ * 所以先落记录再改状态，改状态失败时留下一条待审记录，管理端重审一次即可
  */
 @Service
 public class BookAuditServiceImpl implements BookAuditService {
@@ -44,16 +42,7 @@ public class BookAuditServiceImpl implements BookAuditService {
     private BookAuditRecordMapper bookAuditRecordMapper;
 
     @Autowired
-    private BookInfoMapper bookInfoMapper;
-
-    @Autowired
-    private BookChapterMapper bookChapterMapper;
-
-    @Autowired
-    private BookContentMapper bookContentMapper;
-
-    @Autowired
-    private CacheManager cacheManager;
+    private BookClient bookClient;
 
     @Override
     public List<BookAuditRecord> listByStatus(Integer status) {
@@ -67,16 +56,10 @@ public class BookAuditServiceImpl implements BookAuditService {
         // 作者提交之后可能又把章节删光，通过前再确认一次
         requireChapter(record.getBookId(), "作品没有章节，不能通过审核");
 
-        BookAuditRecord update = new BookAuditRecord();
-        update.setId(record.getId());
-        update.setStatus(RECORD_PASS);
-        update.setAuditAdminId(adminId);
-        update.setAuditTime(LocalDateTime.now());
-        bookAuditRecordMapper.updateAudit(update);
-
+        markRecord(id, RECORD_PASS, null, adminId);
         markBook(record.getBookId(), BookAuditStatus.PASSED, null);
         // 审核看的是整本书，章节不再逐条审；之后新增或修改的章节会重新回到待审
-        bookChapterMapper.passAllByBookId(record.getBookId());
+        bookClient.passAllChapters(record.getBookId());
     }
 
     @Override
@@ -85,14 +68,7 @@ public class BookAuditServiceImpl implements BookAuditService {
         String reason = requireRemark(remark, "驳回要写原因");
         BookAuditRecord record = checkPending(id);
 
-        BookAuditRecord update = new BookAuditRecord();
-        update.setId(record.getId());
-        update.setStatus(RECORD_REJECT);
-        update.setRemark(reason);
-        update.setAuditAdminId(adminId);
-        update.setAuditTime(LocalDateTime.now());
-        bookAuditRecordMapper.updateAudit(update);
-
+        markRecord(id, RECORD_REJECT, reason, adminId);
         markBook(record.getBookId(), BookAuditStatus.REJECTED, reason);
     }
 
@@ -114,10 +90,9 @@ public class BookAuditServiceImpl implements BookAuditService {
 
         requireChapter(bookId, "至少发布一章后才能提交审核");
         // 先改状态再插记录：状态没改成说明别人已经提交过，此时不该再插一条待审记录
-        if (bookInfoMapper.markPendingIfNotPending(bookId, LocalDateTime.now()) == 0) {
+        if (bookClient.markPending(bookId) == 0) {
             throw new BusinessException("作品已在审核中，请等待结果");
         }
-        evictBookCache(bookId);
         insertPendingRecord(bookId, authorId);
     }
 
@@ -135,7 +110,7 @@ public class BookAuditServiceImpl implements BookAuditService {
     @Transactional(rollbackFor = Exception.class)
     public void takeDown(Long bookId, String remark, Long adminId) {
         String reason = requireRemark(remark, "下架要写原因");
-        BookInfo book = bookInfoMapper.selectById(bookId);
+        BookInfo book = bookClient.getBook(bookId);
         if (book == null) {
             throw new BusinessException("作品不存在");
         }
@@ -164,7 +139,7 @@ public class BookAuditServiceImpl implements BookAuditService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void restore(Long bookId, Long adminId) {
-        BookInfo book = bookInfoMapper.selectById(bookId);
+        BookInfo book = bookClient.getBook(bookId);
         if (book == null) {
             throw new BusinessException("作品不存在");
         }
@@ -186,39 +161,42 @@ public class BookAuditServiceImpl implements BookAuditService {
         }
         int page = PageUtils.pageNum(pageNum);
         int size = PageUtils.pageSize(pageSize, 20);
-
-        Map<String, Object> data = new HashMap<>();
-        data.put("list", bookInfoMapper.selectByAuditStatus(auditStatus, PageUtils.offset(page, size), size));
-        data.put("total", bookInfoMapper.countByAuditStatus(auditStatus));
-        return data;
+        return bookClient.listByAuditStatus(auditStatus, PageUtils.offset(page, size), size);
     }
 
     @Override
     public Map<String, Object> preview(Long bookId) {
-        BookInfo book = bookInfoMapper.selectById(bookId);
+        BookInfo book = bookClient.getBook(bookId);
         if (book == null) {
             throw new BusinessException("作品不存在");
         }
         Map<String, Object> data = new HashMap<>();
         data.put("book", book);
-        data.put("chapters", bookChapterMapper.selectAllByBookId(bookId));
+        data.put("chapters", bookClient.listChapters(bookId));
         return data;
     }
 
     @Override
     public String chapterContent(Long bookId, Long chapterId) {
-        BookChapter chapter = bookChapterMapper.selectById(chapterId);
+        BookChapter chapter = bookClient.getChapter(chapterId);
         if (chapter == null || !chapter.getBookId().equals(bookId)) {
             throw new BusinessException("章节不属于这本书");
         }
-        BookContent content = bookContentMapper.selectByChapterId(chapterId);
-        return content == null ? "" : content.getContent();
+        Map<String, Object> data = bookClient.getChapterContent(chapterId);
+        Object content = data == null ? null : data.get("content");
+        return content == null ? "" : content.toString();
     }
 
     @Override
     public BookAuditRecord latestAuditForAuthor(Long bookId, Long authorId) {
         BookInfo book = requireOwnBook(bookId, authorId);
         return bookAuditRecordMapper.selectLatestByBookId(book.getId());
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteByBookId(Long bookId) {
+        bookAuditRecordMapper.deleteByBookId(bookId);
     }
 
     /** 通过和驳回都先走这里，已审过的记录直接挡掉 */
@@ -233,20 +211,22 @@ public class BookAuditServiceImpl implements BookAuditService {
         return record;
     }
 
-    /**
-     * 作品状态的唯一写入口。remark 传 null 即清空，通过时同时清除上次的驳回意见
-     * 顺便清详情缓存，不然 30 分钟内读到的还是旧状态
-     */
-    private void markBook(Long bookId, BookAuditStatus status, String remark) {
-        bookInfoMapper.updateAuditStatus(bookId, status.getCode(), remark, LocalDateTime.now());
-        evictBookCache(bookId);
+    private void markRecord(Long id, int status, String remark, Long adminId) {
+        BookAuditRecord update = new BookAuditRecord();
+        update.setId(id);
+        update.setStatus(status);
+        update.setRemark(remark);
+        update.setAuditAdminId(adminId);
+        update.setAuditTime(LocalDateTime.now());
+        bookAuditRecordMapper.updateAudit(update);
     }
 
-    private void evictBookCache(Long bookId) {
-        Cache cache = cacheManager.getCache("book");
-        if (cache != null) {
-            cache.evict(bookId);
-        }
+    /** 作品状态的唯一写入口。remark 传 null 即清空，通过时同时清除上次的驳回意见 */
+    private void markBook(Long bookId, BookAuditStatus status, String remark) {
+        AuditStatusDTO dto = new AuditStatusDTO();
+        dto.setStatus(status.getCode());
+        dto.setRemark(remark);
+        bookClient.updateBookStatus(bookId, dto);
     }
 
     private void insertPendingRecord(Long bookId, Long authorId) {
@@ -259,7 +239,7 @@ public class BookAuditServiceImpl implements BookAuditService {
     }
 
     private BookInfo requireOwnBook(Long bookId, Long authorId) {
-        BookInfo book = bookInfoMapper.selectById(bookId);
+        BookInfo book = bookClient.getBook(bookId);
         if (book == null) {
             throw new BusinessException("作品不存在");
         }
@@ -270,7 +250,7 @@ public class BookAuditServiceImpl implements BookAuditService {
     }
 
     private void requireChapter(Long bookId, String message) {
-        if (bookChapterMapper.selectAllByBookId(bookId).isEmpty()) {
+        if (bookClient.listChapters(bookId).isEmpty()) {
             throw new BusinessException(message);
         }
     }

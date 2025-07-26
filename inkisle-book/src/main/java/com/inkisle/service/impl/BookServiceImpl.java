@@ -1,5 +1,6 @@
 package com.inkisle.service.impl;
 
+import com.inkisle.client.AuditClient;
 import com.inkisle.common.BookAuditStatus;
 import com.inkisle.common.BusinessException;
 import com.inkisle.common.PageUtils;
@@ -7,7 +8,6 @@ import com.inkisle.dto.BookSaveDTO;
 import com.inkisle.entity.AuthorInfo;
 import com.inkisle.entity.BookInfo;
 import com.inkisle.mapper.AuthorInfoMapper;
-import com.inkisle.mapper.BookAuditRecordMapper;
 import com.inkisle.mapper.BookChapterMapper;
 import com.inkisle.mapper.BookCommentMapper;
 import com.inkisle.mapper.BookContentMapper;
@@ -17,7 +17,6 @@ import com.inkisle.mapper.BookStatMapper;
 import com.inkisle.mapper.HomeBookMapper;
 import com.inkisle.mapper.UserBookshelfMapper;
 import com.inkisle.mapper.UserReadHistoryMapper;
-import com.inkisle.service.BookAuditService;
 import com.inkisle.service.BookService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
@@ -54,7 +53,7 @@ public class BookServiceImpl implements BookService {
     private AuthorInfoMapper authorInfoMapper;
 
     @Autowired
-    private BookAuditService bookAuditService;
+    private AuditClient auditClient;
 
     @Autowired
     private BookChapterMapper bookChapterMapper;
@@ -70,9 +69,6 @@ public class BookServiceImpl implements BookService {
 
     @Autowired
     private HomeBookMapper homeBookMapper;
-
-    @Autowired
-    private BookAuditRecordMapper bookAuditRecordMapper;
 
     @Autowired
     private UserBookshelfMapper userBookshelfMapper;
@@ -188,7 +184,7 @@ public class BookServiceImpl implements BookService {
 
         // 改书名、简介这类展示信息要重审，改章节正文不用，否则每更新一章都要等待审核
         if (BookAuditStatus.isVisible(exist.getAuditStatus()) && displayChanged(exist, bookInfo)) {
-            bookAuditService.resubmitAfterEdit(exist.getId(), authorId);
+            auditClient.resubmitAfterEdit(exist.getId(), authorId);
         }
     }
 
@@ -239,7 +235,8 @@ public class BookServiceImpl implements BookService {
         homeBookMapper.deleteByBookId(id);
         userBookshelfMapper.deleteByBookId(id);
         userReadHistoryMapper.deleteByBookId(id);
-        bookAuditRecordMapper.deleteByBookId(id);
+        // 审核记录在审核服务里，只能远程删；这里失败书也已经被删掉，记录会留下
+        auditClient.deleteByBookId(id);
         bookInfoMapper.deleteById(id);
     }
 

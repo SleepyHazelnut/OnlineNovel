@@ -39,4 +39,7 @@ public interface BookAuditService {
     /** 驳回意见只给作者本人看，所以要带归属校验 */
     BookAuditRecord latestAuditForAuthor(Long bookId, Long authorId);
 
+    /** 作品被删时清掉它的审核记录，由书籍服务在删书时调过来 */
+    void deleteByBookId(Long bookId);
+
 }
