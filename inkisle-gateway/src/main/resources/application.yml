@@ -9,13 +9,36 @@ spring:
       discovery:
         server-addr: ${NACOS_ADDR:localhost:8848}
     gateway:
-      # 后端服务尚未拆完，先整体透传给老服务，逐个切走后再改为 lb://服务名
       # 只把接口前缀转走：写成 /** 会把 html、css 一起当接口转，静态页反而打不开
+      # 按前缀分到各服务，order 小的先匹配：/author 下既有作者写书（书籍服务）
+      # 也有 AI 改写（还在老服务），不给顺序会走错
       routes:
+        - id: book-author
+          uri: lb://inkisle-book
+          order: 1
+          predicates:
+            - Path=/author/book/**,/author/chapter/**
+        - id: audit
+          uri: lb://inkisle-audit
+          order: 2
+          predicates:
+            - Path=/admin/audit/**,/admin/chapter/**
+        - id: book
+          uri: lb://inkisle-book
+          order: 3
+          predicates:
+            - Path=/book/**,/bookshelf/**,/chapter/**,/category/**,/comment/**,/history/**,/home/**,/rank/**,/rating/**,/admin/book/**,/admin/category/**,/admin/comment/**,/admin/home/**
+        - id: user
+          uri: lb://inkisle-user
+          order: 4
+          predicates:
+            - Path=/user/**,/sign/**,/captcha/**,/author/**,/admin/login,/admin/author/**,/admin/user/**
         - id: legacy
           uri: ${LEGACY_URI:http://localhost:9000}
+          order: 5
           predicates:
-            - Path=/user/**,/author/**,/admin/**,/book/**,/bookshelf/**,/chapter/**,/category/**,/comment/**,/file/**,/history/**,/home/**,/rank/**,/rating/**,/sign/**,/captcha/**,/ai/**
+            # 创作助手和文件上传还没拆，先留在原服务
+            - Path=/author/ai/**,/file/**,/admin/stat/**
   web:
     resources:
       # 静态页由网关托管，页面里全是相对路径，根目录必须是这些文件所在位置

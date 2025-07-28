@@ -145,6 +145,7 @@ public class BookServiceImpl implements BookService {
     @CacheEvict(value = "book", allEntries = true)
     public void save(BookSaveDTO bookSaveDTO, Long authorId) {
         // 作者资质没过审不能发书
+        // 作者表归用户服务，这里共库直接读，改资质仍走用户服务，不发书就不管它
         AuthorInfo author = authorInfoMapper.selectById(authorId);
         if (author == null || author.getAuditStatus() == null || author.getAuditStatus() != 1) {
             throw new BusinessException("作者资质还没通过审核，暂时不能发布作品");

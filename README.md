@@ -17,52 +17,50 @@
 | 认证 | JWT（jjwt 0.12.5） |  |
 | AI | Spring AI 1.0.0 + DeepSeek |  |
 | 参数校验 | spring-boot-starter-validation |  |
+| 服务治理 | Spring Cloud 2023.0.3 + Alibaba 2023.0.3.2 | Nacos 注册发现、Gateway 网关、OpenFeign 调用 |
 
 ## 目录结构
 
 ```
 inkisle
-├── sql
-│   ├── schema.sql                  建库建表脚本（含全文索引与初始数据）
-│   ├── upgrade-audit-status.sql    存量库升级：为 book_info 补上架状态
-│   ├── upgrade-book-stats.sql      存量库升级：阅读数、字数、评论数、评分
-│   ├── upgrade-chapter-unique.sql  存量库升级：章节号改唯一索引
-│   ├── upgrade-content-audit.sql   存量库升级：章节与评论的审核状态
-│   └── upgrade-home-book.sql       存量库升级：首页推荐位
-├── web/                            前端页面，由后端静态资源映射托管
-│   ├── *.html                      读者端 / 作者端 / 管理端共 24 个页面
-│   ├── css/style.css               全站样式
-│   └── js/api.js                   请求封装、登录态、导航渲染
-├── src/main/java/com/inkisle
-│   ├── annotation/                 @RepeatSubmit 等自定义注解
-│   ├── aspect/                     防重复提交切面
-│   ├── common/                     Result、BusinessException、全局异常处理
-│   ├── config/                     WebMvc、缓存、Redisson 等配置
-│   ├── controller/                 三端接口
-│   ├── dto/                        入参对象
-│   ├── entity/                     与表一一对应的实体
-│   ├── interceptor/                登录拦截器
-│   ├── mapper/                     Mapper 接口
-│   ├── service / service.impl      业务实现
-│   └── util/                       JWT、MD5 等工具
-└── src/main/resources
-    ├── application.yml
-    └── mapper/*.xml                
+├── sql                             建库脚本与存量库升级脚本
+├── inkisle-common                  实体、入参、返回体、JWT，以及服务间调用的 Feign 接口
+├── inkisle-gateway                 8080，对外唯一入口，托管静态页并按前缀转发
+├── inkisle-user                    8081，账号、登录、签到、后台的用户与作者管理
+├── inkisle-book                    8082，作品、章节、分类、评论、评分、榜单、书架
+├── inkisle-audit                   8083，作品与章节审核
+└── inkisle-app                     9000，原单体；创作助手与文件上传还没拆，其余已迁走
 ```
 
-测试在 `src/test` 下：`support` 放共用基类与测试库初始化，`service` 是服务层用例，`util` 是纯函数用例。
+服务已拆分，数据库未拆分：三张表以上的联表查询较多，拆库需改写的 SQL 量很大，先按服务划分写入边界，
+跨服务的写操作走 Feign，读仍可直接联表。
+
+测试在 `inkisle-app/src/test` 下：`support` 放共用基类与测试库初始化，`service` 是服务层用例，`util` 是纯函数用例。
 
 ## 本地运行
 
-依赖 MySQL 和 Redis：
+依赖 MySQL、Redis 和 Nacos：
 
 ```bash
 # 1. 导入表结构与初始数据
 mysql -uroot -p < sql/schema.sql
 
-# 2. 启动（默认端口 8080）
-mvn spring-boot:run
+# 2. 启动 Nacos（2.x 单机）
+sh $NACOS_HOME/bin/startup.sh -m standalone
+
+# 3. 启动服务，网关最后
+mvn -pl inkisle-gateway -am spring-boot:run
 ```
+
+各服务的端口与对外路径：
+
+| 服务 | 端口 | 网关转发的前缀 |
+| --- | --- | --- |
+| inkisle-gateway | 8080 | 静态页与 `/upload/**` 由自身处理，其余按前缀转发 |
+| inkisle-user | 8081 | `/user`、`/sign`、`/captcha`、`/author`、`/admin/login`、`/admin/author`、`/admin/user` |
+| inkisle-book | 8082 | `/book`、`/chapter`、`/category`、`/comment`、`/rating`、`/rank`、`/home`、`/bookshelf`、`/history`、`/author/book`、`/author/chapter`、`/admin/book`、`/admin/category`、`/admin/comment`、`/admin/home` |
+| inkisle-audit | 8083 | `/admin/audit`、`/admin/chapter` |
+| inkisle-app | 9000 | `/author/ai`、`/file`、`/admin/stat` |
 
 配置项都预留环境变量，需要覆盖时：
 
@@ -75,6 +73,8 @@ mvn spring-boot:run
 | `AI_API_KEY` | 占位串 |  |
 | `AI_BASE_URL` | `https://api.deepseek.com` |  |
 | `AI_MODEL` | `deepseek-chat` | |
+| `NACOS_ADDR` | `localhost:8848` | 注册中心地址 |
+| `LEGACY_URI` | `http://localhost:9000` | 网关转发给原单体的地址 |
 
 启动后打开 `http://localhost:8080/` 就是书库首页。三端入口和演示账号：
 
@@ -110,7 +110,8 @@ mysql -uroot -p inkisle < sql/upgrade-audit-status.sql
 - 新书从「未提交」起步，作者点「提交审核」后进入待审，管理员通过才上架。
 - 已上架的作品修改书名、作者名、简介、封面或分类，会自动重新送审并暂时从读者端消失；修改章节正文只让该章回到待审，作品本身仍在架上。
 - 管理员可以在「已上架」里下架作品，「已下架」里恢复上架。下架必须写原因，原因会显示在作者的作品列表里。
-- 审核记录表 `book_audit_record` 只留历史，与作品状态在同一事务内写入；管理员下架不属于送审，不写入该表。
+- 审核记录表 `book_audit_record` 只留历史；管理员下架不属于送审，不写入该表。
+- 记录归审核服务、作品状态归书籍服务，两者不在同一个事务里：先写入记录再修改状态，状态修改失败会留下一条待审记录，重新审核一次即可。
 
 ## 章节与评论审核
 
