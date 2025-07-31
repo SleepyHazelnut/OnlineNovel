@@ -22,7 +22,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/author/register", "/author/login",
                         "/admin/login",
                         // 图形验证码
-                        "/captcha/**"
+                        "/captcha/**",
+                        // 内部接口由服务间调用，不带用户 token
+                        "/internal/**"
                 );
     }
 

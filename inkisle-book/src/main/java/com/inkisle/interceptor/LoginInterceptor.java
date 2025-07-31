@@ -1,5 +1,6 @@
 package com.inkisle.interceptor;
 
+import com.inkisle.client.UserClient;
 import com.inkisle.common.ResultCode;
 import com.inkisle.common.RoleConstant;
 import com.inkisle.util.JwtUtil;
@@ -7,15 +8,17 @@ import io.jsonwebtoken.Claims;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 import java.io.IOException;
 
 /**
- * 校验 token 与角色
- * 账号有没有被封禁不再查库：账号表归用户服务，这里查等于跨服务读别人的表，
- * 封禁后 24 小时内 token 过期，最长也就这么久
+ * 校验 token、角色，以及账号是否被封禁
+ * <p>
+ * 封禁与否不能只看 token：token 有 24 小时有效期，签发之后账号可能已被封，
+ * 只拦登录入口的话封禁要等一天才生效。账号表归用户服务，这里走 Feign 查
  */
 @Component
 public class LoginInterceptor implements HandlerInterceptor {
@@ -24,6 +27,11 @@ public class LoginInterceptor implements HandlerInterceptor {
 
     @Autowired
     private JwtUtil jwtUtil;
+
+    // Feign 客户端和 MVC 配置互相依赖，延迟注入解开
+    @Autowired
+    @Lazy
+    private UserClient userClient;
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
@@ -46,7 +54,14 @@ public class LoginInterceptor implements HandlerInterceptor {
             return reject(response, ResultCode.FORBIDDEN.getCode(), ResultCode.FORBIDDEN.getMsg());
         }
 
-        request.setAttribute("userId", Long.valueOf(claims.getSubject()));
+        Long userId = Long.valueOf(claims.getSubject());
+        // 0 正常，1 封禁，null 是账号已注销
+        Integer status = userClient.status(role, userId);
+        if (status == null || status == 1) {
+            return reject(response, ResultCode.FORBIDDEN.getCode(), "账号已被封禁或不存在");
+        }
+
+        request.setAttribute("userId", userId);
         request.setAttribute("role", role);
         return true;
     }

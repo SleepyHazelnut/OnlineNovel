@@ -1,6 +1,7 @@
 package com.inkisle.support;
 
 import com.inkisle.client.AuditClient;
+import com.inkisle.client.UserClient;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestInstance;
@@ -54,6 +55,18 @@ public abstract class BaseIntegrationTest {
      */
     @MockBean
     protected AuditClient auditClient;
+
+    /**
+     * 账号状态也在用户服务，测试里换成 mock
+     * 默认按正常账号返回，要验封禁的用例自己再 stub 一遍
+     */
+    @MockBean
+    protected UserClient userClient;
+
+    @BeforeEach
+    void stubAccountStatus() {
+        Mockito.when(userClient.status(Mockito.anyString(), Mockito.anyLong())).thenReturn(0);
+    }
 
     /** 防重复提交切面直接放行，测试要验的是接口本身 */
     @BeforeEach
