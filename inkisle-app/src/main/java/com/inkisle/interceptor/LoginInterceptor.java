@@ -1,12 +1,8 @@
 package com.inkisle.interceptor;
 
+import com.inkisle.client.UserClient;
 import com.inkisle.common.ResultCode;
 import com.inkisle.common.RoleConstant;
-import com.inkisle.entity.AuthorInfo;
-import com.inkisle.entity.UserInfo;
-import com.inkisle.mapper.AdminInfoMapper;
-import com.inkisle.mapper.AuthorInfoMapper;
-import com.inkisle.mapper.UserInfoMapper;
 import com.inkisle.util.JwtUtil;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.http.HttpServletRequest;
@@ -19,6 +15,7 @@ import java.io.IOException;
 
 /**
  * 统一校验 token 与角色：/admin/** 只放管理员，/author/** 只放作者，其余按读者处理
+ * 账号状态问用户服务要：这里只剩创作助手与统计，为它留三张账号表的 mapper 不值得
  */
 @Component
 public class LoginInterceptor implements HandlerInterceptor {
@@ -29,13 +26,7 @@ public class LoginInterceptor implements HandlerInterceptor {
     private JwtUtil jwtUtil;
 
     @Autowired
-    private UserInfoMapper userInfoMapper;
-
-    @Autowired
-    private AuthorInfoMapper authorInfoMapper;
-
-    @Autowired
-    private AdminInfoMapper adminInfoMapper;
+    private UserClient userClient;
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
@@ -62,7 +53,8 @@ public class LoginInterceptor implements HandlerInterceptor {
         Long userId = Long.valueOf(claims.getSubject());
         // token 有 24 小时有效期，签发之后可能已被封禁，只拦登录入口不够
         // 这里不缓存，缓存会让封禁延迟生效
-        if (!enabled(role, userId)) {
+        Integer status = userClient.status(role, userId);
+        if (status == null || status == 1) {
             return reject(response, ResultCode.FORBIDDEN.getCode(), "账号已被封禁或不存在");
         }
 
@@ -87,27 +79,6 @@ public class LoginInterceptor implements HandlerInterceptor {
             return RoleConstant.USER.equals(role) || RoleConstant.AUTHOR.equals(role);
         }
         return RoleConstant.USER.equals(role);
-    }
-
-    /** 管理员没有状态列，停用靠删记录，这里只要求记录还在 */
-    private boolean enabled(String role, Long userId) {
-        if (RoleConstant.USER.equals(role)) {
-            UserInfo user = userInfoMapper.selectById(userId);
-            return user != null && !disabled(user.getStatus());
-        }
-        if (RoleConstant.AUTHOR.equals(role)) {
-            AuthorInfo author = authorInfoMapper.selectById(userId);
-            return author != null && !disabled(author.getStatus());
-        }
-        if (RoleConstant.ADMIN.equals(role)) {
-            return adminInfoMapper.selectById(userId) != null;
-        }
-        return false;
-    }
-
-    /** 0 正常，1 封禁（作者表写作「禁用」） */
-    private boolean disabled(Integer status) {
-        return status != null && status == 1;
     }
 
     /** 拦截器早于全局异常处理器执行，这里只能自己拼 JSON */
