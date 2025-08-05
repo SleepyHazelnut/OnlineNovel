@@ -30,13 +30,6 @@ spring:
           model: ${AI_MODEL:deepseek-chat}
           # 写东西要有点发挥，别太刻板
           temperature: 0.8
-  data:
-    redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
-      database: 0
-      # 本地 redis 没设密码，连不上就快点报错，别让请求一直挂着
-      timeout: 3s
 
 mybatis:
   mapper-locations: classpath*:/mapper/**/*.xml

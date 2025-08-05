@@ -44,9 +44,6 @@ spring:
       # 静态页由网关托管，页面里全是相对路径，根目录必须是这些文件所在位置
       static-locations: classpath:/static/
 
-jwt:
-  secret: ${JWT_SECRET:inkisle-dev-secret-key-change-me-before-release}
-
 file:
   # 与后端服务指向同一个目录，故都取上一级
   upload-path: ${FILE_UPLOAD_PATH:../upload}
