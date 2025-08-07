@@ -9,9 +9,9 @@ spring:
       discovery:
         server-addr: ${NACOS_ADDR:localhost:8848}
     gateway:
-      # 只把接口前缀转走：写成 /** 会把 html、css 一起当接口转，静态页反而打不开
-      # 按前缀分到各服务，order 小的先匹配：/author 下既有作者写书（书籍服务）
-      # 也有 AI 改写（还在老服务），不给顺序会走错
+      # 只转接口前缀，写成 /** 会把 html、css 也当接口转走，静态页就打不开了
+      # 按前缀分服务，order 小的先匹配。/author 下面既有写书、写章节（归 book），
+      # 也有 AI 改写（还在老服务），不排顺序会走错
       routes:
         - id: book-author
           uri: lb://inkisle-book
@@ -33,17 +33,23 @@ spring:
           order: 4
           predicates:
             - Path=/user/**,/sign/**,/captcha/**,/author/**,/admin/login,/admin/author/**,/admin/user/**
-        - id: legacy
-          uri: ${LEGACY_URI:http://localhost:9000}
+        - id: stat
+          uri: lb://inkisle-stat
           order: 5
           predicates:
+            # 数据看板，只读聚合，独立进程，不跟业务服务抢连接池
+            - Path=/admin/stat/**
+        - id: legacy
+          uri: ${LEGACY_URI:http://localhost:9000}
+          order: 6
+          predicates:
             # 创作助手和文件上传还没拆，先留在原服务
-            - Path=/author/ai/**,/file/**,/admin/stat/**
+            - Path=/author/ai/**,/file/**
   web:
     resources:
-      # 静态页由网关托管，页面里全是相对路径，根目录必须是这些文件所在位置
+      # 静态页在网关托管，页面里都是相对路径，根目录得指到这些文件的位置
       static-locations: classpath:/static/
 
 file:
-  # 与后端服务指向同一个目录，故都取上一级
+  # 跟后端服务指向同一个目录，所以都取上一级
   upload-path: ${FILE_UPLOAD_PATH:../upload}

@@ -35,7 +35,8 @@ inkisle
 服务已拆分，数据库未拆分：三张表以上的联表查询较多，拆库需改写的 SQL 量很大，先按服务划分写入边界，
 跨服务的写操作走 Feign，读仍可直接联表。
 
-测试在 `inkisle-app/src/test` 下：`support` 放共用基类与测试库初始化，`service` 是服务层用例，`util` 是纯函数用例。
+测试与代码同仓，各服务自己的 `src/test` 下：`support` 放共用基类与测试库初始化，`service` 是服务层用例，`controller` 是接口用例，`util` 是纯函数用例。
+原单体的测试已随代码拆到对应服务，剩下的创作助手与统计没有用例。
 
 ## 本地运行
 
@@ -128,3 +129,7 @@ mysql -uroot -p inkisle < sql/upgrade-audit-status.sql
 ```bash
 mvn test
 ```
+
+用例连接 `inkisle_test` 库，与开发库分开，首次运行会自动建库并导入 `sql/schema.sql`。
+跨服务的调用在测试里换成 mock，落库效果保留：审核服务改作品状态走 Feign，
+测试中仅拦截 HTTP 层，断言仍然查表看最终状态，而不是「有没有调一次接口」。
