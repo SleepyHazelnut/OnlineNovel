@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 签到存 Redis 位图，一人一年一张，第 N 天对应第 N 个 bit
+ * 签到存 Redis 位图，一人一年一张，第 N 天就是第 N 个 bit
  */
 @Service
 public class SignServiceImpl implements SignService {
@@ -57,7 +57,7 @@ public class SignServiceImpl implements SignService {
     @Override
     public Map<String, Object> monthStatus(Long userId) {
         LocalDate today = LocalDate.now();
-        // 一次取整张位图，逐日 GETBIT 一个月要往返 30 次
+        // 整张位图一次取回来，一天一个 GETBIT 一个月得跑 30 趟
         byte[] bitmap = readBitmap(buildKey(userId, today));
 
         List<Integer> days = new ArrayList<>();

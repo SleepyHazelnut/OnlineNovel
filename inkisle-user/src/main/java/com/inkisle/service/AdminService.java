@@ -8,7 +8,7 @@ import java.util.Map;
 public interface AdminService {
 
     /**
-     * 管理端登录。管理员使用独立数据表，不与读者、作者共用
+     * 管理端登录。管理员单独一张表，不跟读者作者混
      */
     Result<Map<String, Object>> login(String username, String password);
 

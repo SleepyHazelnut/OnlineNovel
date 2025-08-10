@@ -11,12 +11,12 @@ import java.util.List;
 public interface UserInfoMapper {
 
     /**
-     * 按用户名查询，供登录使用。username 有唯一索引，最多一条，故返回单个对象
+     * 按用户名查，登录用。username 有唯一索引，最多一条，所以返回单个对象
      */
     UserInfo selectByUsername(String username);
 
     /**
-     * 注册查重，统计该用户名是否已被占用
+     * 注册前查一下用户名有没有被占
      */
     int countByUsername(String username);
 
@@ -25,7 +25,7 @@ public interface UserInfoMapper {
     int insert(UserInfo userInfo);
 
     /**
-     * 管理端用户列表，offset 与 pageSize 同样由上层计算后传入
+     * 管理端用户列表，offset 和 pageSize 也是上层算好传进来的
      */
     List<UserInfo> selectPage(@Param("offset") int offset, @Param("pageSize") int pageSize);
 

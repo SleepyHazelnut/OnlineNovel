@@ -20,8 +20,8 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.Map;
 
 /**
- * 作者端入口。注册、登录单独一套（作者需提交资质走审核），
- * 但登录后签发的 token 与读者共用同一套，拦截器按路径前缀判断角色
+ * 作者端入口。注册登录是单独一套，注册还要交资质等审核，
+ * 但发出来的 token 跟读者一样，拦截器按路径前缀分角色
  */
 @RestController
 @RequestMapping("/author")

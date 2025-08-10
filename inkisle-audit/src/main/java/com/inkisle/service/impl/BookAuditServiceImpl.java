@@ -22,10 +22,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 审核。记录表在本服务，作品状态在书籍服务，改状态走 Feign
- * <p>
- * 事务只管得住本地这张表：远程调用失败不会跟着回滚，
- * 所以先落记录再改状态，改状态失败时留下一条待审记录，管理端重审一次即可
+ * 审核。记录表在本服务，作品状态在书籍服务，改状态要发 Feign 过去
+ * 事务只覆盖本地这张表，远程调用失败不会跟着回滚，
+ * 所以先写记录再改状态。改状态失败会留下一条待审记录，重新操作一次会覆盖
  */
 @Service
 public class BookAuditServiceImpl implements BookAuditService {

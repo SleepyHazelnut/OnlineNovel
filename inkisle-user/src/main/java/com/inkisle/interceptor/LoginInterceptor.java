@@ -13,9 +13,9 @@ import org.springframework.web.servlet.HandlerInterceptor;
 import java.io.IOException;
 
 /**
- * 校验 token 与角色
- * 账号有没有被封禁不再查库：账号表归用户服务，这里查等于跨服务读别人的表，
- * 封禁后 24 小时内 token 过期，最长也就这么久
+ * 校验 token 和角色
+ * 封禁状态没查库：登录那步已经拦了，签发出去的 token 最多再用 24 小时，
+ * 每个请求都去查一次状态没必要
  */
 @Component
 public class LoginInterceptor implements HandlerInterceptor {

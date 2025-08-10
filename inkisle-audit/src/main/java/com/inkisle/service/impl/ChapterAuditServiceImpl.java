@@ -16,7 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Map;
 
 /**
- * 章节审核。状态只有三态，改这一列统一走书籍服务的内部接口
+ * 章节审核。只有三种状态，状态列在书籍服务，修改统一走内部接口
  */
 @Service
 public class ChapterAuditServiceImpl implements ChapterAuditService {

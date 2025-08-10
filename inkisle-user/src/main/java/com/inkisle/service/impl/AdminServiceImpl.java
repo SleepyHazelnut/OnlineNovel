@@ -15,9 +15,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 管理端登录
- * 管理员使用独立数据表，登录流程与读者一致：
- * 密码以 MD5 存储，token 使用 JWT，仅角色签发为 ADMIN
+ * 管理端登录。管理员单独一张表，流程跟读者一样，
+ * 密码存 MD5，token 也是 JWT，只是角色签发成 ADMIN
  */
 @Service
 public class AdminServiceImpl implements AdminService {

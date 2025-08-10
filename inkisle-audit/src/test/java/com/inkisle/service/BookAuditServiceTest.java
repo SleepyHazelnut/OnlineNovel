@@ -15,9 +15,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * 作品审核的回归测试
- * <p>
- * 记录表在本服务，作品与章节的状态要调书籍服务改，两边不在同一个事务里，
- * 故每个用例既看记录表的流转，也看书、章节最后落在什么状态
+ * 记录表在本服务，作品和章节的状态得调书籍服务改，两边不在一个事务里，
+ * 所以每个用例两头都看：记录表的流转，还有书和章节最后落在哪个状态
  */
 @Transactional
 class BookAuditServiceTest extends BaseIntegrationTest {

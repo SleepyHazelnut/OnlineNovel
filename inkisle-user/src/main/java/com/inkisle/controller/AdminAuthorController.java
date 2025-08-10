@@ -15,8 +15,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 管理端的作者资质审核。注册后资质为待审状态，须在此处审核通过，作品发布链路才放行；
- * 与书籍审核拆为两个 Controller，因两者操作的表和字段不同
+ * 管理端的作者资质审核。作者注册完是待审，这里过了才能发作品
+ * 没跟书籍审核放一个 Controller，动的是不同的表和字段
  */
 @RestController
 @RequestMapping("/admin/author")

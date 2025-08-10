@@ -5,8 +5,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 
 /**
- * 用户服务
- * 账号、登录态与个人资料放在这里
+ * 用户服务，账号、登录态、个人资料都在本服务
  */
 @EnableDiscoveryClient
 @SpringBootApplication

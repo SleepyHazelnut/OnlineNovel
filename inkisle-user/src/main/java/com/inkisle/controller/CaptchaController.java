@@ -16,7 +16,7 @@ import java.io.IOException;
 public class CaptchaController {
 
     /**
-     * 生成验证码图片，答案先存进 Session，登录时由 `CaptchaUtil.verify` 取出来比对
+     * 生成验证码图片，答案先存入 Session，登录时由 CaptchaUtil.verify 取出比对
      */
     @GetMapping("/image")
     public void image(HttpSession session, HttpServletResponse response) throws IOException {

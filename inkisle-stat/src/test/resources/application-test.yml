@@ -1,0 +1,7 @@
+# 测试专用配置，只覆盖与主配置不同的部分
+spring:
+  datasource:
+    # 库名与开发库区分开，测试跑完不留脏数据
+    url: jdbc:mysql://localhost:3306/inkisle_test?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&createDatabaseIfNotExist=true
+    username: root
+    password: ${MYSQL_PASSWORD:123456}

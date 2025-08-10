@@ -18,8 +18,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 作者的注册、登录与资质审核
- * 作者使用独立数据表，注册后资质为待审状态，管理端审核通过后方可发布作品
+ * 作者的注册、登录和资质审核
+ * 作者单独一张表，注册完资质待审，管理端过了才能发作品
  */
 @Service
 public class AuthorServiceImpl implements AuthorService {

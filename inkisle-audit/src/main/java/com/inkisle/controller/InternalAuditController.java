@@ -12,8 +12,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 给书籍服务用的内部接口：送审、重审、查结论
- * 网关不转发 /internal/**；拦截器里也要放行，服务间调用不带用户 token
+ * 给书籍服务用的内部接口，送审、重审、查结论
+ * 网关不转发 /internal，拦截器里放行，服务之间调不带用户 token
  */
 @RestController
 @RequestMapping("/internal/audit")

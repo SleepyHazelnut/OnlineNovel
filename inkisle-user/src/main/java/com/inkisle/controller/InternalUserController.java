@@ -14,10 +14,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 给别的服务查账号状态用
- * <p>
- * 三张账号表各自自增，同一个 id 在不同角色下是三个人，
- * 故必须连角色一起传，只给 id 会查错表
+ * 给别的服务查账号状态
+ * 三张账号表各管各的自增，同一个 id 在读者、作者、管理员里是三个人，
+ * 所以必须带角色一起传，光给 id 会查错表
  */
 @RestController
 @RequestMapping("/internal/user")

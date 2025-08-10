@@ -8,11 +8,10 @@ import java.time.LocalDate;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 连续签到天数的计算，纯函数测试，不需要 Redis
- * <p>
- * 抽出来单测的原因就是跨年：今天是 1 月 1 日时昨天落在去年那张位图上，
- * 早先的实现把「年份相同」当循环条件，一到元旦连续天数就变成 0
- * 这种日期边界靠跑接口测不出来——总不能等一年
+ * 连续签到天数，纯函数，不用 Redis
+ * 单独拎出来测就是因为跨年：1 月 1 日的时候昨天在去年那张位图上，
+ * 早先拿「年份相同」当循环条件，一到元旦连续天数就成了 0
+ * 这种日期边界跑接口测不出来，总不能等一年
  */
 class SignContinuousDaysTest {
 

@@ -21,7 +21,7 @@ import java.util.Map;
 
 /**
  * 读者账号
- * 注册时密码以 MD5 存储，用户名需查重；登录成功后签发带 USER 角色的 JWT 返回
+ * 注册时密码存 MD5，用户名要查重，登录成功签发一个 USER 角色的 JWT
  */
 @Service
 public class UserServiceImpl implements UserService {

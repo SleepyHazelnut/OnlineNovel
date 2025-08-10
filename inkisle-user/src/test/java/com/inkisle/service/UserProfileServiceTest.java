@@ -16,9 +16,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * 账号设置
- * <p>
- * 改资料要保证空值落成 null 而不是空串，改密码要保证原密码校验真的生效——
- * 后者一旦漏了，拿到 token 的人可以不知道原密码就直接改掉
+ * 改资料要保证空值落成 null 不是空串，改密码要保证真的验了原密码，
+ * 后者漏掉的话，拿到 token 的人不用知道原密码就能改
  */
 @Transactional
 class UserProfileServiceTest extends BaseIntegrationTest {

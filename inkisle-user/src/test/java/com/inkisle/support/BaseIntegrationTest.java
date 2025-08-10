@@ -16,11 +16,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * 用户服务集成测试的基类
- * <p>
- * 走真实 MySQL：注册时的唯一约束、签到位图的读写都在 SQL 里，
- * 换成内存库或 mock 掉 mapper 就验证不到
- * <p>
- * 每个测试方法由子类加 `@Transactional`，结束时整体回滚，用例之间互不干扰
+ * 连真 MySQL，注册的唯一约束、签到位图的读写都在 SQL 里，换内存库或者 mock 掉 mapper 就测不出来
+ * 子类每个测试方法加 @Transactional，跑完回滚
  */
 @SpringBootTest
 @ActiveProfiles("test")

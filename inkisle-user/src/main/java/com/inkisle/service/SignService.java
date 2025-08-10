@@ -3,22 +3,22 @@ package com.inkisle.service;
 import java.util.Map;
 
 /**
- * 签到，记录存储于 Redis 位图
+ * 签到，记录存在 Redis 位图里
  */
 public interface SignService {
 
     /**
-     * 签到，当日已签到则返回 false
+     * 签到，今天签过了返回 false
      */
     boolean sign(Long userId);
 
     /**
-     * 本月签到情况：已签日期、签到总天数、当日是否已签
+     * 本月签到情况，已签的日期、总天数、今天签没签
      */
     Map<String, Object> monthStatus(Long userId);
 
     /**
-     * 连续签到天数，自今天（或昨天）向前推算
+     * 连续签到天数，从今天（或者昨天）往前推
      */
     int continuousDays(Long userId);
 

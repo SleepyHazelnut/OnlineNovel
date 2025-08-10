@@ -32,7 +32,7 @@ public class CaptchaUtil {
     }
 
     /**
-     * 随机生成 4 位验证码，字符取自 `CHARS`
+     * 随机生成 4 位验证码，字符从 CHARS 里取
      */
     public static String randomCode() {
         StringBuilder sb = new StringBuilder(CODE_LENGTH);
@@ -67,10 +67,10 @@ public class CaptchaUtil {
     }
 
     /**
-     * 校验用户填写的验证码
+     * 校验用户填的验证码
      * 无论校验是否通过，都必须先清除 Session 中的答案：
-     * 若先判断对错再清除，同一张图可被无限次尝试
-     * 比较时去除首尾空格并忽略大小写
+     * 先判断再清除的话，同一张图能被人反复试
+     * 比的时候去掉首尾空格，不分大小写
      */
     public static void verify(HttpSession session, String input) {
         Object expected = session.getAttribute(SESSION_KEY);

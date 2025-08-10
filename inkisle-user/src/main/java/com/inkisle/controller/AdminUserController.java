@@ -13,8 +13,8 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.Map;
 
 /**
- * 管理端的用户管理。读者端原有一个 /user/list，已收口至此，
- * 挂在 `/admin` 前缀下，由拦截器统一限制为仅管理员可访问
+ * 管理端的用户管理。读者端原有的 /user/list 已迁到这里，
+ * 挂在 /admin 下面，拦截器统一卡管理员
  */
 @RestController
 @RequestMapping("/admin/user")

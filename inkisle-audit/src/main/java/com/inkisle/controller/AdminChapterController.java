@@ -17,8 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.Map;
 
 /**
- * 管理端章节审核
- * 章节在作者保存时进入待审，通过后才出现在读者端目录里
+ * 管理端章节审核。作者保存时进待审，过了才出现在读者目录里
  */
 @RestController
 @RequestMapping("/admin/chapter")
