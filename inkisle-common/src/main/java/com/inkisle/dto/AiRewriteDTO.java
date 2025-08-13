@@ -5,8 +5,7 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 /**
- * AI 改写请求
- * AI 改写接口入参：content 为待处理正文，type 为处理方式（润色 / 扩写 / 缩写）
+ * AI 改写入参
  */
 @Data
 public class AiRewriteDTO {

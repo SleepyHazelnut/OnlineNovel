@@ -6,7 +6,7 @@ import lombok.Data;
 
 /**
  * 作者保存作品的入参
- * 新增与修改共用：id 为空表示新增，有值表示修改
+ * 新增和修改共用，id 为空为新增，有值为修改
  */
 @Data
 public class BookSaveDTO {

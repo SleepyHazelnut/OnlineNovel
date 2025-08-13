@@ -34,7 +34,7 @@ public class BookInfo {
 
     /**
      * 上架状态，取值见 BookAuditStatus
-     * 只有「已通过」对读者可见，读者端所有查询都以此列为准
+     * 只有已通过对读者可见，读者端所有查询都以这列为准
      */
     private Integer auditStatus;
 

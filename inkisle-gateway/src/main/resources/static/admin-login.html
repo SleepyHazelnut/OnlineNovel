@@ -38,7 +38,7 @@
         location.replace('admin-stat.html');
     }
 
-    /** 刷新验证码。拼接时间戳以规避浏览器缓存：src 不变时图片不会重新请求 */
+    // 刷新验证码，拼接时间戳绕过缓存，否则 src 不变时图片不会重新请求
     function refreshCaptcha() {
         document.getElementById('captchaImg').src = 'captcha/image?t=' + Date.now();
     }
@@ -65,7 +65,7 @@
             setTimeout(function () { location.href = 'admin-stat.html'; }, 400);
         } catch (e) {
             tip.textContent = e.message;
-            // 验证码一次性有效，本次无论对错都已被后端作废，需刷新后再试
+            // 验证码一次性的，这次不管对错都作废了，刷新再试
             refreshCaptcha();
             btn.disabled = false;
         }

@@ -43,12 +43,21 @@ spring:
           uri: ${LEGACY_URI:http://localhost:9000}
           order: 6
           predicates:
-            # 创作助手和文件上传还没拆，先留在原服务
-            - Path=/author/ai/**,/file/**
+            # 创作助手还没拆，先留在原服务；上传和看板都搬走了
+            - Path=/author/ai/**
   web:
     resources:
       # 静态页在网关托管，页面里都是相对路径，根目录得指到这些文件的位置
       static-locations: classpath:/static/
+  webflux:
+    multipart:
+      # 封面图几百 KB，五兆足够，再大就落到临时文件，不占堆
+      max-in-memory-size: 5MB
+
+jwt:
+  # 上传接口在网关验 token，所以网关也得有密钥
+  secret: ${JWT_SECRET:inkisle-dev-secret-key-change-me-before-release}
+  expire-hours: 24
 
 file:
   # 跟后端服务指向同一个目录，所以都取上一级

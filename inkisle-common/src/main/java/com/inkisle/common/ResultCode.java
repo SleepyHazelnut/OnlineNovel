@@ -1,9 +1,7 @@
 package com.inkisle.common;
 
 /**
- * 统一业务状态码
- * 将 200、401、500 等状态码集中到枚举中，使用时通过 `ResultCode.XXX` 引用，
- * 避免散落的魔法数字，同时语义更清晰
+ * 业务状态码，别在各处直接写数字
  */
 public enum ResultCode {
 

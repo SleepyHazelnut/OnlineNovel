@@ -80,7 +80,7 @@
         }
     }
 
-    /** 审核记录：待审的给通过 / 驳回，处理过的只显示结论 */
+    // 审核记录：待审的给通过和驳回，处理过的只看结论
     function renderRecords(list) {
         let html = '<table class="table"><thead><tr>'
             + '<th>ID</th><th>书籍</th><th>作者ID</th><th>提交时间</th><th>审核时间</th><th>意见</th><th style="width:230px">操作</th>'
@@ -108,7 +108,7 @@
         document.getElementById('list').innerHTML = html + '</tbody></table>';
     }
 
-    /** 作品本身：已上架的可下架，已下架的可恢复 */
+    // 作品本身：上架的能下架，下架的能恢复
     function renderBooks(list) {
         const offline = mode === 'offline';
         let html = '<table class="table"><thead><tr>'
@@ -170,10 +170,8 @@
         }
     }
 
-    /**
-     * 删除是硬删，章节、正文、评论、评分、推荐位都会一起清掉
-     * 下架只是让读者看不到，数据还在；两件事分开，别让管理员误以为下架等于删除
-     */
+    // 删除是硬删，章节正文评论评分推荐位一起清，删不回来
+    // 下架只是读者看不到，数据还在，这两件事别混
     async function removeBook(bookId) {
         if (!confirm('删除后这本书的章节、正文、评论、评分与推荐位都会一并删除，且无法恢复。确定删除？')) return;
         try {
@@ -185,7 +183,7 @@
         }
     }
 
-    /** 驳回与下架都需要填原因，弹层结构一致，抽出来复用 */
+    // 驳回和下架都要填原因，弹层长得一样，抽出来共用
     function openRemarkModal(title, placeholder, confirmText, confirmClass, onConfirm) {
         const mask = document.createElement('div');
         mask.className = 'modal-mask';
@@ -222,10 +220,7 @@
         };
     }
 
-    /**
-     * 稿件预览：左边目录，右边正文
-     * 待审作品在读者端是打不开的，审核员只能从这里看内容
-     */
+    // 稿件预览，左侧目录右侧正文。待审作品读者端无法访问，审核员只能在这里查看
     async function preview(bookId) {
         try {
             const data = await get('/admin/audit/preview', { bookId: bookId });

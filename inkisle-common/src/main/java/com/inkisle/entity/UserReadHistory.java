@@ -6,7 +6,7 @@ import java.time.LocalDateTime;
 
 /**
  * 阅读记录
- * 一个用户对一本书只保留一条，读到新章节时更新该条的 chapterId，不新增行
+ * 一个用户一本书只有一条，读到新章节就更新 chapterId，不插新行
  */
 @Data
 public class UserReadHistory {

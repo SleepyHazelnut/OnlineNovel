@@ -115,14 +115,14 @@
         }
     }
 
-    /** 章节状态标签。已通过的不用占位，避免整列被绿色标签糊满 */
+    // 章节状态标签。已通过的不占位，否则整列绿色标签会连成一片
     function auditTag(status) {
         if (Number(status) === 0) return '<span class="tag tag-orange">待审</span>';
         if (Number(status) === 2) return '<span class="tag tag-red">驳回</span>';
         return '';
     }
 
-    /** 点击目录进入编辑器。正文走作者专用预览接口，未通过审核的草稿也能读取 */
+    // 点击目录进入编辑器。正文走作者专用的预览接口，未过审的草稿也能读取
     async function editChapter(id) {
         editingId = id;
         document.getElementById('tip').textContent = '';

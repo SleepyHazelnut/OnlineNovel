@@ -34,15 +34,12 @@
 
 <script src="js/api.js"></script>
 <script>
-    // 已登录时直接放行，无需重复登录
+    // 已经登录就直接放行
     if (Auth.logged()) {
         location.replace(param('redirect') || 'index.html');
     }
 
-    /**
-     * 刷新验证码
-     * 必须拼接时间戳：src 不变时浏览器会直接使用缓存，点击多少次图片都不会更新
-     */
+    // 刷新验证码，后面拼接时间戳。src 不变时浏览器会使用缓存，多次点击图片也不会更换
     function refreshCaptcha() {
         document.getElementById('captchaImg').src = 'captcha/image?t=' + Date.now();
     }
@@ -71,7 +68,7 @@
             }, 400);
         } catch (e) {
             tip.textContent = e.message;
-            // 验证码在后端一次性有效，无论对错，登录失败后必须刷新，否则第二次提交仍会失败
+            // 验证码后端一次性，无论对错，失败一次后需要刷新，否则后续提交仍会失败
             refreshCaptcha();
             btn.disabled = false;
         }

@@ -4,7 +4,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 /**
- * 已上架作品的下架与恢复。下架要写原因，恢复不用
+ * 已上架作品的下架和恢复，下架要写原因，恢复不用
  */
 @Data
 public class BookActionDTO {

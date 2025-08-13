@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
 /**
  * 书籍审核记录
  * 作者每次提交审核 insert 一条记录，管理员只更新该条状态，历史记录不删除
- * 判断书籍当前是否过审须取最新一条记录，仅判断是否存在记录不成立
+ * 判断书过没过审得看最新那条记录，只看有没有记录是不对的
  */
 @Data
 public class BookAuditRecord {

@@ -7,7 +7,7 @@ import java.util.List;
 
 /**
  * 书籍评论
- * 仅两级：一级评论与回复。回复的 parentId 指向一级评论 id，一级评论的 parentId 为 0
+ * 就两级，一级评论和回复。回复的 parentId 指向一级评论的 id，一级评论是 0
  */
 @Data
 public class BookComment {

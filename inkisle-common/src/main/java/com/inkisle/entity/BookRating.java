@@ -6,7 +6,7 @@ import java.time.LocalDateTime;
 
 /**
  * 书籍评分
- * 一位读者对同一本书只保留一条评分，重复评分覆盖旧值，唯一键为 (book_id, user_id)
+ * 一个人对一本书只有一条评分，再评就覆盖，(book_id, user_id) 上有唯一键
  */
 @Data
 public class BookRating {

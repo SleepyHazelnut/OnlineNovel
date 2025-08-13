@@ -15,6 +15,13 @@
     <description>对外唯一入口，托管静态页并转发请求</description>
 
     <dependencies>
+        <!-- 上传接口要返回统一结果体、算 MD5、解析 token，故依赖 common；
+             注意不能去扫 common 的包，那里有 Spring MVC 的全局异常处理 -->
+        <dependency>
+            <groupId>com.inkisle</groupId>
+            <artifactId>inkisle-common</artifactId>
+        </dependency>
+
         <!-- 网关基于 WebFlux，不能再引入 spring-boot-starter-web -->
         <dependency>
             <groupId>org.springframework.cloud</groupId>

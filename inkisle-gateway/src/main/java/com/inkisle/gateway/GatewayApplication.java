@@ -5,11 +5,9 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 
 /**
- * 网关入口
- * <p>
- * 静态页与上传目录都由这里对外提供，后端服务不再直接暴露给浏览器
- * 注意不必扫描 com.inkisle.common：那里有基于 Spring MVC 的全局异常处理，
- * 网关是 WebFlux，扫进来会因缺少 servlet 类型而起不来
+ * 网关入口，静态页和上传都在这里对外，后端服务不当面给浏览器
+ * 不能顺带扫描 com.inkisle.common，该包有 MVC 全局异常处理，
+ * 网关是 WebFlux，扫进来缺 servlet 的类型，起不来
  */
 @EnableDiscoveryClient
 @SpringBootApplication

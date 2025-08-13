@@ -5,7 +5,7 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 /**
- * 修改评论内容
+ * 改评论内容
  * 只开放正文一项：评论的归属、所在作品与层级都由服务端按 id 从库里取，不接受前端回传
  */
 @Data

@@ -6,7 +6,7 @@ import lombok.Data;
 
 /**
  * 作者注册入参
- * 仅账号、密码标 @NotBlank；笔名与邮箱可选，故只限制长度、不做非空校验
+ * 只有账号和密码标了 @NotBlank，笔名邮箱是可选的，所以只限长度不判空
  */
 @Data
 public class AuthorRegisterDTO {

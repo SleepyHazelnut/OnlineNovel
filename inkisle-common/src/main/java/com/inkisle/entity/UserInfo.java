@@ -6,7 +6,7 @@ import java.time.LocalDateTime;
 
 /**
  * 用户信息
- * 读者账号。密码仅存 MD5 摘要，不存明文
+ * 读者账号。密码只存 MD5，不存明文
  */
 @Data
 public class UserInfo {

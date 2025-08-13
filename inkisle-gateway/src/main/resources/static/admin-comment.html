@@ -31,10 +31,8 @@
 
 <script src="js/api.js"></script>
 <script>
-    /**
-     * auditStatus 为 null 表示全部
-     * 与作品审核的编号不是一套，评论只有 0 待审 / 1 通过 / 2 驳回 三态
-     */
+    // auditStatus 传 null 就是全部
+    // 编号跟作品那套不一样，评论只有 0 待审 1 通过 2 驳回
     const TABS = [
         { key: null, text: '全部' },
         { key: 0, text: '待审' },
@@ -116,7 +114,7 @@
         }
     }
 
-    /** 评论的三态标签，与作品上架状态分开，不要复用 bookAuditTag */
+    // 评论的三态标签，跟作品上架状态不是一套，别复用 bookAuditTag
     function auditTag(status) {
         const map = {
             0: ['tag-orange', '待审'],
@@ -127,7 +125,7 @@
         return '<span class="tag ' + it[0] + '">' + it[1] + '</span>';
     }
 
-    /** 表格单行放不下整段评论，截断显示，完整内容放在 title 里悬停可看 */
+    // 一行放不下整段评论，截断，完整内容放 title 里悬停看
     function shorten(text, max) {
         const s = text || '';
         return s.length > max ? s.slice(0, max) + '…' : s;
@@ -187,7 +185,7 @@
         }
     }
 
-    /** 与书籍审核的弹层一致：原因不填不放行，提交失败把错误写在弹层里 */
+    // 跟书籍审核那个弹层一样，原因不填不放行，提交失败了把错写在弹层里
     function openRemarkModal(title, placeholder, confirmText, confirmClass, onConfirm) {
         const mask = document.createElement('div');
         mask.className = 'modal-mask';

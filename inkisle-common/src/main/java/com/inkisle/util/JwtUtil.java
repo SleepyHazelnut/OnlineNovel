@@ -13,7 +13,7 @@ import java.util.Date;
 /**
  * JWT 的签发与解析
  * 登录成功后签发 token 返回前端，后续请求携带该 token，
- * 拦截器调用 `parse` 校验签名并取出用户信息
+ * 拦截器调 parse 验证签名，同时取出用户信息
  */
 @Component
 public class JwtUtil {
@@ -30,7 +30,7 @@ public class JwtUtil {
 
     /**
      * 签发 token。subject 存放用户主键，username 与 role 写入 claim，
-     * 拦截器无需再次查库即可获知用户身份与角色
+     * 拦截器不用再查库就知道是谁、什么角色
      */
     public String generate(Long userId, String username, String role) {
         Date now = new Date();
@@ -47,7 +47,7 @@ public class JwtUtil {
 
     /**
      * 解析 token。签名不合法、过期、格式错误均会抛异常，
-     * 此处统一捕获并返回 null，调用方只需判空
+     * 统一捕获后返回 null，调用方判空处理
      */
     public Claims parse(String token) {
         if (token == null || token.isEmpty()) {

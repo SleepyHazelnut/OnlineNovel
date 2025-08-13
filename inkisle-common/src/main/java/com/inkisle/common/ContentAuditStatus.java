@@ -1,7 +1,7 @@
 package com.inkisle.common;
 
 /**
- * 章节与评论的审核状态，三态。与 BookAuditStatus 编号不同，别混用
+ * 章节和评论的审核状态，就三态。编号跟 BookAuditStatus 不一样，别混着用
  */
 public enum ContentAuditStatus {
 

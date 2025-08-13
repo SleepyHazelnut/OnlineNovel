@@ -96,7 +96,7 @@
 
         if (bookId) {
             document.getElementById('title').textContent = '编辑作品';
-            // 本页同时用于新建与编辑，侧边栏将两者归为同一项，故标题需单独改为「编辑作品」
+            // 这一页新建和编辑共用，侧边栏里算同一项，所以标题得单独改成编辑作品
             document.title = '编辑作品 - 墨屿小说';
             try {
                 const b = await get('/author/book/detail', { id: bookId });
@@ -123,8 +123,8 @@
         try {
             const fd = new FormData();
             fd.append('file', file);
-            // 传文件使用 FormData，不可手动设置 Content-Type，
-            // 需由浏览器自动带上 multipart 的 boundary，api.js 也据此区分
+            // 传文件用 FormData，别手动设 Content-Type，
+            // boundary 得让浏览器自己带，api.js 也是靠这个分辨的
             const data = await request('/file/upload', { method: 'POST', body: fd });
             coverUrl = data.url;
             showCover();

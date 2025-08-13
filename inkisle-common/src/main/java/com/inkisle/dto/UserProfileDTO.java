@@ -9,7 +9,7 @@ import lombok.Data;
 /**
  * 修改个人资料
  * 手机号与邮箱允许留空，留空表示不填。头像只接受读取到的地址，
- * 前端先调上传接口拿到 URL 再提交，不在这个接口里传文件
+ * 前端先调上传拿 URL 再提交，这个接口不传文件
  */
 @Data
 public class UserProfileDTO {

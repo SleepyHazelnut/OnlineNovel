@@ -6,7 +6,7 @@ import java.util.List;
 
 /**
  * 书籍分类
- * 仅一级、二级两层，子分类存放于 children，通过 parentId 关联
+ * 就两级，子分类放 children 里，靠 parentId 关联
  */
 @Data
 public class BookCategory {

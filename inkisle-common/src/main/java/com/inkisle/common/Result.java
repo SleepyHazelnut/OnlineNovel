@@ -3,7 +3,7 @@ package com.inkisle.common;
 import lombok.Data;
 
 /**
- * 接口返回结构：code + msg + data
+ * 接口统一返回 code + msg + data
  *
  * @param <T> 业务数据类型
  */
@@ -38,7 +38,7 @@ public class Result<T> {
     }
 
     /**
-     * 错误码取自 `ResultCode`，提示信息替换为更具体的内容，例如参数校验失败时指明具体项
+     * 错误码从 ResultCode 里取，提示信息换成更具体的，比如参数校验失败时指出是哪一项
      */
     public static <T> Result<T> fail(ResultCode resultCode, String msg) {
         Result<T> result = build(resultCode, null);

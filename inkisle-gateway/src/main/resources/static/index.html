@@ -158,10 +158,8 @@
     load();
     loadRecommend();
 
-    /**
-     * 首页三个推荐板块。推荐位由管理员配置，最新更新按更新时间实时取
-     * 某个板块为空时整块不渲染，不留一个空标题
-     */
+    // 首页三个板块。推荐位是管理员配的，最新更新按更新时间实时取
+    // 哪个板块空了整块都不画，不留一个光秃秃的标题
     async function loadRecommend() {
         const box = document.getElementById('recommend');
         try {
@@ -172,7 +170,7 @@
             html += sectionHtml('最新更新', '最近有新章节的书', data.newest);
             box.innerHTML = html;
         } catch (e) {
-            // 推荐位取不到不影响书库列表，留空即可
+            // 推荐位拿不到不影响书库，空着
             box.innerHTML = '';
         }
     }

@@ -1,5 +1,5 @@
 /**
- * 前端公共脚本。页面是原始 HTML，不引框架也不打包，三端共用这一份
+ * 前端公共脚本。页面就是原始 HTML，没框架也不打包，三端共用这一份
  */
 
 // 三端的登录态分开存，否则作者端登录会使读者端失效
@@ -51,7 +51,7 @@ const Auth = {
 const BASE = '';
 
 /**
- * 统一请求口：带 token、拼请求体、拆 {code, msg, data}，业务里直接拿 data
+ * 统一请求口，带 token、拼请求体、拆掉外层拿 data，页面里不用每次判断 code
  */
 async function request(path, options) {
     options = options || {};
@@ -91,14 +91,14 @@ async function request(path, options) {
     }
 
     // 后端统一返回 {code, msg, data}，code 非 200 即视为失败并向上抛出，
-    // 页面统一 catch 后弹 toast，无需每个接口单独判断
+    // 页面统一 catch 弹 toast，无需每个接口单独判断
     if (data.code !== 200) {
         throw new Error(data.msg || '操作失败');
     }
     return data.data;
 }
 
-/** GET。params 中值为 null / undefined / 空串的会被过滤，避免拼出 ?a=&b= 这类空参数 */
+// GET，值为 null 或空串的参数直接丢掉，别拼出 ?a=&b= 这种
 function get(path, params) {
     if (params) {
         const qs = Object.keys(params)
@@ -126,7 +126,7 @@ function del(path) {
 function $(sel) { return document.querySelector(sel); }
 function $all(sel) { return Array.prototype.slice.call(document.querySelectorAll(sel)); }
 
-/** 后端返回的时间是 2025-09-01T10:20:30 这种带 T 的格式，页面上一律截到分钟显示 */
+// 后端给的是 2025-09-01T10:20:30 这种带 T 的串，页面上截到分钟
 function fmtTime(value) {
     if (!value) return '-';
     return String(value).replace('T', ' ').slice(0, 16);
@@ -203,7 +203,7 @@ function coverText(url, name) {
     return url ? '' : escapeHtml((name || '书').slice(0, 1));
 }
 
-/** 大数字缩写，一万以上按「万」显示，列表里不至于把卡片撑开 */
+// 大数字缩写，一万以上显示成几万，卡片不会溢出
 function fmtCount(n) {
     const v = Number(n) || 0;
     if (v >= 10000) {
@@ -293,7 +293,7 @@ function renderSide(active) {
     el.innerHTML = html;
 }
 
-/** 后台页面统一入口：顶栏 + 侧边栏 + 登录校验。返回 false 表示已跳转登录页，调用方应停止后续处理 */
+// 后台页面统一入口，顶栏加侧边栏，同时校验登录。返回 false 表示已跳转登录页，调用方不需继续执行
 function setupBackend(active) {
     const role = currentRole();
     if (!Auth.require()) return false;

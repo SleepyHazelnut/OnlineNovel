@@ -6,7 +6,7 @@ import lombok.Data;
 
 /**
  * 读者注册入参
- * 读者仅需用户名和密码，长度限制与作者注册一致
+ * 读者只要用户名和密码，长度限制跟作者一样
  */
 @Data
 public class UserRegisterDTO {

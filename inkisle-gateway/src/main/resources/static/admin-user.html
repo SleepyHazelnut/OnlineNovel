@@ -49,7 +49,7 @@
                 + '<th>ID</th><th>账号</th><th>昵称</th><th>手机号</th><th>邮箱</th><th>注册时间</th><th>状态</th><th style="width:110px">操作</th>'
                 + '</tr></thead><tbody>';
 
-            // 后端 status=1 表示封禁。按钮提交的是「要切换到的状态」，而非当前状态
+            // 后端 status=1 是封禁。按钮提交的是要切过去的状态，不是当前状态
             list.forEach(function (u) {
                 const banned = Number(u.status) === 1;
                 html += '<tr>'

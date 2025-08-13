@@ -4,7 +4,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 /**
- * 审核记录上的操作：通过只需要 id，驳回再加 reason
+ * 审核记录上的操作，通过只要 id，驳回还得带 reason
  */
 @Data
 public class AuditHandleDTO {

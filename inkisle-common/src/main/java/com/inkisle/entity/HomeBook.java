@@ -6,7 +6,7 @@ import java.time.LocalDateTime;
 
 /**
  * 首页推荐位
- * 只记书籍 id 与所属板块，展示所需的书名、封面从 book_info 联表取
+ * 只记 book_id 和属于哪个板块，书名封面联表取
  */
 @Data
 public class HomeBook {

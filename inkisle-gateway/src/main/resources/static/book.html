@@ -95,7 +95,7 @@
 
         document.getElementById('page').innerHTML = html;
 
-        // 评论框 DOM 由上方拼接的 html 生成，初始化必须等 innerHTML 写入之后，顺序颠倒会取到 null
+        // 评论框是上面拼的 html 生成的，得等 innerHTML 写完再初始化，顺序反了就取到 null
         initCommentForm();
         loadChapters();
         loadComments();
@@ -103,7 +103,7 @@
         loadRating();
     }
 
-    /** 详情页的辅助信息：评分、总字数、阅读次数、评论数 */
+    // 详情页那几个数字：评分、总字数、阅读数、评论数
     function bookMetaHtml(b) {
         const score = Number(b.score) > 0
             ? '★ ' + Number(b.score).toFixed(1) + '（' + (b.ratingCount || 0) + ' 人评分）'
@@ -117,10 +117,8 @@
     /* ---------------- 评分 ---------------- */
     let myScore = null;
 
-    /**
-     * 我的评分要带 token 才能查，未登录时直接画成未评分，
-     * 不去请求一个必然 401 的接口——那会被公共请求层清掉本地登录态并跳登录页
-     */
+    // 我的评分要带 token，没登录就直接画成未评分
+    // 不要请求必然返回 401 的接口，公共请求层会同时清除本地登录态并跳转登录页
     async function loadRating() {
         if (!Auth.logged()) {
             renderRate();
@@ -231,7 +229,7 @@
             + '</div>';
     }
 
-    /** 只给自己发过的评论挂删除入口，别人的评论服务端也不允许删 */
+    // 只给自己的评论挂删除按钮，别人的服务端也不让删
     function deleteLink(c) {
         const me = Auth.user();
         if (!me || Number(me.id) !== Number(c.userId)) return '';
@@ -332,10 +330,8 @@
         }
     }
 
-    /**
-     * 「开始阅读」：已登录且有阅读记录时跳到上次阅读的章节，否则回到第一章
-     * 未登录不查询历史——该接口需要 token，请求会返回 401
-     */
+    // 开始阅读：登录了有记录就跳到上次那章，没有就回第一章
+    // 没登录不去查历史，那个接口要 token，请求也是 401
     async function startRead() {
         const user = Auth.user();
         try {

@@ -4,8 +4,8 @@ import lombok.Data;
 
 /**
  * 章节正文
- * 正文单独建表，仅在读取某一章时按 chapterId 查询
- * 与章节合并建表时，查询目录会一并取出正文，拖慢列表
+ * 正文单独一张表，读某一章的时候才按 chapterId 去查
+ * 跟章节放一张表的话，查目录会把正文也捞出来，列表就慢了
  */
 @Data
 public class BookContent {

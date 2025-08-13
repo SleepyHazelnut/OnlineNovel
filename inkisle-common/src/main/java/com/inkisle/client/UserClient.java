@@ -11,9 +11,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 public interface UserClient {
 
     /**
-     * 按角色查状态：0 正常，1 封禁，null 表示账号不存在
-     * <p>
-     * 管理员没有状态列，停用靠删记录，故只区分在与不在
+     * 按角色查状态，0 正常 1 封禁，null 是没这个账号
+     * 管理员表没有状态列，停用即删除记录，因此只判断记录是否存在
      */
     @GetMapping("/internal/user/status")
     Integer status(@RequestParam("role") String role, @RequestParam("id") Long id);

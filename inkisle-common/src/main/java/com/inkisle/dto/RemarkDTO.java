@@ -3,7 +3,7 @@ package com.inkisle.dto;
 import lombok.Data;
 
 /**
- * 只要一句说明的提交体，驳回、下架这类操作共用
+ * 只要一句话的请求体，驳回、下架这些都用它
  */
 @Data
 public class RemarkDTO {

@@ -3,7 +3,7 @@ package com.inkisle.common;
 import jakarta.servlet.http.HttpServletRequest;
 
 /**
- * 当前登录用户。拦截器把 id 写进 request，控制器从这里取
+ * 当前登录用户，拦截器将 id 写入 request，controller 从中读取
  */
 public final class CurrentUser {
 

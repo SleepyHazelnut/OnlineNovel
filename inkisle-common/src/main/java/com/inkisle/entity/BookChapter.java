@@ -6,8 +6,8 @@ import java.time.LocalDateTime;
 
 /**
  * 书籍章节
- * 只存目录信息，正文单独存放于 BookContent
- * 正文与章节合并建表时，查询章节列表会一并取出大体积正文，故拆分
+ * 只存目录，正文在 BookContent 里
+ * 正文要是不拆出去，查章节列表会把整章正文一起捞出来，太慢了
  */
 @Data
 public class BookChapter {

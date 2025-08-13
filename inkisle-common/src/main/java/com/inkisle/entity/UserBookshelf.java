@@ -6,7 +6,7 @@ import java.time.LocalDateTime;
 
 /**
  * 书架收藏
- * 一个用户对一本书只存一条，数据库以 user_id + book_id 唯一索引约束
+ * 一个用户一本书只有一条，库里靠 user_id + book_id 的唯一索引拦住
  */
 @Data
 public class UserBookshelf {

@@ -32,7 +32,7 @@
 
 <script src="js/api.js"></script>
 <script>
-    /** 当前分类树，弹窗里选父级与判断层级都用它 */
+    // 当前分类树，弹窗选父级、判断层级都用这个
     let tree = [];
 
     if (setupBackend('category')) {
@@ -80,7 +80,7 @@
             + '</td></tr>';
     }
 
-    /** 按 id 在树里找分类，同时返回它是否是一级 */
+    // 按 id 在树里找分类，顺便告诉调用方它是不是一级
     function find(id) {
         for (let i = 0; i < tree.length; i++) {
             if (Number(tree[i].id) === Number(id)) return { item: tree[i], isRoot: true };
@@ -92,10 +92,8 @@
         return null;
     }
 
-    /**
-     * 新增：parentId 为 0 表示一级分类
-     * 父级下拉只列一级分类，从入口上就不给「挂到二级分类下」的机会
-     */
+    // 新增，parentId 为 0 就是一级分类
+    // 父级下拉只列一级，从入口上就不给人挂到二级的机会
     function openCreate(parentId) {
         const options = [{ id: 0, name: '（无，作为一级分类）', sort: '' }];
         tree.forEach(function (c) {
@@ -128,7 +126,7 @@
             sort: c.sort || 0,
             parentId: c.parentId || 0,
             // 改父级会让整棵树移位，也容易把一级分类挂到自己的子分类下形成环，
-            // 因此编辑时只允许改名称与排序
+            // 所以编辑的时候只让改名字和排序
             lockParent: true,
             parentLabel: hit.isRoot ? '一级分类' : (parentName(c.parentId) + ' 的子分类'),
             onSave: function (dto) {

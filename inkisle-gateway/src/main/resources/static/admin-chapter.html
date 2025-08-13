@@ -146,10 +146,8 @@
         });
     }
 
-    /**
-     * 正文预览。未过审的章节请求不到读者端接口，审核员只能从这里看内容，
-     * 因此这个接口走管理端路径、单独返回章节与正文
-     */
+    // 正文预览。未过审的章节读者端接口取不到，审核员只能在这里查看，
+    // 所以这个接口走管理端路径，单独返回章节和正文
     async function preview(id) {
         try {
             const data = await get('/admin/chapter/' + id + '/content');
@@ -170,7 +168,7 @@
         }
     }
 
-    /** 与书籍审核的弹层一致：原因不填不放行 */
+    // 跟书籍审核那个弹层一样，原因不填不放行
     function openRemarkModal(title, placeholder, confirmText, confirmClass, onConfirm) {
         const mask = document.createElement('div');
         mask.className = 'modal-mask';

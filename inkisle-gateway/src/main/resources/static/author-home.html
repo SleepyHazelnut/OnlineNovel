@@ -62,11 +62,11 @@
             + '</tr></thead><tbody>';
 
         books.forEach(function (b) {
-            // 上架状态由列表接口一并返回，不再按书逐个查审核记录
+            // 上架状态列表接口一起返回了，不用一本一本再去查审核记录
             const auditStatus = Number(b.auditStatus);
             const auditHtml = bookAuditTag(auditStatus)
                 + (b.auditRemark ? '<div class="audit-remark">' + escapeHtml(b.auditRemark) + '</div>' : '');
-            // 已上架的书改书名、简介、封面后会自动重新送审，不需要手动点
+            // 上架的书改了书名简介封面会自动重新送审，不用手动点
             const canSubmit = auditStatus === 0 || auditStatus === 3 || auditStatus === 4;
             const submitText = auditStatus === 0 ? '提交审核' : '重新提交';
             const nextStatus = Number(b.status) === 1 ? 0 : 1;

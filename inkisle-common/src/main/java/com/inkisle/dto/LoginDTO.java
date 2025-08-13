@@ -5,7 +5,7 @@ import lombok.Data;
 
 /**
  * 登录入参
- * 用户名、密码、验证码均为必填。验证码用于拦截脚本撞库
+ * 用户名密码验证码都得填，验证码是拦脚本撞库用的
  */
 @Data
 public class LoginDTO {

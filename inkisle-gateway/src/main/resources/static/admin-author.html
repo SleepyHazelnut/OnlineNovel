@@ -85,10 +85,10 @@
     }
 
     function audit(authorId, status) {
-        // 驳回必须填写原因，作者可在个人中心查看，此处强制校验不允许为空
+        // 驳回必须写原因，作者在个人中心能看到，这里不填不让过
         if (status === 2) {
             const remark = prompt('驳回原因：');
-            if (remark === null) return; // prompt 点取消返回 null，不可当作空字符串处理
+            if (remark === null) return; // prompt 点取消是 null，别当空串处理
             if (!remark.trim()) { toast('驳回要写原因'); return; }
             send(authorId, 2, remark.trim());
         } else {
