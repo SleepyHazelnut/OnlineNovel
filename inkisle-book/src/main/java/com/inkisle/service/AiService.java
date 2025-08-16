@@ -1,9 +1,7 @@
 package com.inkisle.service;
 
 /**
- * AI 创作助手
- * 润色、扩写、缩写三种改写逻辑相同，仅提示词不同，
- * 故对外只提供 `rewrite`，用 `type` 区分
+ * AI 创作助手。润色、扩写、缩写逻辑一样，只是提示词不同，所以只开一个 rewrite
  */
 public interface AiService {
 

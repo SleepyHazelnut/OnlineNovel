@@ -10,14 +10,14 @@ spring:
         server-addr: ${NACOS_ADDR:localhost:8848}
     gateway:
       # 只转接口前缀，写成 /** 会把 html、css 也当接口转走，静态页就打不开了
-      # 按前缀分服务，order 小的先匹配。/author 下面既有写书、写章节（归 book），
-      # 也有 AI 改写（还在老服务），不排顺序会走错
+      # 按前缀分服务，order 小的先匹配。/author 下面既有写书、写章节、AI 改写（归 book），
+      # 也有登录注册（归 user），不排顺序会走错
       routes:
         - id: book-author
           uri: lb://inkisle-book
           order: 1
           predicates:
-            - Path=/author/book/**,/author/chapter/**
+            - Path=/author/book/**,/author/chapter/**,/author/ai/**
         - id: audit
           uri: lb://inkisle-audit
           order: 2
@@ -39,12 +39,6 @@ spring:
           predicates:
             # 数据看板，只读聚合，独立进程，不跟业务服务抢连接池
             - Path=/admin/stat/**
-        - id: legacy
-          uri: ${LEGACY_URI:http://localhost:9000}
-          order: 6
-          predicates:
-            # 创作助手还没拆，先留在原服务；上传和看板都搬走了
-            - Path=/author/ai/**
   web:
     resources:
       # 静态页在网关托管，页面里都是相对路径，根目录得指到这些文件的位置

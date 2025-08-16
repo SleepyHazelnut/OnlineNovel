@@ -25,7 +25,6 @@ public class AiServiceImpl implements AiService {
     private final ChatClient chatClient;
 
     public AiServiceImpl(ChatClient.Builder builder) {
-        // ChatClient 由 Builder 构建，Spring AI 自动配置会注入该 Builder
         this.chatClient = builder.build();
     }
 
@@ -36,7 +35,7 @@ public class AiServiceImpl implements AiService {
             throw new BusinessException("不支持的处理方式");
         }
 
-        // 提示词与原文拼接为一条 user 消息发送，未单独使用 system 角色
+        // 提示词和原文拼成一条 user 消息发过去，没有单独用 system 角色
         return chatClient.prompt()
                 .user(instruction + "\n\n原文：\n" + content)
                 .call()

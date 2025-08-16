@@ -11,9 +11,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * AI 创作助手，作者撰写正文时使用
- * 拦截器按路径前缀判断角色，故挂在 `/author` 前缀下，
- * 由前缀规则自动拦截读者，无需为独立路径单独维护特判规则
+ * AI 创作助手，作者写正文的时候用
+ * 挂在 /author 下面，拦截器按路径前缀判断角色，前缀本身即可拦截读者，无需额外判断
  */
 @RestController
 @RequestMapping("/author/ai")
@@ -23,7 +22,7 @@ public class AiController {
     private AiService aiService;
 
     /**
-     * 润色 / 扩写 / 缩写，具体做哪个看 `type`
+     * 润色 扩写 缩写，做哪个看 type
      */
     @PostMapping("/rewrite")
     public Result<String> rewrite(@Valid @RequestBody AiRewriteDTO dto) {
