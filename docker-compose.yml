@@ -1,16 +1,45 @@
 services:
-  # 注册与配置中心。本地单机模式，数据落在内存，重启即清空
   nacos:
     image: nacos/nacos-server:v2.3.2
     container_name: inkisle-nacos
     environment:
       MODE: standalone
-      # 本地开发不启用鉴权，免得多一层登录
       NACOS_AUTH_ENABLE: "false"
       JVM_XMS: 256m
       JVM_XMX: 512m
     ports:
       - "8848:8848"
-      # 2.x 起客户端走 gRPC，9848 不开会一直重连
+      # 2.x 的客户端走 gRPC，不放开 9848 会一直重连
       - "9848:9848"
     restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: inkisle-redis
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+
+  # 搜索用，SEARCH_ENGINE 不设成 es 就不需要它
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.4
+    container_name: inkisle-es
+    environment:
+      discovery.type: single-node
+      # 本地不配证书，生产得开
+      xpack.security.enabled: "false"
+      # 单节点默认 1 副本，健康值会一直是 yellow
+      number_of_replicas: "0"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+    restart: unless-stopped
+
+volumes:
+  redis-data:
+  es-data:

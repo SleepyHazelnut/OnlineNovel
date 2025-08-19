@@ -17,6 +17,8 @@ import com.inkisle.mapper.BookStatMapper;
 import com.inkisle.mapper.HomeBookMapper;
 import com.inkisle.mapper.UserBookshelfMapper;
 import com.inkisle.mapper.UserReadHistoryMapper;
+import com.inkisle.search.BookSearchEngine;
+import com.inkisle.search.BookSearchIndexer;
 import com.inkisle.service.BookService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
@@ -76,6 +78,12 @@ public class BookServiceImpl implements BookService {
     @Autowired
     private UserReadHistoryMapper userReadHistoryMapper;
 
+    @Autowired
+    private BookSearchIndexer bookSearchIndexer;
+
+    @Autowired
+    private BookSearchEngine bookSearchEngine;
+
     @Override
     public Map<String, Object> page(Integer pageNum, Integer pageSize, Long categoryId) {
         int num = PageUtils.pageNum(pageNum);
@@ -119,6 +127,14 @@ public class BookServiceImpl implements BookService {
 
         int num = PageUtils.pageNum(pageNum);
         int size = PageUtils.pageSize(pageSize, DEFAULT_PAGE_SIZE);
+
+        // 先问 ES，它能按字段权重打分，同分还能拿阅读数兜一下，MySQL 全文索引给不了
+        // 返回 null 表示 ES 未启用或不可用，退回原有查询
+        Map<String, Object> indexed = bookSearchEngine.search(kw, num, size);
+        if (indexed != null) {
+            return indexed;
+        }
+
         List<BookInfo> list = bookInfoMapper.searchByKeyword(PageUtils.offset(num, size), size, kw);
 
         Map<String, Object> data = new HashMap<>();
@@ -145,7 +161,7 @@ public class BookServiceImpl implements BookService {
     @CacheEvict(value = "book", allEntries = true)
     public void save(BookSaveDTO bookSaveDTO, Long authorId) {
         // 作者资质没过审不能发书
-        // 作者表归用户服务，这里共库直接读，改资质仍走用户服务，不发书就不管它
+        // 作者表归用户服务，这里共库直接读，改资质仍走用户服务
         AuthorInfo author = authorInfoMapper.selectById(authorId);
         if (author == null || author.getAuditStatus() == null || author.getAuditStatus() != 1) {
             throw new BusinessException("作者资质还没通过审核，暂时不能发布作品");
@@ -167,6 +183,9 @@ public class BookServiceImpl implements BookService {
             bookInfo.setAuditStatus(BookAuditStatus.DRAFT.getCode());
             bookInfo.setCreateTime(LocalDateTime.now());
             bookInfoMapper.insert(bookInfo);
+            // 新建的书是「未提交」，这一步实际只是把它从索引中移除
+            // 保留是为了写完即同步，避免其他调用点遗漏
+            bookSearchIndexer.sync(bookInfo.getId());
             return;
         }
 
@@ -182,6 +201,8 @@ public class BookServiceImpl implements BookService {
         bookInfo.setStatus(exist.getStatus());
         bookInfo.setUpdateTime(LocalDateTime.now());
         bookInfoMapper.updateById(bookInfo);
+        // 改名、换封面会影响搜索结果，改了就要重新灌一次索引
+        bookSearchIndexer.sync(bookInfo.getId());
 
         // 改书名、简介这类展示信息要重审，改章节正文不用，否则每更新一章都要等待审核
         if (BookAuditStatus.isVisible(exist.getAuditStatus()) && displayChanged(exist, bookInfo)) {
@@ -236,9 +257,11 @@ public class BookServiceImpl implements BookService {
         homeBookMapper.deleteByBookId(id);
         userBookshelfMapper.deleteByBookId(id);
         userReadHistoryMapper.deleteByBookId(id);
-        // 审核记录在审核服务里，只能远程删；这里失败书也已经被删掉，记录会留下
+        // 审核记录在审核服务里，只能远程删，远程失败会连本地删除一起回滚
         auditClient.deleteByBookId(id);
         bookInfoMapper.deleteById(id);
+        // 书已经查不到了，同步的结果是从索引里删掉这条
+        bookSearchIndexer.sync(id);
     }
 
     @Override
@@ -261,6 +284,7 @@ public class BookServiceImpl implements BookService {
         update.setStatus(status);
         update.setUpdateTime(LocalDateTime.now());
         bookInfoMapper.updateStatus(update);
+        bookSearchIndexer.sync(id);
     }
 
     @Override
