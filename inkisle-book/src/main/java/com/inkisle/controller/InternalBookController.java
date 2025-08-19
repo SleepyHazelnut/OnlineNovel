@@ -8,6 +8,7 @@ import com.inkisle.entity.BookInfo;
 import com.inkisle.mapper.BookChapterMapper;
 import com.inkisle.mapper.BookContentMapper;
 import com.inkisle.mapper.BookInfoMapper;
+import com.inkisle.search.BookSearchIndexer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
@@ -26,7 +27,7 @@ import java.util.Map;
 
 /**
  * 给审核服务用的内部接口
- * 网关不转发 /internal/**，外面直接访问不到；拦截器里也要放行，服务间调用不带用户 token
+ * 网关不转发 /internal，外面访问不到。拦截器里也放行，服务之间调不带用户 token
  */
 @RestController
 @RequestMapping("/internal")
@@ -43,6 +44,9 @@ public class InternalBookController {
 
     @Autowired
     private CacheManager cacheManager;
+
+    @Autowired
+    private BookSearchIndexer bookSearchIndexer;
 
     @GetMapping("/book/{id}")
     public BookInfo getBook(@PathVariable Long id) {
@@ -66,6 +70,8 @@ public class InternalBookController {
     public Integer markPending(@PathVariable Long id) {
         int rows = bookInfoMapper.markPendingIfNotPending(id, LocalDateTime.now());
         evictBookCache(id);
+        // 待审即读者不可见，索引里这条要去掉
+        bookSearchIndexer.sync(id);
         return rows;
     }
 
@@ -75,6 +81,8 @@ public class InternalBookController {
         bookInfoMapper.updateAuditStatus(id, dto.getStatus(), dto.getRemark(), LocalDateTime.now());
         // 详情缓存里存着整个 BookInfo，不清会读到旧状态
         evictBookCache(id);
+        // 上架的书进索引、下架的书出索引，改一次状态同步一次
+        bookSearchIndexer.sync(id);
     }
 
     @GetMapping("/book/{id}/chapters")

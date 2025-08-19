@@ -24,6 +24,22 @@ spring:
       port: ${REDIS_PORT:6379}
       database: 0
       timeout: 3s
+  ai:
+    openai:
+      # DeepSeek 给的是 OpenAI 兼容接口，换个 base-url 就能直接连
+      base-url: ${AI_BASE_URL:https://api.deepseek.com}
+      # key 从环境变量读，不写进仓库
+      api-key: ${AI_API_KEY:sk-set-your-own-key-in-env}
+      chat:
+        options:
+          model: ${AI_MODEL:deepseek-chat}
+          # 写东西要有点发挥，别太刻板
+          temperature: 0.8
+  elasticsearch:
+    # 只有 search.engine 设成 es 时才会连；默认不连，没装 ES 也能跑
+    uris: ${ES_URIS:http://localhost:9200}
+    connection-timeout: 3s
+    socket-timeout: 5s
 
 mybatis:
   mapper-locations: classpath*:/mapper/**/*.xml
@@ -34,3 +50,9 @@ mybatis:
 jwt:
   secret: ${JWT_SECRET:inkisle-dev-secret-key-change-me-before-release}
   expire-hours: 24
+
+inkisle:
+  search:
+    # mysql 走全文索引，不依赖外部组件，拉下来就能搜
+    # es 走索引打分，ES 挂了自动退回 mysql
+    engine: ${SEARCH_ENGINE:mysql}
