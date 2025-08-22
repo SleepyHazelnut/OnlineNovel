@@ -8,7 +8,7 @@ import java.util.List;
 public interface BookCategoryService {
 
     /**
-     * 分类树，返回一级分类，每项通过 `children` 携带子分类
+     * 分类树，返回一级分类，子分类挂在 children 上
      */
     List<BookCategory> tree();
 

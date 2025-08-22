@@ -46,7 +46,7 @@ public interface BookChapterMapper {
 
     int deleteById(@Param("id") Long id);
 
-    /** 正文挂在章节上，调用前须先清 book_content */
+    /** 正文挂在章节上，调之前得先把 book_content 清了 */
     int deleteByBookId(@Param("bookId") Long bookId);
 
 }

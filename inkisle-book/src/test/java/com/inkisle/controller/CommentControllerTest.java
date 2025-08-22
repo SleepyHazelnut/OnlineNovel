@@ -17,10 +17,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * 评论接口的测试
- * <p>
- * 服务层已覆盖归属校验，这里补的是接口这一层：路径是否被拦截器要求登录、
- * 编辑接口的请求体能否正常解析、删除他人评论时错误是否以统一结构返回
+ * 评论接口
+ * 归属校验服务层已经测过，这里补接口这层：路径要不要登录、
+ * 编辑的请求体能不能解析、删别人的评论时错误是不是统一结构
  */
 @Transactional
 @AutoConfigureMockMvc

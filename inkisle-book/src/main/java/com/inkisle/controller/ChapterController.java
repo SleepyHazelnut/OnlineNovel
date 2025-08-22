@@ -15,8 +15,7 @@ import java.util.Map;
 
 /**
  * 章节目录和正文
- * 这两条路径均按 id 直接读取，故在 controller 出口再次校验：
- * 仅拦截书籍详情页无效，作品未过审时目录和正文仍可被读出
+ * 这两条都按 id 直接读取，只在详情页拦截无效，作品未过审仍能取到正文
  */
 @RestController
 @RequestMapping("/chapter")

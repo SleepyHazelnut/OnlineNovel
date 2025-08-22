@@ -11,11 +11,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * 作品统计字段的回归测试
- * <p>
- * 阅读次数、总字数、评论数、评分四项都被页面和榜单直接读取，
- * 一旦某一处漏了更新，展示的数字就会长期停住，且不会报错
- * 这里按「产生数据 → 读 book_info 上的列」的方式逐项验证
+ * 作品统计字段
+ * 阅读数、字数、评论数、评分这几项页面和榜单都直接读，
+ * 哪一处漏了更新，数字就一直停在那儿，还不会报错
+ * 按产生数据再读 book_info 那几列的方式一项项验
  */
 @Transactional
 class BookStatsTest extends BaseIntegrationTest {

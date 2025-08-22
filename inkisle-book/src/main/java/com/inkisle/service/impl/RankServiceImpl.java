@@ -19,7 +19,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 热度榜放 Redis ZSet；其余三个榜直接读 book_info 上的列，不另存一份排行
+ * 热度榜放 Redis ZSet，另外三个榜直接按 book_info 的列排，没另存一份排行
  */
 @Slf4j
 @Service

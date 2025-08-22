@@ -15,7 +15,7 @@ public interface AuthorInfoMapper {
     AuthorInfo selectByUsername(String username);
 
     /**
-     * 账号查重，注册前统计该 username 是否已被占用
+     * 查重，注册前看看 username 有没有人用
      */
     int countByUsername(String username);
 
@@ -29,7 +29,7 @@ public interface AuthorInfoMapper {
     List<AuthorInfo> selectByAuditStatus(@Param("auditStatus") Integer auditStatus);
 
     /**
-     * 仅更新资质审核结果，提交时间等字段保持不变
+     * 只改资质审核结果，提交时间那些不动
      */
     int updateAudit(AuthorInfo authorInfo);
 

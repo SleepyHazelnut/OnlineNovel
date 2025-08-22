@@ -17,9 +17,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * 作品服务的回归测试
- * <p>
- * 覆盖两类曾经出过问题的地方：删除作品只删主表会留下孤儿数据；
- * 编辑作品时 mapper 无条件更新 status，会把连载状态写成 null
+ * 都是之前真踩过的：删作品只删主表会剩一堆孤儿数据；
+ * 编辑时 mapper 无条件更新 status，连载状态被写成 null
  */
 @Transactional
 class BookServiceTest extends BaseIntegrationTest {
@@ -43,7 +42,7 @@ class BookServiceTest extends BaseIntegrationTest {
 
         assertThat(countBy("book_info", "id", bookId)).isZero();
         assertThat(countBy("book_chapter", "book_id", bookId)).isZero();
-        // 正文按章节 id 关联，删完章节就再也定位不到，故断言必须用章节 id
+        // 正文是按章节 id 关联的，章节删了再也定位不到，所以断言得用章节 id
         assertThat(countBy("book_content", "chapter_id", chapterId)).isZero();
         assertThat(countBy("book_comment", "book_id", bookId)).isZero();
         assertThat(countBy("user_bookshelf", "book_id", bookId)).isZero();
@@ -106,6 +105,23 @@ class BookServiceTest extends BaseIntegrationTest {
         assertThat(listOf(bookService.search(1, 10, "   "))).isEmpty();
         assertThatThrownBy(() -> bookService.search(1, 10, "剑".repeat(65)))
                 .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    @DisplayName("未启用 ES 时搜索走 MySQL，未上架的书搜不到")
+    void searchFallsBackToMysqlWhenEsDisabled() {
+        long authorId = insertAuthor("book-search");
+        long visibleId = insertBook(authorId, 0, 2);
+        jdbcTemplate.update("UPDATE book_info SET book_name = ? WHERE id = ?", "沧海拾遗", visibleId);
+        long draftId = insertBook(authorId, 0, 0);
+        jdbcTemplate.update("UPDATE book_info SET book_name = ? WHERE id = ?", "沧海未上架", draftId);
+
+        // 用单字：ngram 最小切分是 2，单字走 LIKE 那段兜底，
+        // 顺带绕开「全文索引看不到本事务未提交的行」这个 InnoDB FTS 的特性
+        List<?> hits = listOf(bookService.search(1, 10, "沧"));
+
+        // 上架的那本命中，草稿那本因为 audit_status 不为 2 被过滤掉
+        assertThat(hits).hasSize(1);
     }
 
     @SuppressWarnings("unchecked")

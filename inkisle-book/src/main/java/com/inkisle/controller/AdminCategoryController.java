@@ -15,8 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * 管理端的分类维护
- * 读者端只读的分类树仍由 `/category/list` 提供，两者分开，
- * 避免把写接口挂在游客可访问的路径下
+ * 读者端只读的树还在 /category/list，分开挂，别让写接口落在游客能走的路径上
  */
 @RestController
 @RequestMapping("/admin/category")

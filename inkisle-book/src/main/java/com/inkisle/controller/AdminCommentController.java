@@ -19,8 +19,7 @@ import java.util.Map;
 
 /**
  * 管理端的评论管理
- * 读者发言先进入待审，通过后才对其他读者展示；
- * 已通过的评论若事后发现违规，也可以直接删除
+ * 读者发的评论先进待审，过了才给别人看。已经过审的后面发现有问题，也能直接删
  */
 @RestController
 @RequestMapping("/admin/comment")
@@ -30,8 +29,8 @@ public class AdminCommentController {
     private BookCommentService bookCommentService;
 
     /**
-     * 评论列表，分页返回
-     * keyword 同时匹配评论内容、书名、昵称；auditStatus 为空表示不按状态筛
+     * 评论列表，分页
+     * keyword 会同时匹配评论内容、书名和昵称，auditStatus 不传则不筛选状态
      */
     @GetMapping("/list")
     public Result<Map<String, Object>> list(@RequestParam(required = false) String keyword,

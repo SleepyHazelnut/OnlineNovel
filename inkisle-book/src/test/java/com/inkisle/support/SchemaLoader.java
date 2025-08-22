@@ -13,12 +13,10 @@ import java.sql.Connection;
 import java.sql.SQLException;
 
 /**
- * 用 `sql/schema.sql` 初始化测试库
- * <p>
- * 不复制一份测试专用的建表脚本：两份脚本迟早会不一致，
- * 测试通过而线上建表缺字段是最难查的一类问题
- * 这里直接读原脚本，只去掉建库与切库两行——测试连的是 inkisle_test，
- * 若保留 `USE inkisle`，脚本会把开发库的 11 张表全部删掉重建
+ * 拿 sql/schema.sql 初始化测试库
+ * 没另抄一份测试专用脚本，两份迟早对不上，测试过了线上缺字段最难查
+ * 直接读原脚本，把建库和切库那两行去掉。测试连的是 inkisle_test，
+ * 留着 USE inkisle 会把开发库的表全删了重建
  */
 public final class SchemaLoader {
 
@@ -26,8 +24,8 @@ public final class SchemaLoader {
     }
 
     /**
-     * 拆成多模块后，测试的工作目录是模块目录而非仓库根，脚本在根下的 sql/ 里
-     * 从当前目录逐级向上找，找不到再退回相对路径
+     * 拆成多模块之后测试的工作目录是模块目录，不是仓库根，脚本在根下的 sql 里
+     * 从当前目录往上找，找不到再退回相对路径
      */
     private static Path schemaPath() {
         Path dir = Path.of("").toAbsolutePath();

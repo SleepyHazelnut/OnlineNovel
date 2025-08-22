@@ -10,8 +10,8 @@ import java.util.List;
 public interface BookCategoryMapper {
 
     /**
-     * 查询全部分类，按 sort 升序。分类为初始化时一次性写入、变动很少，
-     * 故不分页也不加过滤条件
+     * 全部分类，按 sort 升序。分类是初始化时一次性写进去的，基本不动，
+     * 就不分页也不加过滤了
      */
     List<BookCategory> selectAll();
 

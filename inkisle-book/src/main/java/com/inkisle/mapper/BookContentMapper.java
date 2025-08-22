@@ -14,14 +14,14 @@ public interface BookContentMapper {
 
     int insert(BookContent content);
 
-    // 正文与章节为一对一关系，chapter_id 即可唯一定位，故相关方法均以 chapterId 为条件
+    // 正文和章节一对一，chapter_id 就能定位，下面几个方法都用它当条件
     int updateByChapterId(BookContent content);
 
     int deleteByChapterId(@Param("chapterId") Long chapterId);
 
     /**
-     * 删除某本书全部章节的正文。作品被删时正文一并清理，
-     * 否则这些内容既读不到，也永远占着空间
+     * 删一本书所有章节的正文，删书的时候一起清
+     * 不清的话这些字谁也读不到，还一直占地方
      */
     int deleteByBookId(@Param("bookId") Long bookId);
 

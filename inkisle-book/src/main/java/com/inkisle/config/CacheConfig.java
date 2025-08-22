@@ -17,9 +17,7 @@ import org.springframework.data.redis.serializer.RedisSerializationContext;
 import java.time.Duration;
 
 /**
- * 缓存装配
- * <p>
- * 使用 Redis 作为缓存而非本地内存：后续可能多实例部署，本地缓存无法共享
+ * 缓存配置。没用本地缓存，后面拆多实例时共享不了
  */
 @Configuration
 @EnableCaching
@@ -27,14 +25,12 @@ public class CacheConfig {
 
     @Bean
     public RedisCacheManager cacheManager(RedisConnectionFactory connectionFactory) {
-        // 默认序列化器是 JDK 序列化，存入 Redis 为二进制，redis-cli 中不可读，换成 JSON
+        // JDK 序列化存进去是二进制，redis-cli 里没法看，换成 JSON
         ObjectMapper objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
         objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-        // 为保证取出后能还原原类型，需开启默认类型信息；
-        // 但仅白名单放开本项目、集合与数值类型，避免反序列化被利用
-        // java.math 不能漏：BookInfo.score 是 BigDecimal，非 final 类型会带类型标记，
-        // 未放行时写入正常、回读抛 InvalidTypeIdException
+        // 反序列化需还原为原类型，必须带类型信息，但只允许这几个包
+        // java.math 别漏，BookInfo.score 是 BigDecimal，没放行的话写得进去读不出来
         objectMapper.activateDefaultTyping(
                 BasicPolymorphicTypeValidator.builder()
                         .allowIfSubType("com.inkisle.")
@@ -45,10 +41,9 @@ public class CacheConfig {
                 JsonTypeInfo.As.PROPERTY);
 
         RedisCacheConfiguration config = RedisCacheConfiguration.defaultCacheConfig()
-                // 书籍信息更新频率低，TTL 设为 30 分钟
+                // 书籍信息变动少，30 分钟足够
                 .entryTtl(Duration.ofMinutes(30))
-                // 不缓存空值：否则查询不存在的书籍时该结果会被缓存，
-                // 书籍上架后仍会命中缓存而读不到
+                // 空值不缓存，否则未上架的书会被缓存为不存在，上架后仍读不到
                 .disableCachingNullValues()
                 .serializeValuesWith(RedisSerializationContext.SerializationPair
                         .fromSerializer(new GenericJackson2JsonRedisSerializer(objectMapper)));

@@ -6,8 +6,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * 将整本 TXT 按「第X章」形式的标题行切分为多个章节
- * 用于作者上传整本小说：通过正则识别标题行切分后逐条入库
+ * 把整本 TXT 按「第X章」这样的标题行切成若干章，作者导入整本小说用
  */
 public class TxtChapterParser {
 
@@ -19,8 +18,8 @@ public class TxtChapterParser {
             Pattern.MULTILINE);
 
     /**
-     * 切分，返回 章节标题 -> 章节正文
-     * 必须使用 LinkedHashMap：HashMap 遍历顺序不确定，会导致章节顺序与原文不一致
+     * 切成 章节标题 -> 正文
+     * 用 LinkedHashMap，换成 HashMap 遍历顺序不确定，导入后章节会乱序
      */
     public static Map<String, String> split(String text) {
         Map<String, String> chapters = new LinkedHashMap<>();

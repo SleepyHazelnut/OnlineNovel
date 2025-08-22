@@ -14,9 +14,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * 章节服务的回归测试
- * <p>
- * 重点是归属校验：章节接口按 id 操作，而 bookId 由请求体给出，
- * 只校验请求体里的 bookId 会留下「用自己的书过校验、改别人的章节」的口子
+ * 重点在归属：章节接口是按 id 操作的，bookId 又是请求体给的，
+ * 只验请求体里那个 bookId 的话，拿自己的书过校验、改别人的章节就混进来了
  */
 @Transactional
 class BookChapterServiceTest extends BaseIntegrationTest {
