@@ -17,12 +17,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * 拦截器的两类问题：角色串号与封禁延迟生效
- * <p>
- * 两者都只在 HTTP 层暴露——服务层拿到的已经是拦截器传下来的 userId，
- * 放行与否根本不在它的视野里，所以只能在这里测
- * <p>
- * 探测路径用本服务的接口：账号状态在用户服务，这里按 stub 给值
+ * 拦截器就两个容易出问题的地方：角色串号，还有封禁晚生效
+ * 这两个只在 HTTP 层看得出来，服务层拿到的已经是拦截器塞进来的 userId，
+ * 放不放行根本不归它管，所以只能搁这儿测
+ * 账号状态在用户服务，这里 stub 一个值出来
  */
 @Transactional
 @AutoConfigureMockMvc

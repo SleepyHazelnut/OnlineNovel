@@ -13,9 +13,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * 评论审核
- * <p>
- * 与章节不同，评论归书籍服务，审核动作不用跨服务：
- * 待审的只有本人能看见，驳回后本人还要能看到原因，否则等于被静默删帖
+ * 跟章节不一样，评论归书籍服务，审的时候不用跨服务
+ * 待审的只有本人看得见，驳回后本人还得能看到原因，不然等于悄悄删帖
  */
 @Transactional
 class CommentAuditTest extends BaseIntegrationTest {

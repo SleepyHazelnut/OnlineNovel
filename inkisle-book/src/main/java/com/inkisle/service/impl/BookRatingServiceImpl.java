@@ -20,8 +20,8 @@ import java.util.Map;
 
 /**
  * 评分
- * 评分表只存每人的原始分数，平均分在每次评分后算一次并写回 book_info，
- * 列表与榜单读列即可，避免每本书都带一个 AVG 子查询
+ * 评分表只记每人打的原始分，平均分每次算完写回 book_info，
+ * 列表和榜单直接读列，不用每本书都带一个 AVG 子查询
  */
 @Service
 public class BookRatingServiceImpl implements BookRatingService {
@@ -44,8 +44,7 @@ public class BookRatingServiceImpl implements BookRatingService {
         if (score == null || score < 1 || score > 5) {
             throw new BusinessException("评分只能是 1-5 星");
         }
-        // 只有上架作品可评分：未过审的书读者本就看不到，
-        // 但仅凭 id 直接调这个接口仍能写进评分
+        // 只能给上架的书打分。没审过的读者本来就看不到，但直接拿 id 调这个接口还是能写进去
         if (!bookService.isVisibleToReader(bookId)) {
             throw new BusinessException("作品不存在或未上架");
         }
@@ -77,10 +76,9 @@ public class BookRatingServiceImpl implements BookRatingService {
     }
 
     /**
-     * 重算并写回 book_info 的两列，同时清掉详情缓存
-     * 聚合放在 SQL 里做（见 BookInfoMapper.refreshRating），不在这里先查再写，
-     * 否则并发打分时两个事务会拿着各自的旧快照互相覆盖
-     * 不清缓存的话详情页最长一个缓存周期内还是旧分数
+     * 重算后写回 book_info 两列，同时清除详情缓存
+     * 聚合放在 SQL 里（BookInfoMapper.refreshRating），不在应用层先查再写，
+     * 两人同时打分时，各自基于旧快照计算会互相覆盖
      */
     private Map<String, Object> refreshBookScore(Long bookId) {
         bookInfoMapper.refreshRating(bookId);
@@ -94,8 +92,8 @@ public class BookRatingServiceImpl implements BookRatingService {
     }
 
     /**
-     * 平均分保留一位小数，四舍五入。没人评分时明确返回 0.0 与 0，
-     * 而不是让 null 一路传到前端显示成「null 分」
+     * 平均分留一位小数。没人评分就返回 0.0 和 0，
+     * 别让 null 一路传到前端显示成 null 分
      */
     private Map<String, Object> aggregate(Long bookId) {
         Map<String, Object> row = bookRatingMapper.selectSummary(bookId);

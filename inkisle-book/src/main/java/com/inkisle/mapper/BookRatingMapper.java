@@ -10,7 +10,7 @@ import java.util.Map;
 public interface BookRatingMapper {
 
     /**
-     * 某位读者对某本书的评分，未评过返回 null
+     * 某人对某本书打的分，没评过返回 null
      */
     BookRating selectByBookAndUser(@Param("bookId") Long bookId, @Param("userId") Long userId);
 
@@ -21,8 +21,8 @@ public interface BookRatingMapper {
     int upsert(BookRating rating);
 
     /**
-     * 聚合某本书的平均分与人数，返回 key 为 avgScore、ratingCount
-     * 无人评分时 AVG 为 null，COUNT 为 0，Service 侧按 0 处理
+     * 算平均分和人数，返回 avgScore、ratingCount 两个键
+     * 无评分时 AVG 为 null、COUNT 为 0，service 按 0 处理
      */
     Map<String, Object> selectSummary(@Param("bookId") Long bookId);
 

@@ -27,7 +27,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 章节与正文分表存，正文在 book_content，目录查询不碰正文
+ * 章节和正文分表，正文在 book_content，查目录不碰正文
  */
 @Service
 public class BookChapterServiceImpl implements BookChapterService {
@@ -204,8 +204,8 @@ public class BookChapterServiceImpl implements BookChapterService {
     }
 
     /**
-     * 章节变动后重算总字数；新增或修改时顺带推一下更新时间，
-     * 首页「最新更新」和更新榜都按它排序。详情缓存里存着整个 BookInfo，不清会停在旧值
+     * 章节一变动就重算总字数。新增和修改还要推一下更新时间，
+     * 首页的最新更新和更新榜都按这个排，详情缓存里存的是整个 BookInfo，不清会一直是旧值
      */
     private void refreshBookStat(Long bookId, boolean touchUpdateTime) {
         bookInfoMapper.updateWordCount(bookId, bookChapterMapper.selectTotalWordCount(bookId));

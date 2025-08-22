@@ -13,9 +13,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 分类树
- * 分类为两级，`parent_id` 为 0 的为顶层
- * 数据量仅数十条，故一次全部查出，在内存中组装 `children`
+ * 分类树。就两级，parent_id 是 0 的算顶层
  */
 @Service
 public class BookCategoryServiceImpl implements BookCategoryService {
@@ -40,7 +38,7 @@ public class BookCategoryServiceImpl implements BookCategoryService {
             }
         }
 
-        // 分类仅数十条，内存中双层循环即可完成组装，无需为此数据量再查库
+        // 就几十条，全查出来在内存里拼，不用为这点数据再查一次库
         for (BookCategory root : roots) {
             List<BookCategory> children = new ArrayList<>();
             for (BookCategory category : all) {
@@ -66,9 +64,9 @@ public class BookCategoryServiceImpl implements BookCategoryService {
         if (exist == null) {
             throw new BusinessException("分类不存在");
         }
-        // 编辑只开放名称与排序。改父级会让整棵树移位：把一个带子分类的一级分类
-        // 挂到另一个一级分类下，它的子分类就成了三级，树组装时再也遍历不到，
-        // 而作品仍在引用它们。故忽略请求体里的 parentId，一律沿用库中的值
+        // 编辑只让改名字和排序。父级一动整棵树就错位了，比如把一个带子分类的一级分类
+        // 挂到另一个一级分类下面，它的子分类就成了三级，组装树的时候根本遍历不到，
+        // 但书还指着这些分类。所以请求体里的 parentId 直接不认
         dto.setParentId(exist.getParentId());
         fill(exist, dto, id);
         bookCategoryMapper.update(exist);
@@ -83,8 +81,8 @@ public class BookCategoryServiceImpl implements BookCategoryService {
         if (bookCategoryMapper.countChildren(id) > 0) {
             throw new BusinessException("该分类下还有子分类，请先删除子分类");
         }
-        // 用不过滤上架状态的计数：未过审、已下架的书同样引用了该分类，
-        // 只看已上架作品会把它们漏掉，删完分类这些书就挂空了
+        // 这里不过滤上架状态，没审过、下架的书也引用了这个分类，
+        // 只看已上架会漏掉，删完那些书就挂空了
         if (bookInfoMapper.countAllByCategory(id) > 0) {
             throw new BusinessException("该分类下还有作品，不能删除");
         }
@@ -92,8 +90,8 @@ public class BookCategoryServiceImpl implements BookCategoryService {
     }
 
     /**
-     * 校验并填充。selfId 为空表示新增，非空表示修改时排除自身做重名检查
-     * 分类只有两级：父分类本身必须是一级分类，这条同时挡掉了「把分类挂到自己子分类下」形成环的情况
+     * 校验加填充。selfId 空的是新增，非空是修改，重名检查时要排除自己
+     * 父分类必须是一级分类，该判断同时阻止把分类挂到自身子分类下形成环
      */
     private void fill(BookCategory category, CategorySaveDTO dto, Long selfId) {
         String name = dto.getCategoryName() == null ? "" : dto.getCategoryName().trim();

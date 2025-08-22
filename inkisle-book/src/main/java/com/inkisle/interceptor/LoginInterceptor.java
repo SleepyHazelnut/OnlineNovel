@@ -15,10 +15,9 @@ import org.springframework.web.servlet.HandlerInterceptor;
 import java.io.IOException;
 
 /**
- * 校验 token、角色，以及账号是否被封禁
- * <p>
- * 封禁与否不能只看 token：token 有 24 小时有效期，签发之后账号可能已被封，
- * 只拦登录入口的话封禁要等一天才生效。账号表归用户服务，这里走 Feign 查
+ * 校验 token、角色，还有账号封没封
+ * 封禁不能只看 token，token 有效期 24 小时，签发之后账号可能被封了，
+ * 只拦登录的话要等一天才生效。账号表在用户服务，这里走 Feign 问一下
  */
 @Component
 public class LoginInterceptor implements HandlerInterceptor {

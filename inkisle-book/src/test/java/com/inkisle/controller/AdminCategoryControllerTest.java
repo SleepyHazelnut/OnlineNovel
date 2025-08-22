@@ -20,11 +20,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * 管理端分类维护的测试
- * <p>
- * 分类只有两级，删除又要保证不留下指向空分类的书，
- * 这几条约束都在服务层，这里验证它们能否从 HTTP 上正确触发，
- * 以及写接口是否确实只对管理员开放
+ * 管理端分类维护
+ * 两级、删除前要确认没有书还在用，这些约束都在服务层，
+ * 这里看的是 HTTP 上能不能正常触发，还有写接口是不是只有管理员能进
  */
 @Transactional
 @AutoConfigureMockMvc

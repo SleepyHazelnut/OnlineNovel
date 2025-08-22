@@ -18,8 +18,8 @@ import java.util.Map;
 
 /**
  * 书籍评分
- * 未放在 `/book/**` 下：那段路径整体对游客放行，拦截器不会解析 token，
- * 拿不到当前读者是谁，也就无法记录「我打了几分」
+ * 没挂到 /book 下面，那条路径整个对游客放行，拦截器不解析 token，
+ * 就不知道当前是谁，也就记不了「我打了几分」
  */
 @RestController
 @RequestMapping("/rating")

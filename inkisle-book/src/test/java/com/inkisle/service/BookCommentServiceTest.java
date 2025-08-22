@@ -15,10 +15,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * 评论的增删改
- * <p>
- * 重点在归属：评论是读者自己发的内容，改与删都必须校验这条评论是不是本人发的；
- * 一级评论被删时其回复要一并清掉，否则回复会在列表里查不出来也删不掉
+ * 评论增删改
+ * 重点还是归属，评论是读者自己写的，改和删都得看是不是本人
+ * 一级评论删了回复要一起清，不然那些回复在列表里既查不到也删不掉
  */
 @Transactional
 class BookCommentServiceTest extends BaseIntegrationTest {
@@ -188,7 +187,7 @@ class BookCommentServiceTest extends BaseIntegrationTest {
         third.setParentId(replyId);
         bookCommentService.add(third);
 
-        // 若父级仍指向 replyId，组装树时既不是根也挂不到根下，这条评论就查不出来了
+        // 父级还指着 replyId 的话，拼树的时候它既不是根也挂不到根下，这条就查不出来了
         // 这些评论都是待审状态，传 viewerId 才能看到自己发的
         assertThat(bookCommentService.listByBookId(bookId, userId))
                 .flatExtracting(BookComment::getChildren)

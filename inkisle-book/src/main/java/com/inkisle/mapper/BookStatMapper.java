@@ -6,8 +6,8 @@ import org.apache.ibatis.annotations.Param;
 import java.util.Map;
 
 /**
- * 作品维度的汇总统计，三个数分别来自阅读记录、收藏、评论三张表
- * 与书籍的增删改查职责不同，故单独设立 Mapper
+ * 作品维度的汇总，三个数来自阅读记录、收藏、评论三张表
+ * 跟书的增删改查不是一回事，单独开一个
  */
 @Mapper
 public interface BookStatMapper {

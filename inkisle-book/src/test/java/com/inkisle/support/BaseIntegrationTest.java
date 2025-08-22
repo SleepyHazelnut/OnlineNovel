@@ -23,12 +23,10 @@ import java.sql.Statement;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * 服务层集成测试的基类
- * <p>
- * 走真实 MySQL：本项目的关键逻辑在 SQL 里（级联删除的子查询顺序、全文索引、
- * 事务边界），用内存库或 mock 掉 mapper 都验证不到，测了也不算数
- * <p>
- * 每个测试方法由子类加 `@Transactional`，结束时整体回滚，用例之间互不干扰
+ * 服务层集成测试基类
+ * 连真 MySQL，这个项目的关键逻辑都在 SQL 里（级联删除的顺序、全文索引、事务边界），
+ * 换内存库或者 mock 掉 mapper 就测不出来了
+ * 子类每个测试方法加 @Transactional，跑完回滚，用例之间不影响
  */
 @SpringBootTest
 @ActiveProfiles("test")

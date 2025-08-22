@@ -40,15 +40,7 @@ public class BookController {
         return Result.ok(bookService.search(pageNum, pageSize, keyword));
     }
 
-    /**
-     * 书籍详情
-     * 审核未通过的作品读者不可见：列表已过滤，详情接口同样要判，否则知道 id 仍可直接访问
-     * 校验放在 controller 层而非 mapper：`selectById` 同时被作者提交审核的链路复用，
-     * SQL 里加过滤会导致被驳回的作品重新提交时报「作品不存在」
-     * <p>
-     * 直接用取到的实体判断，不再调 isVisibleToReader 回库一次：
-     * 那等于同一行查两遍。状态变化时审核流程会清掉这条缓存，读到的不会是旧状态
-     */
+    /** 详情。未过审的作品读者无法查看，只在列表过滤无效，知道 id 仍能访问 */
     @GetMapping("/{id}")
     public Result<BookInfo> detail(@PathVariable Long id) {
         BookInfo book = bookService.getById(id);
