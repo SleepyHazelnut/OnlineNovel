@@ -1,0 +1,82 @@
+:root {
+  --paper: #f7f6f3;
+  --paper-warm: #fbfbf9;
+  --surface: #ffffff;
+  --surface-sunken: #f1efe9;
+
+  --ink: #2f3437;
+  --ink-2: #6e6e68;
+  --ink-3: #9b9992;
+  --ink-inverse: #fbfaf7;
+
+  --line: #e7e5de;
+  --line-strong: #d9d6cc;
+
+  --sage: #5c6b57;
+  --sage-deep: #445438;
+  --sage-soft: #edf1e9;
+  --sage-line: #ced8c7;
+
+  --pale-red: #fdebec;
+  --pale-red-ink: #9f2f2d;
+  --pale-blue: #e9f0f6;
+  --pale-blue-ink: #2f5f7f;
+  --pale-green: #edf3ec;
+  --pale-green-ink: #346538;
+  --pale-yellow: #fbf3db;
+  --pale-yellow-ink: #8a6410;
+  --pale-gray: #f1efe8;
+  --pale-gray-ink: #6b6a60;
+  --pale-clay: #f2e7de;
+  --pale-clay-ink: #8a5f42;
+
+  --font-sans: "PingFang SC", "HarmonyOS Sans SC", "Source Han Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+  --font-serif: "Songti SC", "Source Han Serif SC", "Noto Serif SC", STSong, Georgia, serif;
+  --font-mono: "SF Mono", "JetBrains Mono", Consolas, monospace;
+
+  --t-xs: 11px;
+  --t-sm: 12px;
+  --t-base: 14px;
+  --t-md: 15px;
+  --t-lg: 18px;
+  --t-xl: 24px;
+  --t-2xl: 32px;
+  --t-3xl: clamp(34px, 4.6vw, 54px);
+
+  --r-xs: 4px;
+  --r-s: 6px;
+  --r-m: 10px;
+  --r-l: 14px;
+  --r-xl: 20px;
+  --r-2xl: 26px;
+  --r-pill: 999px;
+
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
+  --s-8: 64px;
+  --s-9: 96px;
+
+  --page: 1160px;
+  --gutter: clamp(20px, 4.5vw, 44px);
+
+  /* 入场与退场统一走强 ease-out，避免内置 ease-out 偏弱导致收尾拖沓 */
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  /* 屏幕内位移、抽屉、面板，iOS 那种起手快收尾稳的曲线 */
+  --ease-swift: cubic-bezier(0.32, 0.72, 0, 1);
+  /* 屏内两点之间的位移用 ease-in-out，起止两端都不突兀 */
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  /* 按压反馈 140ms，状态切换 160ms，面板 240ms，滚动入场 420ms */
+  --dur-press: 140ms;
+  --dur-1: 160ms;
+  --dur-2: 240ms;
+  --dur-3: 420ms;
+
+  --shadow-card: 0 1px 1px rgba(47, 52, 55, 0.03);
+  --shadow-float: 0 1px 2px rgba(47, 52, 55, 0.04), 0 14px 34px -20px rgba(47, 52, 55, 0.22);
+}
