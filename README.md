@@ -1,7 +1,7 @@
 # 墨屿小说 inkisle
 
-PC 端在线阅读网站。后端为 Spring Boot 3.3 多服务架构，前端为原生 HTML/CSS/JS，由网关托管。
-读者、作者、管理三端的账号体系与页面入口相互独立。
+PC 端在线阅读网站。后端为 Spring Boot 3.3 多服务架构。读者端前端是 Vue 3 单页应用，
+作者端与管理端仍是网关托管的原生页面。三端的账号体系与页面入口相互独立。
 
 ## 技术栈
 
@@ -13,6 +13,7 @@ PC 端在线阅读网站。后端为 Spring Boot 3.3 多服务架构，前端为
 - Elasticsearch 8.13（可选，默认使用 MySQL 全文索引）
 - JWT（jjwt 0.12.5）
 - Spring AI 1.0.0 + DeepSeek，作者端 AI 改写
+- Vue 3.5 + Vite 8 + vue-router：读者端单页应用，未引 UI 框架
 
 ## 模块
 
@@ -20,11 +21,12 @@ PC 端在线阅读网站。后端为 Spring Boot 3.3 多服务架构，前端为
 inkisle
 ├── sql           建库脚本与存量库升级脚本
 ├── inkisle-common   实体、DTO、JWT、Feign 接口
-├── inkisle-gateway  静态页、上传、路由
+├── inkisle-gateway  网关、读者端托管、上传
 ├── inkisle-user     账号、登录、签到
 ├── inkisle-book     作品、章节、分类、评论、评分、榜单、书架、创作助手
 ├── inkisle-audit    作品与章节审核
-└── inkisle-stat     后台数据看板
+├── inkisle-stat     后台数据看板
+└── web              读者端 Vue 应用
 ```
 
 服务已拆分，数据库未拆分。书籍服务中存在多处三表以上联表，拆库需改写为多次 RPC 后在内存中拼装，
@@ -33,11 +35,22 @@ inkisle
 上传与创作助手不单独建服务：上传的读取路径本就在网关，读写同一目录置于同一进程可省去一次转发；
 创作助手仅作者使用，而作者端接口本就归属书籍服务。
 
+## 前端
+
+读者端在 `web/`，Vue 3 + Vite 单页应用，没有引 UI 框架和状态库。颜色、间距、缓动集中在
+`src/styles/tokens.css`，页面按发现、阅读、账号三条链路组织，接口请求收在 `src/api/`。
+
+构建产物落到 `inkisle-gateway/src/main/resources/static/app`，由网关在 `/app/**` 下托管。
+页面挂在 `/app` 前缀下，避免与 `/book`、`/rank` 这些接口前缀同名；网关对该路径做了回退，
+刷新 `/app/books/1` 这类前端路由地址仍返回 `index.html`，交由 vue-router 接管。
+
+作者端与管理端仍是 `static/` 下的原生页面，暂未迁移。
+
 ## 端口与路由
 
 | 模块 | 端口 | 网关转发前缀 |
 | --- | --- | --- |
-| gateway | 8080 | 静态页与 `/upload/**` 由自身处理 |
+| gateway | 8080 | 读者端 `/app/**` 与 `/upload/**` 由自身处理，作者端、管理端页面亦在此 |
 | user | 8081 | `/user`、`/sign`、`/captcha`、`/author`、`/admin/login`、`/admin/author`、`/admin/user` |
 | book | 8082 | `/book`、`/chapter`、`/category`、`/comment`、`/rating`、`/rank`、`/home`、`/bookshelf`、`/history`、`/author/book`、`/author/chapter`、`/author/ai`、`/admin/book`、`/admin/category`、`/admin/comment`、`/admin/home` |
 | audit | 8083 | `/admin/audit`、`/admin/chapter` |
@@ -75,11 +88,22 @@ docker compose up -d
 # 建库，并写入初始分类与演示账号
 mysql -uroot -p < sql/schema.sql
 
+# 构建读者端，产物写进网关的 static/app
+cd web && npm install && npm run build:gateway && cd ..
+
 # 启动服务，网关最后
 mvn -pl inkisle-gateway -am spring-boot:run
 ```
 
-打开 `http://localhost:8080/`。
+打开 `http://localhost:8080/app/`。
+
+只改前端时不必每次构建，Vite 开发服务器按接口前缀代理到网关：
+
+```bash
+cd web && npm run dev
+```
+
+打开 `http://localhost:5173/`。
 
 `schema.sql` 会删除并重建表。已建库的环境不要重复导入，改用 `sql/` 下的升级脚本补充字段与数据：
 `upgrade-audit-status.sql`、`upgrade-content-audit.sql`、`upgrade-book-stats.sql`、
@@ -104,7 +128,7 @@ mvn -pl inkisle-gateway -am spring-boot:run
 
 | 端 | 入口 | 账号 |
 | --- | --- | --- |
-| 读者 | `/login.html` | `reader1 / 123456` |
+| 读者 | `/app/login` | `reader1 / 123456` |
 | 作者 | `/author-login.html` | `bimo / 123456` |
 | 管理 | `/admin-login.html` | `admin / admin123` |
 
