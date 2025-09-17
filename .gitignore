@@ -14,3 +14,8 @@ upload/
 # 日志
 logs/
 *.log
+
+# 前端依赖与构建产物，读者端产物由 web 构建进网关目录，不入库
+web/node_modules/
+web/dist/
+inkisle-gateway/src/main/resources/static/app/
