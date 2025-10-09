@@ -48,6 +48,12 @@ public interface BookInfoMapper {
 
     int incrementVisitCount(@Param("id") Long id);
 
+    /** 阅读计数定时回写：一条 UPDATE 带上多本书的增量，省掉逐本往返 */
+    int incrementVisitCountBatch(@Param("counts") java.util.Map<Long, Long> counts);
+
+    /** 榜单取书：一次 IN 查询换掉逐本查库 */
+    List<BookInfo> selectByIds(@Param("ids") java.util.List<Long> ids);
+
     int updateWordCount(@Param("id") Long id, @Param("wordCount") int wordCount);
 
     /** 首页「最新更新」与更新榜都按 update_time 排序，章节变动后要推一下 */

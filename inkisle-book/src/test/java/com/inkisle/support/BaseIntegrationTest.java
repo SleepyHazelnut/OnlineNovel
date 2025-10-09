@@ -11,6 +11,8 @@ import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
@@ -42,6 +44,24 @@ public abstract class BaseIntegrationTest {
 
     @Autowired
     protected JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    protected CacheManager cacheManager;
+
+    /**
+     * 缓存不跟着事务回滚：用例里读过的数据会留在进程内的 Map 里，
+     * 下一个用例撞上同一个 key 就会读到上个用例的对象。
+     * 这类脏读在断言里表现为「明明插了库却读到空」，很难往缓存上想
+     */
+    @BeforeEach
+    void clearCache() {
+        for (String name : cacheManager.getCacheNames()) {
+            Cache cache = cacheManager.getCache(name);
+            if (cache != null) {
+                cache.clear();
+            }
+        }
+    }
 
     /** 本机没起 Redis 时 Redisson 建连失败，测试里换成 mock */
     @MockBean

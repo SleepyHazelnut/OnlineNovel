@@ -55,6 +55,25 @@
         LIMIT 1
     </select>
 
+    <!--
+      上下章合并成一条：两个标量子查询各自走 (book_id, chapter_num) 索引，
+      只取一条，等价于原来那两次单查，但少一次往返。
+      阅读页每翻一章都要用，链路里最值得省的一次。
+    -->
+    <select id="selectPrevNext" resultType="com.inkisle.entity.ChapterNeighbors">
+        SELECT
+            (SELECT id
+             FROM book_chapter
+             WHERE book_id = #{bookId} AND chapter_num &lt; #{chapterNum} AND audit_status = 1
+             ORDER BY chapter_num DESC
+             LIMIT 1) AS prev_id,
+            (SELECT id
+             FROM book_chapter
+             WHERE book_id = #{bookId} AND chapter_num &gt; #{chapterNum} AND audit_status = 1
+             ORDER BY chapter_num ASC
+             LIMIT 1) AS next_id
+    </select>
+
     <!-- 新增章节时取其 +1 作为新 chapter_num；无章节时返回 null，Service 需判断 -->
     <select id="selectMaxChapterNum" resultType="java.lang.Integer">
         SELECT MAX(chapter_num)
@@ -80,6 +99,16 @@
     <insert id="insert" parameterType="com.inkisle.entity.BookChapter" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO book_chapter (book_id, chapter_name, chapter_num, word_count, create_time)
         VALUES (#{bookId}, #{chapterName}, #{chapterNum}, COALESCE(#{wordCount}, 0), #{createTime})
+    </insert>
+
+    <!-- 整本导入：一条语句插多章，主键回填到对象上，正文再按 id 批量写 -->
+    <insert id="insertBatch" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO book_chapter (book_id, chapter_name, chapter_num, word_count, create_time)
+        VALUES
+        <foreach collection="chapters" item="chapter" separator=",">
+            (#{chapter.bookId}, #{chapter.chapterName}, #{chapter.chapterNum},
+             COALESCE(#{chapter.wordCount}, 0), #{chapter.createTime})
+        </foreach>
     </insert>
 
     <!--

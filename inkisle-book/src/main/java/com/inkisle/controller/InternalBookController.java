@@ -1,5 +1,7 @@
 package com.inkisle.controller;
 
+import com.inkisle.cache.CacheAside;
+import com.inkisle.cache.CacheNames;
 import com.inkisle.common.BusinessException;
 import com.inkisle.dto.AuditStatusDTO;
 import com.inkisle.entity.BookChapter;
@@ -44,6 +46,9 @@ public class InternalBookController {
 
     @Autowired
     private CacheManager cacheManager;
+
+    @Autowired
+    private CacheAside cacheAside;
 
     @Autowired
     private BookSearchIndexer bookSearchIndexer;
@@ -94,6 +99,8 @@ public class InternalBookController {
     @PostMapping("/book/{id}/chapters/pass-all")
     public void passAllChapters(@PathVariable Long id) {
         bookChapterMapper.passAllByBookId(id);
+        // 一次放行整本，读者目录会多出全部章节，缓存里的那份立刻过期
+        cacheAside.evict(CacheNames.CHAPTER_CATALOG, CacheNames.catalogKey(id));
     }
 
     @GetMapping("/chapter/{id}")
@@ -118,6 +125,8 @@ public class InternalBookController {
             throw new BusinessException("章节不存在");
         }
         bookChapterMapper.updateAuditStatus(id, dto.getStatus(), dto.getRemark());
+        // 章节过审后读者端目录多一条、驳回后少一条，两种都要清
+        cacheAside.evict(CacheNames.CHAPTER_CATALOG, CacheNames.catalogKey(chapter.getBookId()));
         // 章节驳回后读者端目录会少一条，详情里的章节统计要跟着变
         evictBookCache(chapter.getBookId());
     }

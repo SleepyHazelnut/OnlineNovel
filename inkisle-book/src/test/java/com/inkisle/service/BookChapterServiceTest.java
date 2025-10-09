@@ -1,5 +1,6 @@
 package com.inkisle.service;
 
+import com.inkisle.common.BookAuditStatus;
 import com.inkisle.common.BusinessException;
 import com.inkisle.entity.BookChapter;
 import com.inkisle.support.BaseIntegrationTest;
@@ -7,7 +8,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.nio.charset.StandardCharsets;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -130,6 +135,111 @@ class BookChapterServiceTest extends BaseIntegrationTest {
 
         long otherBookId = insertBook(authorId, 0);
         assertThat(insertChapter(otherBookId, 1)).isPositive();
+    }
+
+    @Test
+    @DisplayName("改了正文之后再读拿到新正文，不会被缓存挡成旧值")
+    void contentCacheIsEvictedOnUpdate() {
+        long authorId = insertAuthor("chapter-content-cache");
+        long bookId = insertBook(authorId, 0, BookAuditStatus.PASSED.getCode());
+        long chapterId = insertChapter(bookId, 1);
+        insertContent(chapterId, "改之前的正文");
+
+        // 走作者视角：改稿会把章节重新置为待审，读者接口这时本就该拒绝
+        assertThat(bookChapterService.readForAuthor(chapterId, authorId).get("content"))
+                .isEqualTo("改之前的正文");
+
+        BookChapter patch = new BookChapter();
+        patch.setId(chapterId);
+        patch.setBookId(bookId);
+        bookChapterService.saveChapter(patch, "改之后的正文", authorId);
+
+        // 写正文时删过 key，这里必须回源而不是拿缓存里的旧正文
+        assertThat(bookChapterService.readForAuthor(chapterId, authorId).get("content"))
+                .isEqualTo("改之后的正文");
+    }
+
+    @Test
+    @DisplayName("删章之后目录立刻少一条，缓存跟着失效")
+    void catalogCacheIsEvictedOnDelete() {
+        long authorId = insertAuthor("chapter-catalog-cache");
+        long bookId = insertBook(authorId, 0, BookAuditStatus.PASSED.getCode());
+        long chapterId = insertChapter(bookId, 1);
+
+        // 先读一次把目录缓存住，删章不清就会读到这条已删的记录
+        assertThat(bookChapterService.listByBookId(bookId)).hasSize(1);
+
+        bookChapterService.deleteChapter(chapterId, authorId);
+
+        assertThat(bookChapterService.listByBookId(bookId)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("上下章一次查出来，跳号与待审章节都不影响指向")
+    void prevAndNextSkipMissingAndPendingChapters() {
+        long authorId = insertAuthor("chapter-neighbors");
+        long bookId = insertBook(authorId, 0, BookAuditStatus.PASSED.getCode());
+        // 故意跳号：1、5、9，中间还有一条待审的 7
+        long first = insertChapter(bookId, 1);
+        long second = insertChapter(bookId, 5);
+        long third = insertChapter(bookId, 9);
+        // 7 号是待审的：读者翻页必须跳过它
+        jdbcTemplate.update(
+                "INSERT INTO book_chapter (book_id, chapter_name, chapter_num, audit_status, create_time) "
+                        + "VALUES (?, '待审的一章', 7, 0, NOW())", bookId);
+
+        assertThat(readNeighbor(first, "prevId")).isNull();
+        assertThat(readNeighbor(first, "nextId")).isEqualTo(second);
+
+        // 中间章两头都要有，且下一章不能指到待审那章
+        assertThat(readNeighbor(second, "prevId")).isEqualTo(first);
+        assertThat(readNeighbor(second, "nextId")).isEqualTo(third);
+
+        assertThat(readNeighbor(third, "nextId")).isNull();
+    }
+
+    @Test
+    @DisplayName("整本导入按批写入，章节号连续、正文与字数都落库")
+    void importWritesChaptersInBatch() {
+        long authorId = insertAuthor("chapter-import");
+        long bookId = insertBook(authorId, 0, BookAuditStatus.PASSED.getCode());
+        // 已经有一章，导入要接着往下编号
+        insertChapter(bookId, 1);
+
+        String text = """
+                第一章 起风
+                今天有风。
+                第二章 落雨
+                明天有雨。
+                第三章 放晴
+                后天放晴。
+                """;
+        MultipartFile file = new MockMultipartFile(
+                "file", "book.txt", "text/plain", text.getBytes(StandardCharsets.UTF_8));
+
+        int imported = bookChapterService.importChapters(bookId, file, authorId);
+
+        assertThat(imported).isEqualTo(3);
+        assertThat(chapterCountOf(bookId)).isEqualTo(4);
+        // 章节号接着 1 往下，不能从 1 重来
+        assertThat(jdbcTemplate.queryForList(
+                "SELECT chapter_num FROM book_chapter WHERE book_id = ? ORDER BY chapter_num",
+                Integer.class, bookId)).containsExactly(1, 2, 3, 4);
+        // 正文与字数都要在同一批里写进去，不能只落了章节壳子
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM book_content c JOIN book_chapter b ON b.id = c.chapter_id "
+                        + "WHERE b.book_id = ?", Integer.class, bookId)).isEqualTo(3);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT SUM(word_count) FROM book_chapter WHERE book_id = ?", Integer.class, bookId))
+                .isGreaterThan(0);
+    }
+
+    private Object readNeighbor(long chapterId, String field) {
+        return bookChapterService.read(chapterId).get(field);
+    }
+
+    private int chapterCountOf(long bookId) {
+        return countBy("book_chapter", "book_id", bookId);
     }
 
     private String contentOf(long chapterId) {

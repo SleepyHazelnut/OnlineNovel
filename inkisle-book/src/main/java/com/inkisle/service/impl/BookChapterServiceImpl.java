@@ -1,10 +1,14 @@
 package com.inkisle.service.impl;
 
+import com.inkisle.cache.CacheAside;
+import com.inkisle.cache.CacheNames;
+import com.inkisle.cache.VisitCounter;
 import com.inkisle.common.BusinessException;
 import com.inkisle.common.ContentAuditStatus;
 import com.inkisle.entity.BookChapter;
 import com.inkisle.entity.BookContent;
 import com.inkisle.entity.BookInfo;
+import com.inkisle.entity.ChapterNeighbors;
 import com.inkisle.mapper.BookChapterMapper;
 import com.inkisle.mapper.BookContentMapper;
 import com.inkisle.mapper.BookInfoMapper;
@@ -13,8 +17,6 @@ import com.inkisle.service.BookChapterService;
 import com.inkisle.service.BookService;
 import com.inkisle.util.TxtChapterParser;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cache.Cache;
-import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -22,6 +24,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +34,9 @@ import java.util.Map;
  */
 @Service
 public class BookChapterServiceImpl implements BookChapterService {
+
+    /** 整本导入时一批写多少章：太小往返多，太大单条 SQL 会超 max_allowed_packet */
+    private static final int IMPORT_BATCH_SIZE = 200;
 
     @Autowired
     private BookChapterMapper bookChapterMapper;
@@ -48,11 +54,17 @@ public class BookChapterServiceImpl implements BookChapterService {
     private BookService bookService;
 
     @Autowired
-    private CacheManager cacheManager;
+    private CacheAside cacheAside;
+
+    @Autowired
+    private VisitCounter visitCounter;
 
     @Override
     public List<BookChapter> listByBookId(Long bookId) {
-        return bookChapterMapper.selectListByBookId(bookId);
+        // 目录只随章节增删和审核状态变，读远多于写。空列表照样缓存：
+        // 一个没有章节的书被反复请求，不该每次都落到库上
+        return cacheAside.getOrLoad(CacheNames.CHAPTER_CATALOG, CacheNames.catalogKey(bookId),
+                () -> bookChapterMapper.selectListByBookId(bookId));
     }
 
     @Override
@@ -69,7 +81,8 @@ public class BookChapterServiceImpl implements BookChapterService {
         if (!ContentAuditStatus.isVisible(chapter.getAuditStatus())) {
             throw new BusinessException("这一章还没通过审核");
         }
-        bookInfoMapper.incrementVisitCount(chapter.getBookId());
+        // 计数只写 Redis，读接口不再有写操作；回写交给定时任务
+        visitCounter.record(chapter.getBookId());
         return buildReadData(chapter);
     }
 
@@ -85,13 +98,24 @@ public class BookChapterServiceImpl implements BookChapterService {
     }
 
     private Map<String, Object> buildReadData(BookChapter chapter) {
-        BookContent bookContent = bookContentMapper.selectByChapterId(chapter.getId());
+        // 正文是这条链路上最大的一条数据，且只有作者改稿才会变。
+        // 正文缺失时缓存空串而不是不缓存：这条记录不存在，反复回源也查不出东西，
+        // 写入正文的那条路径会把 key 删掉，所以不会出现「刚传上去读不到」
+        String content = cacheAside.getOrLoad(CacheNames.CHAPTER_CONTENT,
+                CacheNames.contentKey(chapter.getId()), () -> {
+                    BookContent row = bookContentMapper.selectByChapterId(chapter.getId());
+                    return row == null ? "" : row.getContent();
+                });
+
+        // 上下章一次查出，不分成两次往返
+        ChapterNeighbors neighbors = bookChapterMapper.selectPrevNext(
+                chapter.getBookId(), chapter.getChapterNum());
 
         Map<String, Object> data = new HashMap<>();
         data.put("chapter", chapter);
-        data.put("content", bookContent == null ? "" : bookContent.getContent());
-        data.put("prevId", bookChapterMapper.selectPrevId(chapter.getBookId(), chapter.getChapterNum()));
-        data.put("nextId", bookChapterMapper.selectNextId(chapter.getBookId(), chapter.getChapterNum()));
+        data.put("content", content);
+        data.put("prevId", neighbors == null ? null : neighbors.getPrevId());
+        data.put("nextId", neighbors == null ? null : neighbors.getNextId());
         return data;
     }
 
@@ -140,6 +164,8 @@ public class BookChapterServiceImpl implements BookChapterService {
 
         bookChapterMapper.deleteById(chapterId);
         bookContentMapper.deleteByChapterId(chapterId);
+        // 正文缓存按章节 id 存，章节删了缓存得跟着走，否则回收站里还留着一份可读的正文
+        cacheAside.evict(CacheNames.CHAPTER_CONTENT, CacheNames.contentKey(chapterId));
         // 阅读进度指向的章节已删除，续读会跳到不存在的页
         userReadHistoryMapper.deleteByChapterId(chapterId);
         // 删章只改总字数：删除一章不算更新，更新更新时间会把它排到更新榜前面
@@ -169,15 +195,37 @@ public class BookChapterServiceImpl implements BookChapterService {
         Integer maxNum = bookChapterMapper.selectMaxChapterNum(bookId);
         int num = maxNum == null ? 0 : maxNum;
 
+        // 先把要写的东西全排好，再按批灌进去：原来一章一次 INSERT 加一次正文写入，
+        // 五百章就是一千次往返，导入大文件的时间几乎全花在路上
+        List<BookChapter> rows = new ArrayList<>(chapters.size());
+        List<String> contents = new ArrayList<>(chapters.size());
+        LocalDateTime now = LocalDateTime.now();
         for (Map.Entry<String, String> entry : chapters.entrySet()) {
             BookChapter chapter = new BookChapter();
             chapter.setBookId(bookId);
             chapter.setChapterName(entry.getKey());
             chapter.setChapterNum(++num);
-            chapter.setCreateTime(LocalDateTime.now());
-            bookChapterMapper.insert(chapter);
+            // 字数在这里就算好，省掉插入后再逐章 update 一次
+            chapter.setWordCount(entry.getValue().length());
+            chapter.setCreateTime(now);
+            rows.add(chapter);
+            contents.add(entry.getValue());
+        }
 
-            saveContent(chapter.getId(), entry.getValue());
+        for (int from = 0; from < rows.size(); from += IMPORT_BATCH_SIZE) {
+            int to = Math.min(from + IMPORT_BATCH_SIZE, rows.size());
+            List<BookChapter> slice = rows.subList(from, to);
+            // 批量插入会把自增主键回填到对象上，正文再按这些 id 写
+            bookChapterMapper.insertBatch(slice);
+
+            List<BookContent> contentRows = new ArrayList<>(slice.size());
+            for (int i = from; i < to; i++) {
+                BookContent bookContent = new BookContent();
+                bookContent.setChapterId(rows.get(i).getId());
+                bookContent.setContent(contents.get(i));
+                contentRows.add(bookContent);
+            }
+            bookContentMapper.insertBatch(contentRows);
         }
 
         refreshBookStat(bookId, true);
@@ -201,21 +249,22 @@ public class BookChapterServiceImpl implements BookChapterService {
         }
         // 字数按正文字符数算，换行和标点也计入
         bookChapterMapper.updateWordCount(chapterId, content.length());
+        // 先写库再删缓存：反过来的话，删完到写库之间进来的读请求会把旧正文又填回去
+        cacheAside.evict(CacheNames.CHAPTER_CONTENT, CacheNames.contentKey(chapterId));
     }
 
     /**
      * 章节一变动就重算总字数。新增和修改还要推一下更新时间，
      * 首页的最新更新和更新榜都按这个排，详情缓存里存的是整个 BookInfo，不清会一直是旧值
+     * 目录也要清：增删章节、审核状态变化都会让读者看到的目录变样
      */
     private void refreshBookStat(Long bookId, boolean touchUpdateTime) {
         bookInfoMapper.updateWordCount(bookId, bookChapterMapper.selectTotalWordCount(bookId));
         if (touchUpdateTime) {
             bookInfoMapper.touchUpdateTime(bookId, LocalDateTime.now());
         }
-        Cache cache = cacheManager.getCache("book");
-        if (cache != null) {
-            cache.evict(bookId);
-        }
+        cacheAside.evict(CacheNames.BOOK, bookId);
+        cacheAside.evict(CacheNames.CHAPTER_CATALOG, CacheNames.catalogKey(bookId));
     }
 
     private void checkBookOwner(Long bookId, Long authorId) {

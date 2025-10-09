@@ -1,6 +1,7 @@
 package com.inkisle.mapper;
 
 import com.inkisle.entity.BookChapter;
+import com.inkisle.entity.ChapterNeighbors;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -21,9 +22,18 @@ public interface BookChapterMapper {
 
     Long selectNextId(@Param("bookId") Long bookId, @Param("chapterNum") Integer chapterNum);
 
+    /** 上下章一次查出来，阅读页每翻一章省一次往返 */
+    ChapterNeighbors selectPrevNext(@Param("bookId") Long bookId, @Param("chapterNum") Integer chapterNum);
+
     Integer selectMaxChapterNum(@Param("bookId") Long bookId);
 
     int insert(BookChapter chapter);
+
+    /**
+     * 整本导入用：一条语句插多章，主键回填到对象上
+     * 原来逐章 insert，五百章就是五百次往返，导入大文件光网络就等半天
+     */
+    int insertBatch(@Param("chapters") List<BookChapter> chapters);
 
     int updateById(BookChapter chapter);
 

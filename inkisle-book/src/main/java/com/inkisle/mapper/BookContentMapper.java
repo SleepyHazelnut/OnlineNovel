@@ -14,6 +14,9 @@ public interface BookContentMapper {
 
     int insert(BookContent content);
 
+    /** 整本导入用：章节批量插入后按回填的 id 一次写入全部正文 */
+    int insertBatch(@Param("contents") java.util.List<BookContent> contents);
+
     // 正文和章节一对一，chapter_id 就能定位，下面几个方法都用它当条件
     int updateByChapterId(BookContent content);
 
