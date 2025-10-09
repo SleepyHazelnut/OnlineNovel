@@ -15,6 +15,15 @@
         VALUES (#{chapterId}, #{content})
     </insert>
 
+    <!-- 整本导入：正文随章节一起批量写，不再一章一次往返 -->
+    <insert id="insertBatch">
+        INSERT INTO book_content (chapter_id, content)
+        VALUES
+        <foreach collection="contents" item="item" separator=",">
+            (#{item.chapterId}, #{item.content})
+        </foreach>
+    </insert>
+
     <update id="updateByChapterId" parameterType="com.inkisle.entity.BookContent">
         UPDATE book_content
         SET content = #{content}

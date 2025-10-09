@@ -5,3 +5,18 @@ spring:
     url: jdbc:mysql://localhost:3306/inkisle_test?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&createDatabaseIfNotExist=true
     username: root
     password: ${MYSQL_PASSWORD:123456}
+  data:
+    redis:
+      # 本机没起 Redis 时连接会等超时，压到 100ms，
+      # 所有走 Redis 的路径都会立刻降级，用例不至于被拖成几分钟
+      timeout: 100ms
+      connect-timeout: 100ms
+
+inkisle:
+  visit-count:
+    # 测试环境没有 Redis，计数直接写库；
+    # Redis 累加与批量回写的逻辑另用单元测试覆盖
+    mode: database
+  user-status:
+    # 同上，关掉缓存直接走 mock 的 Feign，免得每个请求都等一次连接超时
+    cache-enabled: false

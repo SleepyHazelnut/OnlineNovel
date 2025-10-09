@@ -169,10 +169,10 @@
     </update>
 
     <!--
-      阅读计数直接写库，不另做缓冲。
-      这个接口每打开一章调一次，单行自增在 InnoDB 里是行锁上的顺序写，
-      比引入 Redis 计数再定时回写要少一条链路，也不会因为缓存丢失把数据清零。
-      详情页读的是带缓存的实体，这个数会滞后到缓存过期，展示上按约数处理。
+      阅读计数先在 Redis 里累加，由定时任务批量回写，见 VisitCounter。
+      原先是 GET /chapter/{id} 里直接自增：热门书的所有读者排同一行锁，
+      而且读接口带写会让预取和重试都把数刷高。
+      这个数只用于榜单与展示，丢了几个增量不算账错。
     -->
     <update id="incrementVisitCount">
         UPDATE book_info
@@ -180,10 +180,23 @@
         WHERE id = #{id}
     </update>
 
+    <!-- 批量回写：一条语句给多本书各加各的增量，CASE 按 id 分配 -->
+    <update id="incrementVisitCountBatch">
+        UPDATE book_info
+        SET visit_count = visit_count + CASE id
+        <foreach collection="counts" index="bookId" item="delta">
+            WHEN #{bookId} THEN #{delta}
+        </foreach>
+        END
+        WHERE id IN
+        <foreach collection="counts" index="bookId" item="delta" open="(" separator="," close=")">
+            #{bookId}
+        </foreach>
+    </update>
+
     <!-- 总字数由章节正文字数汇总，章节增删改后重算一次 -->
     <update id="updateWordCount">
-        UPDATE book_info
-        SET word_count = #{wordCount}
+        UPDATE book_info        SET word_count = #{wordCount}
         WHERE id = #{id}
     </update>
 
@@ -239,6 +252,20 @@
       排序方向与排序列都不接受外部传参，故分别写成三条语句，
       不用 ${} 拼 ORDER BY，避免把列名变成注入点。
     -->
+    <!--
+      热度榜取书：ZSet 里只有 id，逐本 getById 一次榜要发上百次查询。
+      IN 一次取回来，几行几行地补不存在的书（已下架、已删）在内存里跳过即可
+    -->
+    <select id="selectByIds" resultType="com.inkisle.entity.BookInfo">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM book_info
+        WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
     <select id="selectTopByVisit" resultType="com.inkisle.entity.BookInfo">
         SELECT
         <include refid="Base_Column_List"/>
