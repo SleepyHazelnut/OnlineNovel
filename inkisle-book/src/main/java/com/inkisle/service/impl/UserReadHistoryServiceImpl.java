@@ -11,7 +11,7 @@ import java.util.List;
 
 /**
  * 阅读历史
- * 同一用户同一本书仅保留一条记录，已有记录时更新，不新增
+ * 同一用户同一本书仅保留一条记录，靠 upsert 覆盖，不做先查后写
  */
 @Service
 public class UserReadHistoryServiceImpl implements UserReadHistoryService {
@@ -24,12 +24,9 @@ public class UserReadHistoryServiceImpl implements UserReadHistoryService {
 
     @Override
     public void save(UserReadHistory history) {
-        UserReadHistory exists = userReadHistoryMapper.selectByUserAndBook(history.getUserId(), history.getBookId());
-        if (exists == null) {
-            userReadHistoryMapper.insert(history);
-        } else {
-            userReadHistoryMapper.update(history);
-        }
+        // 判重交给唯一键：并发首读时两个请求都查不到旧记录，
+        // 先查后写会让后到的那个撞 uk_user_book 抛异常
+        userReadHistoryMapper.upsert(history);
         // 同时为该书增加热度，供排行榜使用
         rankService.addHot(history.getBookId());
     }
