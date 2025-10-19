@@ -7,6 +7,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -26,7 +27,12 @@ class BookServiceTest extends BaseIntegrationTest {
     @Autowired
     private BookService bookService;
 
+    /**
+     * 这个用例必须真提交：清理审核记录改到了事务提交之后，
+     * 外层再套一个回滚的事务，afterCommit 永远不会触发，验证不到
+     */
     @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     @DisplayName("删除作品时清理章节、正文、评论、收藏、进度与审核记录")
     void deleteAlsoRemovesRelatedRows() {
         long authorId = insertAuthor("book-delete");
@@ -50,6 +56,9 @@ class BookServiceTest extends BaseIntegrationTest {
 
         // 审核记录归审核服务管，这边删不到，只能确认清理请求发出去了
         Mockito.verify(auditClient).deleteByBookId(bookId);
+
+        // 本用例不滚事务，自己收拾留下的审核记录
+        jdbcTemplate.update("DELETE FROM book_audit_record WHERE book_id = ?", bookId);
     }
 
     @Test
