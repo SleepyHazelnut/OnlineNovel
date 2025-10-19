@@ -1,5 +1,6 @@
 package com.inkisle.service.impl;
 
+import com.inkisle.cache.CacheNames;
 import com.inkisle.client.AuditClient;
 import com.inkisle.common.BookAuditStatus;
 import com.inkisle.common.BusinessException;
@@ -20,11 +21,16 @@ import com.inkisle.mapper.UserReadHistoryMapper;
 import com.inkisle.search.BookSearchEngine;
 import com.inkisle.search.BookSearchIndexer;
 import com.inkisle.service.BookService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.Collections;
@@ -36,6 +42,7 @@ import java.util.Objects;
 /**
  * 作品。详情读多写少，加了缓存，写方法统一清缓存
  */
+@Slf4j
 @Service
 public class BookServiceImpl implements BookService {
 
@@ -47,6 +54,9 @@ public class BookServiceImpl implements BookService {
 
     @Autowired
     private BookInfoMapper bookInfoMapper;
+
+    @Autowired
+    private CacheManager cacheManager;
 
     @Autowired
     private BookStatMapper bookStatMapper;
@@ -155,10 +165,13 @@ public class BookServiceImpl implements BookService {
         return bookInfoMapper.selectByAuthorId(authorId);
     }
 
-    /** 新建时拿不到 id，清不了单条缓存，只能整片清 */
+    /**
+     * 新建和修改都走这里
+     * 不再整片清缓存：改一本书就清掉全部作品，等于把别人正在读的详情也一起打回库中，
+     * 流量越大越明显。insert 之后能拿到 id，改完精确清这一条即可
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @CacheEvict(value = "book", allEntries = true)
     public void save(BookSaveDTO bookSaveDTO, Long authorId) {
         // 作者资质没过审不能发书
         // 作者表归用户服务，这里共库直接读，改资质仍走用户服务
@@ -183,6 +196,7 @@ public class BookServiceImpl implements BookService {
             bookInfo.setAuditStatus(BookAuditStatus.DRAFT.getCode());
             bookInfo.setCreateTime(LocalDateTime.now());
             bookInfoMapper.insert(bookInfo);
+            evictBook(bookInfo.getId());
             // 新建的书是「未提交」，这一步实际只是把它从索引中移除
             // 保留是为了写完即同步，避免其他调用点遗漏
             bookSearchIndexer.sync(bookInfo.getId());
@@ -201,6 +215,7 @@ public class BookServiceImpl implements BookService {
         bookInfo.setStatus(exist.getStatus());
         bookInfo.setUpdateTime(LocalDateTime.now());
         bookInfoMapper.updateById(bookInfo);
+        evictBook(bookInfo.getId());
         // 改名、换封面会影响搜索结果，改了就要重新灌一次索引
         bookSearchIndexer.sync(bookInfo.getId());
 
@@ -257,11 +272,49 @@ public class BookServiceImpl implements BookService {
         homeBookMapper.deleteByBookId(id);
         userBookshelfMapper.deleteByBookId(id);
         userReadHistoryMapper.deleteByBookId(id);
-        // 审核记录在审核服务里，只能远程删，远程失败会连本地删除一起回滚
-        auditClient.deleteByBookId(id);
+        // 审核记录在审核服务里。这一步放到事务提交之后：远程调用一旦慢下来，
+        // 整个删除事务就会一直攥着数据库连接，本地这几条 DELETE 早就写完了还在等它
+        removeAuditRecordsAfterCommit(id);
         bookInfoMapper.deleteById(id);
         // 书已经查不到了，同步的结果是从索引里删掉这条
         bookSearchIndexer.sync(id);
+    }
+
+    /**
+     * 审核记录由审核服务管，本地事务提交成功才发这次远程删除
+     * 提交前发的话，本地回滚了审核记录已经没了，成了不可恢复的脏数据
+     */
+    private void removeAuditRecordsAfterCommit(Long bookId) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            removeAuditRecords(bookId);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                removeAuditRecords(bookId);
+            }
+        });
+    }
+
+    /** 提交之后已经无法回滚，失败只能记下来由管理端补偿，不能让异常冒出去 */
+    private void removeAuditRecords(Long bookId) {
+        try {
+            auditClient.deleteByBookId(bookId);
+        } catch (Exception e) {
+            log.warn("删书后清理审核记录失败，需人工补偿 bookId={}", bookId, e);
+        }
+    }
+
+    /** 清掉一本书的详情缓存，key 与 getById 上的 @Cacheable 保持一致 */
+    private void evictBook(Long bookId) {
+        if (bookId == null) {
+            return;
+        }
+        Cache cache = cacheManager.getCache(CacheNames.BOOK);
+        if (cache != null) {
+            cache.evict(bookId);
+        }
     }
 
     @Override
@@ -304,7 +357,17 @@ public class BookServiceImpl implements BookService {
         if (bookId == null) {
             return false;
         }
-        BookInfo book = bookInfoMapper.selectById(bookId);
+        // 读详情缓存：getById 上挂着 @Cacheable，但同类里自调用不过代理，
+        // 这里直接读缓存区域，key 与 @Cacheable 生成的一致，两边共用一份
+        Cache cache = cacheManager.getCache(CacheNames.BOOK);
+        BookInfo book = cache == null ? null : cache.get(bookId, BookInfo.class);
+        if (book == null) {
+            book = bookInfoMapper.selectById(bookId);
+            // 只写回可见的书：未上架的状态一旦缓存，审核通过后要等 TTL 过期读者才看得到
+            if (book != null && cache != null && BookAuditStatus.isVisible(book.getAuditStatus())) {
+                cache.put(bookId, book);
+            }
+        }
         return book != null && BookAuditStatus.isVisible(book.getAuditStatus());
     }
 
