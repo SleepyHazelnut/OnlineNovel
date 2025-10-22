@@ -73,7 +73,8 @@ public class CommentController {
         }
     }
 
-    @RepeatSubmit
+    /** 锁按书分：同一用户连评两本书是两个动作，不该互相挡 */
+    @RepeatSubmit(key = "#p0.bookId")
     @PostMapping("/add")
     public Result<Void> add(@RequestBody BookComment comment, HttpServletRequest request) {
         if (comment.getBookId() == null) {

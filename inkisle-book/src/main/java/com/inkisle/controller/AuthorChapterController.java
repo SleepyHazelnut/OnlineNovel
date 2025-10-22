@@ -39,7 +39,8 @@ public class AuthorChapterController {
         return Result.ok(bookChapterService.readForAuthor(id, authorId));
     }
 
-    @RepeatSubmit
+    /** 锁按作品分：连续给两本不同的书保存章节不该被挡 */
+    @RepeatSubmit(key = "#p0['bookId']")
     @PostMapping("/save")
     public Result<Void> save(@RequestBody Map<String, Object> params, HttpServletRequest request) {
         Long authorId = CurrentUser.id(request);
