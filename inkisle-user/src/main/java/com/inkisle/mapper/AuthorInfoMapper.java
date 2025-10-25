@@ -33,4 +33,9 @@ public interface AuthorInfoMapper {
      */
     int updateAudit(AuthorInfo authorInfo);
 
+    /** 老格式密码在登录校验通过后原地换成 BCrypt，用户无需改密 */
+    int updatePassword(@Param("id") Long id,
+                       @Param("password") String password,
+                       @Param("updateTime") java.time.LocalDateTime updateTime);
+
 }

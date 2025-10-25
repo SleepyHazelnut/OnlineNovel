@@ -5,7 +5,7 @@ import com.inkisle.dto.PasswordDTO;
 import com.inkisle.dto.UserProfileDTO;
 import com.inkisle.entity.UserInfo;
 import com.inkisle.support.BaseIntegrationTest;
-import com.inkisle.util.Md5Util;
+import com.inkisle.util.PasswordUtil;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -58,7 +58,7 @@ class UserProfileServiceTest extends BaseIntegrationTest {
     }
 
     @Test
-    @DisplayName("原密码正确时改密码，库里存的是新密码的摘要")
+    @DisplayName("原密码正确时改密码，库里存的是新密码的 BCrypt 摘要")
     void changePassword_whenOldMatches() {
         long userId = insertUser("profile-pwd", 0);
 
@@ -70,7 +70,10 @@ class UserProfileServiceTest extends BaseIntegrationTest {
 
         String stored = jdbcTemplate.queryForObject(
                 "SELECT password FROM user_info WHERE id = ?", String.class, userId);
-        assertThat(stored).isEqualTo(Md5Util.md5("newpass123"));
+        // 不再断言等于某个固定串：BCrypt 每次加盐结果都不同，只能验「能对上原文」
+        assertThat(PasswordUtil.isLegacy(stored)).isFalse();
+        assertThat(PasswordUtil.matches("newpass123", stored)).isTrue();
+        assertThat(PasswordUtil.matches("123456", stored)).isFalse();
     }
 
     @Test

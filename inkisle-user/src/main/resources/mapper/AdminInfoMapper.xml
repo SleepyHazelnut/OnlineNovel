@@ -15,4 +15,11 @@
         WHERE id = #{id}
     </select>
 
+    <!-- 老格式密码在登录校验通过后原地换成 BCrypt，用户无需改密 -->
+    <update id="updatePassword">
+        UPDATE admin_info
+        SET password = #{password}, update_time = #{updateTime}
+        WHERE id = #{id}
+    </update>
+
 </mapper>

@@ -2,6 +2,7 @@ package com.inkisle.service.impl;
 
 import com.inkisle.common.BusinessException;
 import com.inkisle.common.PageUtils;
+import com.inkisle.common.RedisKeys;
 import com.inkisle.common.Result;
 import com.inkisle.common.RoleConstant;
 import com.inkisle.dto.PasswordDTO;
@@ -11,8 +12,10 @@ import com.inkisle.entity.UserInfo;
 import com.inkisle.mapper.UserInfoMapper;
 import com.inkisle.service.UserService;
 import com.inkisle.util.JwtUtil;
-import com.inkisle.util.Md5Util;
+import com.inkisle.util.PasswordUtil;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -21,8 +24,9 @@ import java.util.Map;
 
 /**
  * 读者账号
- * 注册时密码存 MD5，用户名要查重，登录成功签发一个 USER 角色的 JWT
+ * 注册时密码存 BCrypt，用户名要查重，登录成功签发一个 USER 角色的 JWT
  */
+@Slf4j
 @Service
 public class UserServiceImpl implements UserService {
 
@@ -31,6 +35,9 @@ public class UserServiceImpl implements UserService {
 
     @Autowired
     private JwtUtil jwtUtil;
+
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
 
     @Override
     public UserInfo getById(Long id) {
@@ -46,7 +53,7 @@ public class UserServiceImpl implements UserService {
 
         UserInfo user = new UserInfo();
         user.setUsername(registerDTO.getUsername());
-        user.setPassword(Md5Util.md5(registerDTO.getPassword()));
+        user.setPassword(PasswordUtil.encode(registerDTO.getPassword()));
         user.setNickName(registerDTO.getUsername());
         user.setStatus(0);
         user.setCreateTime(LocalDateTime.now());
@@ -59,12 +66,14 @@ public class UserServiceImpl implements UserService {
     public Result<Map<String, Object>> login(String username, String password) {
         UserInfo user = userInfoMapper.selectByUsername(username);
         // 用户不存在与密码错误返回同一提示，避免逐个尝试探测账号是否存在
-        if (user == null || !Md5Util.md5(password).equals(user.getPassword())) {
+        if (user == null || !PasswordUtil.matches(password, user.getPassword())) {
             throw new BusinessException("用户名或密码错误");
         }
         if (user.getStatus() != null && user.getStatus() == 1) {
             throw new BusinessException("账号已被封禁");
         }
+
+        upgradeLegacyPassword(user, password);
 
         String token = jwtUtil.generate(user.getId(), user.getUsername(), RoleConstant.USER);
 
@@ -74,6 +83,22 @@ public class UserServiceImpl implements UserService {
         data.put("token", token);
         data.put("user", user);
         return Result.ok(data);
+    }
+
+    /**
+     * 老记录是无盐 MD5，校验通过了就顺手换成 BCrypt
+     * 这里已经确认是本人，改密码不会影响他；失败了也只影响这条记录下次再升级，
+     * 不该把登录一起弄挂
+     */
+    private void upgradeLegacyPassword(UserInfo user, String rawPassword) {
+        if (!PasswordUtil.isLegacy(user.getPassword())) {
+            return;
+        }
+        try {
+            userInfoMapper.updatePassword(user.getId(), PasswordUtil.encode(rawPassword), LocalDateTime.now());
+        } catch (Exception e) {
+            log.warn("密码格式升级失败，下次登录再试 userId={}", user.getId(), e);
+        }
     }
 
     @Override
@@ -101,6 +126,17 @@ public class UserServiceImpl implements UserService {
         update.setStatus(status);
         update.setUpdateTime(LocalDateTime.now());
         userInfoMapper.updateStatus(update);
+        // 书籍服务的拦截器缓存了这个状态，封禁要立刻生效就得把它删掉。
+        // 删不掉也无妨，那边 TTL 是 30 秒，最多晚半分钟
+        evictStatusCache(userId);
+    }
+
+    private void evictStatusCache(Long userId) {
+        try {
+            stringRedisTemplate.delete(RedisKeys.userStatus(RoleConstant.USER, userId));
+        } catch (Exception e) {
+            log.warn("封禁状态缓存清理失败，最迟 30 秒后自然过期 userId={}", userId, e);
+        }
     }
 
     @Override
@@ -132,13 +168,13 @@ public class UserServiceImpl implements UserService {
         if (stored == null) {
             throw new BusinessException("用户不存在");
         }
-        if (!Md5Util.md5(passwordDTO.getOldPassword()).equals(stored)) {
+        if (!PasswordUtil.matches(passwordDTO.getOldPassword(), stored)) {
             throw new BusinessException("原密码不对");
         }
         if (passwordDTO.getOldPassword().equals(passwordDTO.getNewPassword())) {
             throw new BusinessException("新密码不能与原密码相同");
         }
-        userInfoMapper.updatePassword(userId, Md5Util.md5(passwordDTO.getNewPassword()), LocalDateTime.now());
+        userInfoMapper.updatePassword(userId, PasswordUtil.encode(passwordDTO.getNewPassword()), LocalDateTime.now());
     }
 
     private String blankToNull(String value) {

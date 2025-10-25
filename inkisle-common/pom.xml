@@ -57,6 +57,13 @@
             <artifactId>jackson-datatype-jsr310</artifactId>
         </dependency>
 
+        <!-- 密码摘要。只要 BCrypt 这几个类，不引整个 Spring Security，
+             版本由 Spring Boot 的 BOM 管理，三个服务共用一份实现 -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-crypto</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-api</artifactId>

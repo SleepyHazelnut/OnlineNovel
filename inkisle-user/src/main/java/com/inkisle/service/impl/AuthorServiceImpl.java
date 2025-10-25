@@ -8,7 +8,8 @@ import com.inkisle.entity.AuthorInfo;
 import com.inkisle.mapper.AuthorInfoMapper;
 import com.inkisle.service.AuthorService;
 import com.inkisle.util.JwtUtil;
-import com.inkisle.util.Md5Util;
+import com.inkisle.util.PasswordUtil;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -21,6 +22,7 @@ import java.util.Map;
  * 作者的注册、登录和资质审核
  * 作者单独一张表，注册完资质待审，管理端过了才能发作品
  */
+@Slf4j
 @Service
 public class AuthorServiceImpl implements AuthorService {
 
@@ -38,7 +40,7 @@ public class AuthorServiceImpl implements AuthorService {
 
         AuthorInfo author = new AuthorInfo();
         author.setUsername(registerDTO.getUsername());
-        author.setPassword(Md5Util.md5(registerDTO.getPassword()));
+        author.setPassword(PasswordUtil.encode(registerDTO.getPassword()));
         // 未填写笔名时以账号代替，避免列表显示为空，之后可在个人中心修改
         author.setPenName(registerDTO.getPenName() == null || registerDTO.getPenName().isEmpty()
                 ? registerDTO.getUsername() : registerDTO.getPenName());
@@ -55,12 +57,14 @@ public class AuthorServiceImpl implements AuthorService {
     @Override
     public Result<Map<String, Object>> login(String username, String password) {
         AuthorInfo author = authorInfoMapper.selectByUsername(username);
-        if (author == null || !Md5Util.md5(password).equals(author.getPassword())) {
+        if (author == null || !PasswordUtil.matches(password, author.getPassword())) {
             throw new BusinessException("账号或密码错误");
         }
         if (author.getStatus() != null && author.getStatus() == 1) {
             throw new BusinessException("账号已被禁用");
         }
+
+        upgradeLegacyPassword(author, password);
 
         String token = jwtUtil.generate(author.getId(), author.getUsername(), RoleConstant.AUTHOR);
 
@@ -74,6 +78,18 @@ public class AuthorServiceImpl implements AuthorService {
     @Override
     public AuthorInfo getById(Long id) {
         return authorInfoMapper.selectById(id);
+    }
+
+    /** 老记录在登录校验通过后原地换成 BCrypt；失败不影响本次登录 */
+    private void upgradeLegacyPassword(AuthorInfo author, String rawPassword) {
+        if (!PasswordUtil.isLegacy(author.getPassword())) {
+            return;
+        }
+        try {
+            authorInfoMapper.updatePassword(author.getId(), PasswordUtil.encode(rawPassword), LocalDateTime.now());
+        } catch (Exception e) {
+            log.warn("密码格式升级失败，下次登录再试 authorId={}", author.getId(), e);
+        }
     }
 
     @Override
