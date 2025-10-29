@@ -237,6 +237,22 @@ CREATE TABLE `user_bookshelf` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='书架收藏表';
 
 -- ----------------------------
+-- 签到记录表
+-- 签到本身存 Redis 位图：一人一年 46 字节，判断与置位在 Lua 里一次完成。
+-- 但缓存会没，位图不是账本，所以每次签到同时落一行。
+-- 读的时候如果发现 Redis 里没有这张位图，按年从这张表重建
+-- ----------------------------
+DROP TABLE IF EXISTS `user_sign`;
+CREATE TABLE `user_sign` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `user_id` bigint NOT NULL COMMENT '用户ID',
+  `sign_date` date NOT NULL COMMENT '签到日期',
+  `create_time` datetime DEFAULT NULL COMMENT '写入时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_user_date` (`user_id`, `sign_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='签到记录表';
+
+-- ----------------------------
 -- 初始化数据
 -- 分类与账号是系统能跑起来的前提：没有分类，作者新建作品时无处可选；
 -- 没有管理员，后台登录页无人可登。故随建表脚本一并写入，空库导入后即可使用

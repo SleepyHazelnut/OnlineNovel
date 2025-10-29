@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.inkisle.mapper.UserSignMapper">
+
+    <!--
+      同一天重复写不该报错：Redis 里已经判过重，这里只是把结果落下来。
+      万一 Lua 放行两次或客户端重试补写，撞唯一键不该变成 500
+    -->
+    <insert id="insertIgnore">
+        INSERT INTO user_sign (user_id, sign_date, create_time)
+        VALUES (#{userId}, #{signDate}, #{createTime})
+        ON DUPLICATE KEY UPDATE sign_date = sign_date
+    </insert>
+
+    <!-- 按年重建位图用。区间条件而非 YEAR(sign_date)，后者用不上唯一索引 -->
+    <select id="selectDates" resultType="java.time.LocalDate">
+        SELECT sign_date
+        FROM user_sign
+        WHERE user_id = #{userId}
+          AND sign_date &gt;= #{from}
+          AND sign_date &lt;= #{to}
+        ORDER BY sign_date ASC
+    </select>
+
+</mapper>
