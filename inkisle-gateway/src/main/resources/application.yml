@@ -56,3 +56,11 @@ jwt:
 file:
   # 跟后端服务指向同一个目录，所以都取上一级
   upload-path: ${FILE_UPLOAD_PATH:../upload}
+
+inkisle:
+  gateway:
+    rate-limit:
+      # 按来源 IP 限制接口请求。开发时浏览器一次页面会并发几个请求，
+      # 阈值给低了会误伤自己的前端，20/40 是本地跑着不别扭、脚本刷又刷不动的档位
+      qps: ${RATE_LIMIT_QPS:20}
+      burst: ${RATE_LIMIT_BURST:40}
