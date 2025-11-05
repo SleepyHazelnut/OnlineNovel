@@ -1,5 +1,6 @@
 package com.inkisle.service.impl;
 
+import com.inkisle.cache.CacheInvalidator;
 import com.inkisle.cache.CacheNames;
 import com.inkisle.client.AuditClient;
 import com.inkisle.common.BookAuditStatus;
@@ -25,7 +26,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
-import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -93,6 +93,9 @@ public class BookServiceImpl implements BookService {
 
     @Autowired
     private BookSearchEngine bookSearchEngine;
+
+    @Autowired
+    private CacheInvalidator cacheInvalidator;
 
     @Override
     public Map<String, Object> page(Integer pageNum, Integer pageSize, Long categoryId) {
@@ -221,7 +224,38 @@ public class BookServiceImpl implements BookService {
 
         // 改书名、简介这类展示信息要重审，改章节正文不用，否则每更新一章都要等待审核
         if (BookAuditStatus.isVisible(exist.getAuditStatus()) && displayChanged(exist, bookInfo)) {
-            auditClient.resubmitAfterEdit(exist.getId(), authorId);
+            resubmitAfterCommit(exist.getId(), authorId);
+        }
+    }
+
+    /**
+     * 送审必须放在事务提交之后
+     *
+     * 这里持有 book_info 的行锁，如果同步发这次远程调用，审核服务回头又要通过
+     * /internal/book/{id}/audit-status 改同一行，那一步会等本事务提交；
+     * 而本事务在等这次 HTTP 响应 —— 两个请求互等，MySQL 检测不到死锁，
+     * 只能干等到 innodb_lock_wait_timeout（默认 50 秒）报错。编辑作品必现。
+     * 提交后再发，行锁已经释放，远程调用慢也只是慢这一下，不占着数据库连接
+     */
+    private void resubmitAfterCommit(Long bookId, Long authorId) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            doResubmit(bookId, authorId);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                doResubmit(bookId, authorId);
+            }
+        });
+    }
+
+    /** 提交之后本地已经改完，送审失败不该让作者看到保存失败，记下来由作者重试或管理端补偿 */
+    private void doResubmit(Long bookId, Long authorId) {
+        try {
+            auditClient.resubmitAfterEdit(bookId, authorId);
+        } catch (Exception e) {
+            log.warn("编辑后送审失败，作品状态可能仍是已上架 bookId={}", bookId, e);
         }
     }
 
@@ -240,7 +274,6 @@ public class BookServiceImpl implements BookService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @CacheEvict(value = "book", key = "#id")
     public void delete(Long id, Long authorId) {
         BookInfo exist = bookInfoMapper.selectById(id);
         if (exist == null) {
@@ -254,7 +287,6 @@ public class BookServiceImpl implements BookService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @CacheEvict(value = "book", key = "#id")
     public void adminDelete(Long id) {
         if (bookInfoMapper.selectById(id) == null) {
             throw new BusinessException("作品不存在");
@@ -278,6 +310,10 @@ public class BookServiceImpl implements BookService {
         bookInfoMapper.deleteById(id);
         // 书已经查不到了，同步的结果是从索引里删掉这条
         bookSearchIndexer.sync(id);
+        // 详情和目录一起清。正文按章节 id 存，这里拿不到 id 列表，
+        // 但 read() 会先校验作品可见性，删掉之后这些 key 已经读不到，等 TTL 自然回收
+        evictBook(id);
+        cacheInvalidator.evict(CacheNames.CHAPTER_CATALOG, CacheNames.catalogKey(id));
     }
 
     /**
@@ -306,19 +342,15 @@ public class BookServiceImpl implements BookService {
         }
     }
 
-    /** 清掉一本书的详情缓存，key 与 getById 上的 @Cacheable 保持一致 */
+    /** 清掉一本书的详情缓存，key 与 getById 上的 @Cacheable 保持一致。事务内调用会推迟到提交后 */
     private void evictBook(Long bookId) {
         if (bookId == null) {
             return;
         }
-        Cache cache = cacheManager.getCache(CacheNames.BOOK);
-        if (cache != null) {
-            cache.evict(bookId);
-        }
+        cacheInvalidator.evict(CacheNames.BOOK, bookId);
     }
 
     @Override
-    @CacheEvict(value = "book", key = "#id")
     public void updateStatus(Long id, Integer status, Long authorId) {
         BookInfo exist = bookInfoMapper.selectById(id);
         if (exist == null) {
@@ -337,6 +369,7 @@ public class BookServiceImpl implements BookService {
         update.setStatus(status);
         update.setUpdateTime(LocalDateTime.now());
         bookInfoMapper.updateStatus(update);
+        evictBook(id);
         bookSearchIndexer.sync(id);
     }
 
