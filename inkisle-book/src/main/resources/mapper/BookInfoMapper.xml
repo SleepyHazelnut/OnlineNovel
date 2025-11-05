@@ -201,6 +201,17 @@
     </update>
 
     <!--
+      写路径上按增量加减：章节数上千的作品，每存一章就 SUM 一遍全书章节，
+      扫描行数随篇幅线性增长，而这次改动只影响一章。
+      GREATEST 兜住负值，避免对账前的历史偏差把字数刷成负数。
+    -->
+    <update id="addWordCount">
+        UPDATE book_info
+        SET word_count = GREATEST(COALESCE(word_count, 0) + #{delta}, 0)
+        WHERE id = #{id}
+    </update>
+
+    <!--
       章节有增删改时单独刷新更新时间。
       与 updateWordCount 分开：总字数不变（比如只改了章节名）时也要刷新，
       而阅读计数不能走这里，否则刷点击会把书顶到更新榜上。

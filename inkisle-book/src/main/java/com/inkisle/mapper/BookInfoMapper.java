@@ -54,7 +54,11 @@ public interface BookInfoMapper {
     /** 榜单取书：一次 IN 查询换掉逐本查库 */
     List<BookInfo> selectByIds(@Param("ids") java.util.List<Long> ids);
 
+    /** 全量重算，留给对账用；写路径上走 addWordCount 的增量 */
     int updateWordCount(@Param("id") Long id, @Param("wordCount") int wordCount);
+
+    /** 章节增删改只带增量，避免每次重算全书章节 */
+    int addWordCount(@Param("id") Long id, @Param("delta") int delta);
 
     /** 首页「最新更新」与更新榜都按 update_time 排序，章节变动后要推一下 */
     int touchUpdateTime(@Param("id") Long id, @Param("updateTime") LocalDateTime updateTime);

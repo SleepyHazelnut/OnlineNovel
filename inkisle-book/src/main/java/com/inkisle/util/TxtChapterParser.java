@@ -1,7 +1,7 @@
 package com.inkisle.util;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -18,11 +18,14 @@ public class TxtChapterParser {
             Pattern.MULTILINE);
 
     /**
-     * 切成 章节标题 -> 正文
-     * 用 LinkedHashMap，换成 HashMap 遍历顺序不确定，导入后章节会乱序
+     * 切成有序的章节切片
+     *
+     * 早先用的是 标题 -> 正文 的 Map，遇到同名标题会静默覆盖，
+     * 一本分卷命名重复的书导进来就少几章正文，而且返回条数也跟着变小，用户看不出异常。
+     * 章序本来就由出现顺序决定，列表天然满足，不需要再靠 Map 保序
      */
-    public static Map<String, String> split(String text) {
-        Map<String, String> chapters = new LinkedHashMap<>();
+    public static List<ChapterSlice> split(String text) {
+        List<ChapterSlice> chapters = new ArrayList<>();
         if (text == null || text.isEmpty()) {
             return chapters;
         }
@@ -33,7 +36,8 @@ public class TxtChapterParser {
 
         while (matcher.find()) {
             if (lastTitle != null) {
-                chapters.put(lastTitle, text.substring(lastTitleEnd, matcher.start()).trim());
+                chapters.add(new ChapterSlice(lastTitle,
+                        text.substring(lastTitleEnd, matcher.start()).trim()));
             }
             lastTitle = matcher.group().trim();
             lastTitleEnd = matcher.end();
@@ -41,12 +45,12 @@ public class TxtChapterParser {
 
         // 最后一章的内容一直到文件结尾
         if (lastTitle != null) {
-            chapters.put(lastTitle, text.substring(lastTitleEnd).trim());
+            chapters.add(new ChapterSlice(lastTitle, text.substring(lastTitleEnd).trim()));
         }
 
         // 未识别出任何标题行时，将整篇作为一章，避免导入为空
         if (chapters.isEmpty()) {
-            chapters.put("正文", text.trim());
+            chapters.add(new ChapterSlice("正文", text.trim()));
         }
 
         return chapters;

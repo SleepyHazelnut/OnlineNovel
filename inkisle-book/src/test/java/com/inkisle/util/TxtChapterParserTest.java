@@ -3,9 +3,7 @@ package com.inkisle.util;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -20,20 +18,21 @@ class TxtChapterParserTest {
     void splitByChapterTitle() {
         String text = "第一章 开始\n正文一\n第二章 继续\n正文二\n第三章 结束\n正文三";
 
-        Map<String, String> chapters = TxtChapterParser.split(text);
+        List<ChapterSlice> chapters = TxtChapterParser.split(text);
 
-        assertThat(new ArrayList<>(chapters.keySet()))
+        assertThat(chapters).extracting(ChapterSlice::title)
                 .containsExactly("第一章 开始", "第二章 继续", "第三章 结束");
-        assertThat(chapters.get("第二章 继续")).isEqualTo("正文二");
+        assertThat(chapters.get(1).content()).isEqualTo("正文二");
     }
 
     @Test
     @DisplayName("没有标题行时整篇作为一章，而不是返回空")
     void fallbackToSingleChapter() {
-        Map<String, String> chapters = TxtChapterParser.split("一段没有任何章节标题的正文");
+        List<ChapterSlice> chapters = TxtChapterParser.split("一段没有任何章节标题的正文");
 
         assertThat(chapters).hasSize(1);
-        assertThat(chapters.get("正文")).isEqualTo("一段没有任何章节标题的正文");
+        assertThat(chapters.get(0).title()).isEqualTo("正文");
+        assertThat(chapters.get(0).content()).isEqualTo("一段没有任何章节标题的正文");
     }
 
     @Test
@@ -41,9 +40,21 @@ class TxtChapterParserTest {
     void supportChineseNumbers() {
         String text = "第十节 一\n内容\n第二回 二\n内容\n第三卷 三\n内容";
 
-        List<String> titles = new ArrayList<>(TxtChapterParser.split(text).keySet());
+        assertThat(TxtChapterParser.split(text)).extracting(ChapterSlice::title)
+                .containsExactly("第十节 一", "第二回 二", "第三卷 三");
+    }
 
-        assertThat(titles).containsExactly("第十节 一", "第二回 二", "第三卷 三");
+    @Test
+    @DisplayName("同名标题不会被吞掉，正文各归各的")
+    void duplicateTitlesAreKept() {
+        // 分卷重复命名是真实会遇到的情况：用 Map 存的时候后一章会把前一章覆盖掉
+        String text = "第一章 开始\n正文一\n第一章 开始\n正文二";
+
+        List<ChapterSlice> chapters = TxtChapterParser.split(text);
+
+        assertThat(chapters).hasSize(2);
+        assertThat(chapters).extracting(ChapterSlice::content)
+                .containsExactly("正文一", "正文二");
     }
 
 }
