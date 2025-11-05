@@ -1,5 +1,7 @@
 package com.inkisle.service.impl;
 
+import com.inkisle.cache.CacheInvalidator;
+import com.inkisle.cache.CacheNames;
 import com.inkisle.common.BusinessException;
 import com.inkisle.entity.BookRating;
 import com.inkisle.mapper.BookInfoMapper;
@@ -7,8 +9,6 @@ import com.inkisle.mapper.BookRatingMapper;
 import com.inkisle.service.BookRatingService;
 import com.inkisle.service.BookService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cache.Cache;
-import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,7 +36,7 @@ public class BookRatingServiceImpl implements BookRatingService {
     private BookService bookService;
 
     @Autowired
-    private CacheManager cacheManager;
+    private CacheInvalidator cacheInvalidator;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -84,10 +84,8 @@ public class BookRatingServiceImpl implements BookRatingService {
         bookInfoMapper.refreshRating(bookId);
         Map<String, Object> data = aggregate(bookId);
 
-        Cache cache = cacheManager.getCache("book");
-        if (cache != null) {
-            cache.evict(bookId);
-        }
+        // 事务提交后再清，否则删完到提交之间进来的读请求会把旧评分写回缓存
+        cacheInvalidator.evict(CacheNames.BOOK, bookId);
         return data;
     }
 
