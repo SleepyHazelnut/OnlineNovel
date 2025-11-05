@@ -1,6 +1,7 @@
 package com.inkisle.service.impl;
 
 import com.inkisle.cache.CacheAside;
+import com.inkisle.cache.CacheInvalidator;
 import com.inkisle.cache.CacheNames;
 import com.inkisle.cache.VisitCounter;
 import com.inkisle.common.BusinessException;
@@ -15,10 +16,17 @@ import com.inkisle.mapper.BookInfoMapper;
 import com.inkisle.mapper.UserReadHistoryMapper;
 import com.inkisle.service.BookChapterService;
 import com.inkisle.service.BookService;
+import com.inkisle.util.ChapterSlice;
 import com.inkisle.util.TxtChapterParser;
+import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -34,6 +42,8 @@ import java.util.Map;
  */
 @Service
 public class BookChapterServiceImpl implements BookChapterService {
+
+    private static final Logger log = LoggerFactory.getLogger(BookChapterServiceImpl.class);
 
     /** 整本导入时一批写多少章：太小往返多，太大单条 SQL 会超 max_allowed_packet */
     private static final int IMPORT_BATCH_SIZE = 200;
@@ -57,7 +67,26 @@ public class BookChapterServiceImpl implements BookChapterService {
     private CacheAside cacheAside;
 
     @Autowired
+    private CacheInvalidator cacheInvalidator;
+
+    @Autowired
     private VisitCounter visitCounter;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
+
+    private TransactionTemplate batchTx;
+
+    @PostConstruct
+    void initBatchTransaction() {
+        batchTx = new TransactionTemplate(transactionManager);
+        // 用 REQUIRED 而不是 REQUIRES_NEW：调用方没有事务时它就是每批独立提交，
+        // 后面的批次失败不会把前面已经写进去的几百章一起回滚，一本几千章的书
+        // 不用因为最后一章出错就从头再来；调用方本来就带着事务时（比如单测），
+        // 它跟着外层走——REQUIRES_NEW 会另开一个连接去抢外层已经持有的作品行锁，
+        // 自己等自己，只能等到 innodb_lock_wait_timeout
+        batchTx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRED);
+    }
 
     @Override
     public List<BookChapter> listByBookId(Long bookId) {
@@ -123,6 +152,8 @@ public class BookChapterServiceImpl implements BookChapterService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void saveChapter(BookChapter chapter, String content, Long authorId) {
+        // 改稿要按新旧字数差更新总字数，差值从库里的旧记录取，不能拿请求体里的
+        int oldWordCount = 0;
         if (chapter.getId() == null) {
             checkBookOwner(chapter.getBookId(), authorId);
             // 先锁作品行再取号，两个并发追加才不会拿到同一个章节号
@@ -140,11 +171,14 @@ public class BookChapterServiceImpl implements BookChapterService {
             checkBookOwner(exist.getBookId(), authorId);
             chapter.setBookId(exist.getBookId());
             chapter.setChapterNum(exist.getChapterNum());
+            oldWordCount = exist.getWordCount() == null ? 0 : exist.getWordCount();
             bookChapterMapper.updateById(chapter);
         }
 
         saveContent(chapter.getId(), content);
-        refreshBookStat(chapter.getBookId(), true);
+        // 正文没传（只改章节名）时字数不变，差值为零
+        int newWordCount = content == null ? oldWordCount : content.length();
+        refreshBookStat(chapter.getBookId(), newWordCount - oldWordCount, true);
     }
 
     @Override
@@ -165,16 +199,23 @@ public class BookChapterServiceImpl implements BookChapterService {
         bookChapterMapper.deleteById(chapterId);
         bookContentMapper.deleteByChapterId(chapterId);
         // 正文缓存按章节 id 存，章节删了缓存得跟着走，否则回收站里还留着一份可读的正文
-        cacheAside.evict(CacheNames.CHAPTER_CONTENT, CacheNames.contentKey(chapterId));
+        cacheInvalidator.evict(CacheNames.CHAPTER_CONTENT, CacheNames.contentKey(chapterId));
         // 阅读进度指向的章节已删除，续读会跳到不存在的页
         userReadHistoryMapper.deleteByChapterId(chapterId);
         // 删章只改总字数：删除一章不算更新，更新更新时间会把它排到更新榜前面
-        refreshBookStat(chapter.getBookId(), false);
+        int removedWords = chapter.getWordCount() == null ? 0 : chapter.getWordCount();
+        refreshBookStat(chapter.getBookId(), -removedWords, false);
     }
 
-    /** 整本导入放一个事务里，失败不留半本书 */
+    /**
+     * 整本导入
+     *
+     * 早先整个方法挂一个事务：读文件、正则切分、几百批 INSERT、最后重算字数，
+     * 五千章的书就是一个持续几十秒的大事务，作品的行驶锁从取号一直持到提交，
+     * 期间同书任何写操作都得排队，失败还要把写了一半的几千行全部回滚。
+     * 现在只有「取号」和「每批写入」进事务，且每批独立提交。
+     */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public int importChapters(Long bookId, MultipartFile file, Long authorId) {
         checkBookOwner(bookId, authorId);
 
@@ -185,51 +226,71 @@ public class BookChapterServiceImpl implements BookChapterService {
             throw new BusinessException("文件读取失败");
         }
 
-        Map<String, String> chapters = TxtChapterParser.split(text);
-        if (chapters.isEmpty()) {
+        List<ChapterSlice> slices = TxtChapterParser.split(text);
+        if (slices.isEmpty()) {
             throw new BusinessException("没解析出章节，检查一下标题格式");
         }
 
-        // 与单章追加一样先锁作品行，避免与另一个导入抢占同一起始号
-        bookInfoMapper.selectIdForUpdate(bookId);
-        Integer maxNum = bookChapterMapper.selectMaxChapterNum(bookId);
-        int num = maxNum == null ? 0 : maxNum;
+        // 取号要短：锁作品行只为拿到起始章节号，拿到就放，后面按批写不再持锁
+        Integer maxNum = batchTx.execute(status -> {
+            bookInfoMapper.selectIdForUpdate(bookId);
+            return bookChapterMapper.selectMaxChapterNum(bookId);
+        });
+        int firstNum = maxNum == null ? 1 : maxNum + 1;
 
-        // 先把要写的东西全排好，再按批灌进去：原来一章一次 INSERT 加一次正文写入，
-        // 五百章就是一千次往返，导入大文件的时间几乎全花在路上
-        List<BookChapter> rows = new ArrayList<>(chapters.size());
-        List<String> contents = new ArrayList<>(chapters.size());
+        int done = 0;
+        for (int from = 0; from < slices.size(); from += IMPORT_BATCH_SIZE) {
+            int to = Math.min(from + IMPORT_BATCH_SIZE, slices.size());
+            int offset = from;
+            try {
+                batchTx.executeWithoutResult(status ->
+                        insertSlices(bookId, slices.subList(offset, to), firstNum + offset));
+            } catch (RuntimeException e) {
+                // 已经提交的批次留着：它们本身就是完整的一批章节，重导只会往后追加
+                log.error("整本导入中断 bookId={} 已入库 {} 章", bookId, done, e);
+                throw new BusinessException("导入到第 " + (from + 1) + " 章时失败，前 " + done + " 章已入库");
+            }
+            done = to;
+        }
+
+        refreshBookStat(bookId, totalWordCount(slices), true);
+        return slices.size();
+    }
+
+    /** 一批之内的章节与正文一起写，正文按回填出来的章节 id 关联 */
+    private void insertSlices(Long bookId, List<ChapterSlice> batch, int firstNum) {
         LocalDateTime now = LocalDateTime.now();
-        for (Map.Entry<String, String> entry : chapters.entrySet()) {
+        List<BookChapter> rows = new ArrayList<>(batch.size());
+        for (int i = 0; i < batch.size(); i++) {
+            ChapterSlice slice = batch.get(i);
             BookChapter chapter = new BookChapter();
             chapter.setBookId(bookId);
-            chapter.setChapterName(entry.getKey());
-            chapter.setChapterNum(++num);
+            chapter.setChapterName(slice.title());
+            chapter.setChapterNum(firstNum + i);
             // 字数在这里就算好，省掉插入后再逐章 update 一次
-            chapter.setWordCount(entry.getValue().length());
+            chapter.setWordCount(slice.content().length());
             chapter.setCreateTime(now);
             rows.add(chapter);
-            contents.add(entry.getValue());
         }
+        // 批量插入会把自增主键回填到对象上，正文再按这些 id 写
+        bookChapterMapper.insertBatch(rows);
 
-        for (int from = 0; from < rows.size(); from += IMPORT_BATCH_SIZE) {
-            int to = Math.min(from + IMPORT_BATCH_SIZE, rows.size());
-            List<BookChapter> slice = rows.subList(from, to);
-            // 批量插入会把自增主键回填到对象上，正文再按这些 id 写
-            bookChapterMapper.insertBatch(slice);
-
-            List<BookContent> contentRows = new ArrayList<>(slice.size());
-            for (int i = from; i < to; i++) {
-                BookContent bookContent = new BookContent();
-                bookContent.setChapterId(rows.get(i).getId());
-                bookContent.setContent(contents.get(i));
-                contentRows.add(bookContent);
-            }
-            bookContentMapper.insertBatch(contentRows);
+        List<BookContent> contentRows = new ArrayList<>(rows.size());
+        for (int i = 0; i < rows.size(); i++) {
+            BookContent bookContent = new BookContent();
+            bookContent.setChapterId(rows.get(i).getId());
+            bookContent.setContent(batch.get(i).content());
+            contentRows.add(bookContent);
         }
+        bookContentMapper.insertBatch(contentRows);
+    }
 
-        refreshBookStat(bookId, true);
-        return chapters.size();
+    private int totalWordCount(List<ChapterSlice> slices) {
+        int total = 0;
+        for (ChapterSlice slice : slices) {
+            total += slice.content().length();
+        }
+        return total;
     }
 
     /** 正文与章节一对一，有则更新，没有则插入 */
@@ -249,22 +310,27 @@ public class BookChapterServiceImpl implements BookChapterService {
         }
         // 字数按正文字符数算，换行和标点也计入
         bookChapterMapper.updateWordCount(chapterId, content.length());
-        // 先写库再删缓存：反过来的话，删完到写库之间进来的读请求会把旧正文又填回去
-        cacheAside.evict(CacheNames.CHAPTER_CONTENT, CacheNames.contentKey(chapterId));
+        // 事务提交后才删，否则删完到提交之间进来的读请求会把旧正文写回缓存
+        cacheInvalidator.evict(CacheNames.CHAPTER_CONTENT, CacheNames.contentKey(chapterId));
     }
 
     /**
-     * 章节一变动就重算总字数。新增和修改还要推一下更新时间，
-     * 首页的最新更新和更新榜都按这个排，详情缓存里存的是整个 BookInfo，不清会一直是旧值
-     * 目录也要清：增删章节、审核状态变化都会让读者看到的目录变样
+     * 章节一变动就更新作品统计。
+     * 总字数按增量加减，不再每次 SUM 全书章节：三千章的书存一章就要扫三千行。
+     * 全量重算的 SQL 留着做对账，不放写路径上。
+     * 新增和修改还要推一下更新时间，首页的最新更新和更新榜都按这个排，
+     * 详情缓存里存的是整个 BookInfo，不清会一直是旧值。
+     * 目录也要清：增删章节、审核状态变化都会让读者看到的目录变样。
      */
-    private void refreshBookStat(Long bookId, boolean touchUpdateTime) {
-        bookInfoMapper.updateWordCount(bookId, bookChapterMapper.selectTotalWordCount(bookId));
+    private void refreshBookStat(Long bookId, int wordDelta, boolean touchUpdateTime) {
+        if (wordDelta != 0) {
+            bookInfoMapper.addWordCount(bookId, wordDelta);
+        }
         if (touchUpdateTime) {
             bookInfoMapper.touchUpdateTime(bookId, LocalDateTime.now());
         }
-        cacheAside.evict(CacheNames.BOOK, bookId);
-        cacheAside.evict(CacheNames.CHAPTER_CATALOG, CacheNames.catalogKey(bookId));
+        cacheInvalidator.evict(CacheNames.BOOK, bookId);
+        cacheInvalidator.evict(CacheNames.CHAPTER_CATALOG, CacheNames.catalogKey(bookId));
     }
 
     private void checkBookOwner(Long bookId, Long authorId) {
