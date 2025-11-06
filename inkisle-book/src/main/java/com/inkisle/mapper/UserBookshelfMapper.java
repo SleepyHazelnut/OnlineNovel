@@ -16,6 +16,9 @@ public interface UserBookshelfMapper {
 
     int insert(UserBookshelf bookshelf);
 
+    /** 幂等收藏：已存在时返回 0，不再抛唯一键异常 */
+    int insertIgnore(UserBookshelf bookshelf);
+
     int deleteByUserAndBook(@Param("userId") Long userId, @Param("bookId") Long bookId);
 
     /**

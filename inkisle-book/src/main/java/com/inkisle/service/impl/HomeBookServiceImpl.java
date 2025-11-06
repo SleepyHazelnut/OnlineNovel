@@ -54,16 +54,15 @@ public class HomeBookServiceImpl implements HomeBookService {
         if (!BookAuditStatus.isVisible(book.getAuditStatus())) {
             throw new BusinessException("只有已上架的作品可以上推荐位");
         }
-        if (homeBookMapper.countBySectionAndBook(dto.getSection(), dto.getBookId()) > 0) {
-            throw new BusinessException("这本书已在该板块");
-        }
-
         HomeBook homeBook = new HomeBook();
         homeBook.setBookId(dto.getBookId());
         homeBook.setSection(dto.getSection());
         homeBook.setSort(dto.getSort() == null ? 0 : dto.getSort());
         homeBook.setCreateTime(LocalDateTime.now());
-        homeBookMapper.insert(homeBook);
+        // 重复配置由唯一键拦，影响 0 行就说明这本书已经在这个板块里
+        if (homeBookMapper.insertIgnore(homeBook) == 0) {
+            throw new BusinessException("这本书已在该板块");
+        }
     }
 
     @Override

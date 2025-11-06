@@ -21,14 +21,12 @@ public class UserBookshelfServiceImpl implements UserBookshelfService {
 
     @Override
     public void add(Long userId, Long bookId) {
-        // 加入书架按钮可能被连续点击，已收藏时直接返回
-        if (userBookshelfMapper.countByUserAndBook(userId, bookId) > 0) {
-            return;
-        }
+        // 收藏本身就是幂等的：连点两下、两个标签页同时点，结果都该是「已在书架里」。
+        // 交给唯一键而不是先 count 再 insert，省一次往返，也不会撞冲突抛 500
         UserBookshelf bookshelf = new UserBookshelf();
         bookshelf.setUserId(userId);
         bookshelf.setBookId(bookId);
-        userBookshelfMapper.insert(bookshelf);
+        userBookshelfMapper.insertIgnore(bookshelf);
     }
 
     @Override

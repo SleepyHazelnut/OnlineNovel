@@ -9,6 +9,16 @@
         WHERE user_id = #{userId} AND book_id = #{bookId}
     </select>
 
+    <!--
+      幂等插入：唯一键 uk_user_book 冲突时静默跳过。
+      原来先 count 再 insert，两次往返之间连点第二下就会撞唯一键抛到全局，
+      前端看到的是「操作失败」，而收藏本身是幂等语义，重复点就该当成功
+    -->
+    <insert id="insertIgnore" parameterType="com.inkisle.entity.UserBookshelf">
+        INSERT IGNORE INTO user_bookshelf (user_id, book_id, create_time)
+        VALUES (#{userId}, #{bookId}, NOW())
+    </insert>
+
     <insert id="insert" parameterType="com.inkisle.entity.UserBookshelf" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO user_bookshelf (user_id, book_id, create_time)
         VALUES (#{userId}, #{bookId}, NOW())
