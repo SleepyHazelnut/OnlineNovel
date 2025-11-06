@@ -25,6 +25,9 @@ public interface HomeBookMapper {
 
     int insert(HomeBook homeBook);
 
+    /** 同板块同书只留一条，重复配置时返回 0 */
+    int insertIgnore(HomeBook homeBook);
+
     int updateSort(@Param("id") Long id, @Param("sort") Integer sort);
 
     int deleteById(@Param("id") Long id);

@@ -51,6 +51,15 @@
         VALUES (#{bookId}, #{section}, #{sort}, #{createTime})
     </insert>
 
+    <!--
+      同一板块同一本书只能有一条，靠唯一键 uk_section_book 兜住。
+      返回 0 说明已经配过了，Service 据此给出提示，省掉先查一次
+    -->
+    <insert id="insertIgnore" parameterType="com.inkisle.entity.HomeBook">
+        INSERT IGNORE INTO home_book (book_id, section, sort, create_time)
+        VALUES (#{bookId}, #{section}, #{sort}, #{createTime})
+    </insert>
+
     <update id="updateSort">
         UPDATE home_book
         SET sort = #{sort}
