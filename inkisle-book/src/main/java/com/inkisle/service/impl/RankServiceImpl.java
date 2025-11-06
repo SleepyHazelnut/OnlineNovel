@@ -184,6 +184,10 @@ public class RankServiceImpl implements RankService {
         item.put("rank", rank);
         item.put("bookId", book.getId());
         item.put("bookName", book.getBookName());
+        // 榜单卡片与书库卡片共用同一套渲染，缺这两个字段分类标签会是空的、
+        // 连载状态会一律显示「连载中」
+        item.put("categoryId", book.getCategoryId());
+        item.put("status", book.getStatus());
         item.put("authorName", book.getAuthorName());
         item.put("coverUrl", book.getCoverUrl());
         item.put("heat", heat == null ? 0D : heat);
