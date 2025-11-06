@@ -33,7 +33,8 @@ public class BookCategoryServiceImpl implements BookCategoryService {
 
         List<BookCategory> roots = new ArrayList<>();
         for (BookCategory category : all) {
-            if (category.getParentId() == ROOT_ID) {
+            // parent_id 允许为空，Long 与 long 直接 == 会拆箱，遇到 null 就是全站 500
+            if (Long.valueOf(ROOT_ID).equals(category.getParentId())) {
                 roots.add(category);
             }
         }

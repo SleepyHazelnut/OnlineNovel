@@ -44,6 +44,9 @@ public class BookSearchEngine {
     /** 熔断后多久再试一次。搜索可以退回 MySQL，但不必每次请求都先去撞一遍超时 */
     private static final long OPEN_MILLIS = 30_000L;
 
+    /** ES 默认 max_result_window，from + size 超过它会直接抛参数异常 */
+    private static final int MAX_RESULT_WINDOW = 10_000;
+
     private final AtomicInteger consecutiveFailures = new AtomicInteger();
 
     private volatile long openUntil;
@@ -55,6 +58,12 @@ public class BookSearchEngine {
         if (!searchProperties.isEs()) {
             return null;
         }
+        // 深翻页先在这里挡住：让它打到 ES 会抛参数异常，被下面的 catch 当成故障，
+        // 连撞三次就熔断 30 秒，全站搜索降级成 LIKE '%x%' 全表扫 —— 一个人翻到第 200 页就够
+        long from = (long) (pageNum - 1) * pageSize;
+        if (from + pageSize > MAX_RESULT_WINDOW) {
+            return emptyPage();
+        }
         if (System.currentTimeMillis() < openUntil) {
             // 熔断窗口内直接走 MySQL：ES 挂的时候每次请求都等一遍 5 秒超时，比降级更糟
             return null;
@@ -63,10 +72,21 @@ public class BookSearchEngine {
             Map<String, Object> data = doSearch(keyword, pageNum, pageSize);
             consecutiveFailures.set(0);
             return data;
+        } catch (IllegalArgumentException e) {
+            // 参数不合法说明这次查询本身有问题，和 ES 是否健康无关，不能计入熔断
+            log.warn("ES 查询参数不合法，本次按空结果返回：keyword={}", keyword, e);
+            return emptyPage();
         } catch (Exception e) {
             markFailure(e, keyword);
             return null;
         }
+    }
+
+    private Map<String, Object> emptyPage() {
+        Map<String, Object> data = new HashMap<>();
+        data.put("list", List.of());
+        data.put("total", 0L);
+        return data;
     }
 
     private void markFailure(Exception e, String keyword) {
