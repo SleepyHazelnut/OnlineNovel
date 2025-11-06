@@ -1,5 +1,7 @@
 package com.inkisle.service.impl;
 
+import com.inkisle.cache.CacheInvalidator;
+import com.inkisle.cache.CacheNames;
 import com.inkisle.common.BusinessException;
 import com.inkisle.common.ContentAuditStatus;
 import com.inkisle.common.PageUtils;
@@ -10,8 +12,6 @@ import com.inkisle.service.BookCommentService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cache.Cache;
-import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,6 +34,9 @@ public class BookCommentServiceImpl implements BookCommentService {
     /** 与表里的 varchar(500) 对齐 */
     private static final int MAX_CONTENT = 500;
 
+    /** 一次最多返回多少条一级评论：再往上翻页收益低于响应体膨胀的成本 */
+    private static final int ROOT_PAGE_SIZE = 50;
+
     @Autowired
     private BookCommentMapper bookCommentMapper;
 
@@ -41,24 +44,25 @@ public class BookCommentServiceImpl implements BookCommentService {
     private BookInfoMapper bookInfoMapper;
 
     @Autowired
-    private CacheManager cacheManager;
+    private CacheInvalidator cacheInvalidator;
 
     @Override
     public List<BookComment> listByBookId(Long bookId, Long viewerId) {
-        List<BookComment> all = bookCommentMapper.selectByBookId(bookId, viewerId);
-
-        List<BookComment> roots = new ArrayList<>();
-        // 一次分组，避免每条一级评论都去遍历全表
-        Map<Long, List<BookComment>> childrenByParent = new HashMap<>();
-        for (BookComment comment : all) {
-            // 历史数据里 parent_id 可能是 null，一并按一级处理
-            if (comment.getParentId() == null || comment.getParentId() == ROOT_ID) {
-                roots.add(comment);
-                continue;
-            }
-            childrenByParent.computeIfAbsent(comment.getParentId(), key -> new ArrayList<>()).add(comment);
+        // 只取最新一页一级评论，再按这批 id 把回复捞回来：
+        // 原来是整本评论（含正文）一次查出来在内存里分组，热门作品单次响应能有几 MB
+        List<BookComment> roots = bookCommentMapper.selectRootsByBookId(bookId, viewerId, ROOT_PAGE_SIZE);
+        if (roots.isEmpty()) {
+            return roots;
         }
-
+        List<Long> rootIds = new ArrayList<>(roots.size());
+        for (BookComment root : roots) {
+            rootIds.add(root.getId());
+        }
+        List<BookComment> replies = bookCommentMapper.selectRepliesByParentIds(rootIds, viewerId);
+        Map<Long, List<BookComment>> childrenByParent = new HashMap<>();
+        for (BookComment reply : replies) {
+            childrenByParent.computeIfAbsent(reply.getParentId(), key -> new ArrayList<>()).add(reply);
+        }
         for (BookComment root : roots) {
             List<BookComment> children = childrenByParent.get(root.getId());
             root.setChildren(children == null ? new ArrayList<>() : children);
@@ -89,7 +93,7 @@ public class BookCommentServiceImpl implements BookCommentService {
         }
 
         bookCommentMapper.insert(comment);
-        refreshCommentCount(comment.getBookId());
+        // 新评论是待审状态，不计入 comment_count，这里不用重算
     }
 
     @Override
@@ -107,8 +111,10 @@ public class BookCommentServiceImpl implements BookCommentService {
     public void updateContent(Long id, Long userId, String content) {
         BookComment exist = requireOwned(id, userId);
         bookCommentMapper.updateContent(exist.getId(), normalizeContent(content));
-        // 改完回待审，评论数跟着变
-        refreshCommentCount(exist.getBookId());
+        // 改完回待审：只有原来是通过状态时，评论数才会真的少一条，其余情况不用重算
+        if (ContentAuditStatus.isVisible(exist.getAuditStatus())) {
+            refreshCommentCount(exist.getBookId());
+        }
     }
 
     @Override
@@ -142,7 +148,10 @@ public class BookCommentServiceImpl implements BookCommentService {
     public void pass(Long id, Long adminId) {
         BookComment exist = requirePending(id);
         requireParentPassed(exist);
-        bookCommentMapper.updateAuditStatus(id, ContentAuditStatus.PASSED.getCode(), null);
+        // 以「影响行数」判定这次审核是否真的生效，两个管理员同时点是后到的那个得到 0 行
+        if (bookCommentMapper.updateAuditStatusIfPending(id, ContentAuditStatus.PASSED.getCode(), null) == 0) {
+            throw new BusinessException("这条评论已经审过了");
+        }
         refreshCommentCount(exist.getBookId());
         log.info("评论审核通过 commentId={} adminId={}", id, adminId);
     }
@@ -152,8 +161,10 @@ public class BookCommentServiceImpl implements BookCommentService {
     public void reject(Long id, String remark, Long adminId) {
         String reason = requireRemark(remark);
         BookComment exist = requirePending(id);
-        bookCommentMapper.updateAuditStatus(id, ContentAuditStatus.REJECTED.getCode(), reason);
-        refreshCommentCount(exist.getBookId());
+        if (bookCommentMapper.updateAuditStatusIfPending(id, ContentAuditStatus.REJECTED.getCode(), reason) == 0) {
+            throw new BusinessException("这条评论已经审过了");
+        }
+        // 待审 -> 驳回不改变评论数，只有审核通过才计入
         log.info("评论驳回 commentId={} adminId={} reason={}", id, adminId, reason);
     }
 
@@ -200,13 +211,10 @@ public class BookCommentServiceImpl implements BookCommentService {
         refreshCommentCount(exist.getBookId());
     }
 
-    /** 整表重算，不做增量加减；评论数变了详情缓存也要清 */
+    /** 整表重算，不做增量加减；评论数变了详情缓存也要清，事务提交后再清 */
     private void refreshCommentCount(Long bookId) {
         bookInfoMapper.syncCommentCount(bookId);
-        Cache cache = cacheManager.getCache("book");
-        if (cache != null) {
-            cache.evict(bookId);
-        }
+        cacheInvalidator.evict(CacheNames.BOOK, bookId);
     }
 
     /** 只有本人能改能删，否则拿到 id 就能改别人的话 */

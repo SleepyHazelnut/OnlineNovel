@@ -9,9 +9,14 @@ import java.util.List;
 @Mapper
 public interface BookCommentMapper {
 
-    /** 只取已通过的；viewerId 非空时额外带上他自己的待审评论 */
-    List<BookComment> selectByBookId(@Param("bookId") Long bookId,
-                                     @Param("viewerId") Long viewerId);
+    /** 一级评论：只取最新的一页，避免热书一次把全书评论拉回来 */
+    List<BookComment> selectRootsByBookId(@Param("bookId") Long bookId,
+                                          @Param("viewerId") Long viewerId,
+                                          @Param("limit") int limit);
+
+    /** 当前页一级评论的回复，一次 IN 查完 */
+    List<BookComment> selectRepliesByParentIds(@Param("parentIds") List<Long> parentIds,
+                                               @Param("viewerId") Long viewerId);
 
     BookComment selectById(@Param("id") Long id);
 
@@ -32,9 +37,13 @@ public interface BookCommentMapper {
 
     int updateContent(@Param("id") Long id, @Param("content") String content);
 
-    int updateAuditStatus(@Param("id") Long id,
-                          @Param("auditStatus") Integer auditStatus,
-                          @Param("rejectReason") String rejectReason);
+    /**
+     * 审核状态唯一写入口，带 status=0 前置条件：
+     * 两个管理员同时点通过/驳回时，后到的那次影响 0 行，不会互相覆盖
+     */
+    int updateAuditStatusIfPending(@Param("id") Long id,
+                                   @Param("auditStatus") Integer auditStatus,
+                                   @Param("rejectReason") String rejectReason);
 
     int deleteById(@Param("id") Long id);
 
