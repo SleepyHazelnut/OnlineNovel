@@ -3,18 +3,51 @@
 <mapper namespace="com.inkisle.mapper.BookCommentMapper">
 
     <!--
-      读者端评论列表：只展示审核通过的，外加当前登录读者自己的评论。
+      读者端一级评论：只展示审核通过的，外加当前登录读者自己的评论。
       自己的评论即使待审也要能看到，否则发完就消失，用户会以为没发出去；
       viewerId 为 null 表示游客，只看通过的。
       昵称 LEFT JOIN user_info，用户被删后评论仍保留展示。
+
+      只取最新一页：原来没有 LIMIT，热门作品一次请求会把全书评论连同正文全拉回来，
+      再在内存里分组，响应能到几 MB。子查询先按倒序截断，外层再翻回正序，
+      展示顺序和原来一致，只是老评论不再一次全给。
     -->
-    <select id="selectByBookId" resultType="com.inkisle.entity.BookComment">
+    <select id="selectRootsByBookId" resultType="com.inkisle.entity.BookComment">
+        SELECT t.id, t.book_id, t.user_id, t.content, t.parent_id,
+               t.audit_status, t.reject_reason, t.create_time, t.nick_name
+        FROM (
+            SELECT c.id, c.book_id, c.user_id, c.content, c.parent_id,
+                   c.audit_status, c.reject_reason, c.create_time,
+                   u.nick_name
+            FROM book_comment c
+            LEFT JOIN user_info u ON u.id = c.user_id
+            WHERE c.book_id = #{bookId}
+              AND (c.parent_id IS NULL OR c.parent_id = 0)
+            <choose>
+                <when test="viewerId != null">
+                    AND (c.audit_status = 1 OR c.user_id = #{viewerId})
+                </when>
+                <otherwise>
+                    AND c.audit_status = 1
+                </otherwise>
+            </choose>
+            ORDER BY c.create_time DESC, c.id DESC
+            LIMIT #{limit}
+        ) t
+        ORDER BY t.create_time ASC, t.id ASC
+    </select>
+
+    <!-- 当前页评论的回复：按 parent_id 走索引，一次 IN 查完，不再整本评论一起分组 -->
+    <select id="selectRepliesByParentIds" resultType="com.inkisle.entity.BookComment">
         SELECT c.id, c.book_id, c.user_id, c.content, c.parent_id,
                c.audit_status, c.reject_reason, c.create_time,
                u.nick_name
         FROM book_comment c
         LEFT JOIN user_info u ON u.id = c.user_id
-        WHERE c.book_id = #{bookId}
+        WHERE c.parent_id IN
+        <foreach collection="parentIds" item="parentId" open="(" separator="," close=")">
+            #{parentId}
+        </foreach>
         <choose>
             <when test="viewerId != null">
                 AND (c.audit_status = 1 OR c.user_id = #{viewerId})
@@ -23,7 +56,7 @@
                 AND c.audit_status = 1
             </otherwise>
         </choose>
-        ORDER BY c.create_time ASC
+        ORDER BY c.create_time ASC, c.id ASC
     </select>
 
     <!-- 归属校验只看评论自身，不联表 -->
@@ -104,12 +137,17 @@
         WHERE id = #{id}
     </update>
 
-    <!-- 审核状态唯一写入口，通过时 reason 传 null 清掉上一次的驳回原因 -->
-    <update id="updateAuditStatus">
+    <!--
+      审核状态唯一写入口，通过时 reason 传 null 清掉上一次的驳回原因。
+      带 audit_status = 0 的前置条件：先查后写的话，两个管理员同时操作会各自成功一次，
+      审核人和时间互相覆盖。这里后到的那次影响 0 行，由 Service 判成「已经审过了」
+    -->
+    <update id="updateAuditStatusIfPending">
         UPDATE book_comment
         SET audit_status = #{auditStatus},
             reject_reason = #{rejectReason}
         WHERE id = #{id}
+          AND audit_status = 0
     </update>
 
     <delete id="deleteById">
