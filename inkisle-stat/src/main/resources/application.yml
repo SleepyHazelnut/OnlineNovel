@@ -23,3 +23,9 @@ mybatis:
 jwt:
   secret: ${JWT_SECRET:inkisle-dev-secret-key-change-me-before-release}
   expire-hours: 24
+
+inkisle:
+  # 服务间调用的共享令牌。网关不转发 /internal，但服务直接监听端口，
+  # 没有令牌的话直连 808x 就能改审核状态、删审核记录
+  internal:
+    token: ${INTERNAL_TOKEN:}

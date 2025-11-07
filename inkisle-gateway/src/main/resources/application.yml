@@ -9,6 +9,14 @@ spring:
       discovery:
         server-addr: ${NACOS_ADDR:localhost:8848}
     gateway:
+      # 外部请求带进来的这几个头一律剥掉：
+      # X-Forwarded-For 会被限流和游客防重拿来当来源 IP，客户端自己填就等于每次换一个新身份；
+      # X-Internal-Token 是服务间凭证，不能让外面伪造进来
+      default-filters:
+        - RemoveRequestHeader=X-Forwarded-For
+        - RemoveRequestHeader=X-Real-IP
+        - RemoveRequestHeader=Forwarded
+        - RemoveRequestHeader=X-Internal-Token
       # 只转接口前缀，写成 /** 会把 html、css 也当接口转走，静态页就打不开了
       # 按前缀分服务，order 小的先匹配。/author 下面既有写书、写章节、AI 改写（归 book），
       # 也有登录注册（归 user），不排顺序会走错
@@ -32,7 +40,8 @@ spring:
           uri: lb://inkisle-user
           order: 4
           predicates:
-            - Path=/user/**,/sign/**,/captcha/**,/author/**,/admin/login,/admin/author/**,/admin/user/**
+            # /admin/info 是管理员自己的信息，之前漏了，走网关必然 404
+            - Path=/user/**,/sign/**,/captcha/**,/author/**,/admin/login,/admin/info,/admin/author/**,/admin/user/**
         - id: stat
           uri: lb://inkisle-stat
           order: 5

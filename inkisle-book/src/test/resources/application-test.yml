@@ -20,3 +20,6 @@ inkisle:
   user-status:
     # 同上，关掉缓存直接走 mock 的 Feign，免得每个请求都等一次连接超时
     cache-enabled: false
+  token-version:
+    # 没有 Redis 就比不了版本号，关掉后拦截器不做这一步校验
+    enabled: false
