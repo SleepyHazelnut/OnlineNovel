@@ -8,6 +8,14 @@ spring:
     nacos:
       discovery:
         server-addr: ${NACOS_ADDR:localhost:8848}
+    openfeign:
+      client:
+        config:
+          default:
+            # 不配的话走 Feign 默认的 60 秒读超时：下游抖一下，
+            # 调用方的 Tomcat 线程和数据库连接就被按在那里一分钟
+            connect-timeout: 1000
+            read-timeout: 3000
   datasource:
     url: jdbc:mysql://localhost:3306/inkisle?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai
     username: root
@@ -29,3 +37,9 @@ mybatis:
   type-aliases-package: com.inkisle.entity
   configuration:
     map-underscore-to-camel-case: true
+
+inkisle:
+  # 服务间调用的共享令牌。网关不转发 /internal，但服务直接监听端口，
+  # 没有令牌的话直连 808x 就能改审核状态、删审核记录
+  internal:
+    token: ${INTERNAL_TOKEN:}
