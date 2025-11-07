@@ -12,7 +12,7 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 public @interface RepeatSubmit {
 
-    /** 锁的秒数，过了这段时间才可以再调 */
+    /** 去重令牌的有效期，过了这段时间才可以再调 */
     long expire() default 5;
 
     /** 被挡住时返回的提示 */
