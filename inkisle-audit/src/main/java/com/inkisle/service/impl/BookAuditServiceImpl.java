@@ -49,16 +49,28 @@ public class BookAuditServiceImpl implements BookAuditService {
     }
 
     @Override
+    public Map<String, Object> pageByStatus(Integer status, Integer pageNum, Integer pageSize) {
+        int num = PageUtils.pageNum(pageNum);
+        int size = PageUtils.pageSize(pageSize, 10);
+        Map<String, Object> data = new HashMap<>();
+        data.put("list", bookAuditRecordMapper.selectPageByStatus(status, PageUtils.offset(num, size), size));
+        data.put("total", bookAuditRecordMapper.countByStatus(status));
+        return data;
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public void pass(Long id, Long adminId) {
         BookAuditRecord record = checkPending(id);
         // 作者提交之后可能又把章节删光，通过前再确认一次
         requireChapter(record.getBookId(), "作品没有章节，不能通过审核");
 
+        // 先把本地记录从「待审」推到终态：影响 0 行说明另一个管理员已经处理过，
+        // 这时不该再去改书籍状态，否则两边的审核人、时间会互相覆盖
         markRecord(id, RECORD_PASS, null, adminId);
-        markBook(record.getBookId(), BookAuditStatus.PASSED, null);
-        // 审核看的是整本书，章节不再逐条审；之后新增或修改的章节会重新回到待审
-        bookClient.passAllChapters(record.getBookId());
+        // 审核看的是整本书，章节不再逐条审；之后新增或修改的章节会重新回到待审。
+        // 改状态和整本放行由书籍服务一笔事务完成，避免只成功一半
+        bookClient.approveBook(record.getBookId());
     }
 
     @Override
@@ -88,11 +100,12 @@ public class BookAuditServiceImpl implements BookAuditService {
         }
 
         requireChapter(bookId, "至少发布一章后才能提交审核");
-        // 先改状态再插记录：状态没改成说明别人已经提交过，此时不该再插一条待审记录
+        // 先落本地记录再改远程状态：反过来的话，本地插入失败会留下「书卡在待审、
+        // 管理端却查不到记录」的状态。现在任一步失败整笔事务回滚，两边都回到提交前
+        insertPendingRecord(bookId, authorId);
         if (bookClient.markPending(bookId) == 0) {
             throw new BusinessException("作品已在审核中，请等待结果");
         }
-        insertPendingRecord(bookId, authorId);
     }
 
     @Override
@@ -217,7 +230,10 @@ public class BookAuditServiceImpl implements BookAuditService {
         update.setRemark(remark);
         update.setAuditAdminId(adminId);
         update.setAuditTime(LocalDateTime.now());
-        bookAuditRecordMapper.updateAudit(update);
+        // 条件更新：两个管理员同时点，后到的那次影响 0 行
+        if (bookAuditRecordMapper.updateAuditIfPending(update) == 0) {
+            throw new BusinessException("这条审核已经处理过了");
+        }
     }
 
     /** 作品状态的唯一写入口。remark 传 null 即清空，通过时同时清除上次的驳回意见 */

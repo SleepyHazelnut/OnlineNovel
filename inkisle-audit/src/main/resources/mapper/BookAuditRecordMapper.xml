@@ -27,14 +27,36 @@
         VALUES (#{bookId}, #{authorId}, #{status}, #{remark}, #{submitTime})
     </insert>
 
-    <update id="updateAudit" parameterType="com.inkisle.entity.BookAuditRecord">
+    <!--
+      只有待审（status = 0）的记录能被改写。
+      原来是先查后写：两个管理员同时点通过，各自读到待审，两条 UPDATE 都成功，
+      审核人和审核时间互相覆盖，书籍状态也被推了两次。带上条件后后到的那次影响 0 行，
+      Service 据此判断「已经被人审过了」
+    -->
+    <update id="updateAuditIfPending" parameterType="com.inkisle.entity.BookAuditRecord">
         UPDATE book_audit_record
         SET status = #{status},
             remark = #{remark},
             audit_admin_id = #{auditAdminId},
             audit_time = #{auditTime}
         WHERE id = #{id}
+          AND status = 0
     </update>
+
+    <!-- 后台列表分页：审核记录只增不删，全量返回迟早会拖到秒级 -->
+    <select id="selectPageByStatus" resultType="com.inkisle.entity.BookAuditRecord">
+        SELECT r.id, r.book_id, r.author_id, r.status, r.remark, r.audit_admin_id,
+               r.submit_time, r.audit_time, b.book_name AS book_name
+        FROM book_audit_record r
+        LEFT JOIN book_info b ON b.id = r.book_id
+        WHERE r.status = #{status}
+        ORDER BY r.submit_time DESC, r.id DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="countByStatus" resultType="int">
+        SELECT COUNT(*) FROM book_audit_record WHERE status = #{status}
+    </select>
 
     <!-- status = 0 表示「待审核」，为表中约定值 -->
     <select id="countPending" resultType="int">

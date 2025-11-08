@@ -12,6 +12,9 @@ public interface BookAuditService {
 
     List<BookAuditRecord> listByStatus(Integer status);
 
+    /** 后台列表分页。审核记录只增不删，一两年后全量返回会拖到秒级 */
+    Map<String, Object> pageByStatus(Integer status, Integer pageNum, Integer pageSize);
+
     void pass(Long id, Long adminId);
 
     /** 驳回必须带原因，同时写到作品上，作者列表不必回查记录表 */

@@ -40,6 +40,13 @@ public interface BookClient {
     @PostMapping("/internal/book/{id}/audit-status")
     void updateBookStatus(@PathVariable("id") Long id, @RequestBody AuditStatusDTO dto);
 
+    /**
+     * 审核通过：改作品状态 + 整本章节放行，在一次调用、一笔事务里完成。
+     * 拆成两次调用的话，第二步失败会留下「书已上架但章节全不可见」的状态
+     */
+    @PostMapping("/internal/book/{id}/approve")
+    void approveBook(@PathVariable("id") Long id);
+
     @GetMapping("/internal/book/{id}/chapters")
     List<BookChapter> listChapters(@PathVariable("id") Long id);
 

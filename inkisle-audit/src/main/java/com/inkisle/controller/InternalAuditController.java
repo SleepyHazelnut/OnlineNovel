@@ -1,5 +1,6 @@
 package com.inkisle.controller;
 
+import com.inkisle.common.InternalControllerSupport;
 import com.inkisle.entity.BookAuditRecord;
 import com.inkisle.service.BookAuditService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/internal/audit")
-public class InternalAuditController {
+public class InternalAuditController extends InternalControllerSupport {
 
     @Autowired
     private BookAuditService bookAuditService;
