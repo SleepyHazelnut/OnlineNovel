@@ -15,4 +15,9 @@ public final class RedisKeys {
         return "user:status:" + role + ":" + id;
     }
 
+    /** 身份版本号：token 里的版本与它不一致即视为已失效，登出/改密/封禁时自增 */
+    public static String tokenVersion(String role, Long id) {
+        return "auth:ver:" + role + ":" + id;
+    }
+
 }

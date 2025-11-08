@@ -30,15 +30,22 @@ public class JwtUtil {
 
     /**
      * 签发 token。subject 存放用户主键，username 与 role 写入 claim，
-     * 拦截器不用再查库就知道是谁、什么角色
+     * 拦截器不用再查库就知道是谁、什么角色。
+     * ver 是这个账号当前的身份版本号，改密、登出、封禁之后自增，
+     * 旧 token 的 ver 对不上就失效了
      */
     public String generate(Long userId, String username, String role) {
+        return generate(userId, username, role, "0");
+    }
+
+    public String generate(Long userId, String username, String role, String version) {
         Date now = new Date();
         Date expire = new Date(now.getTime() + expireHours * 60 * 60 * 1000);
         return Jwts.builder()
                 .subject(String.valueOf(userId))
                 .claim("username", username)
                 .claim("role", role)
+                .claim("ver", version == null ? "0" : version)
                 .issuedAt(now)
                 .expiration(expire)
                 .signWith(key())

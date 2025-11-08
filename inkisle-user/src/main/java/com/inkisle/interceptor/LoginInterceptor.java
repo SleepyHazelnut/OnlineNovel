@@ -2,6 +2,9 @@ package com.inkisle.interceptor;
 
 import com.inkisle.common.ResultCode;
 import com.inkisle.common.RoleConstant;
+import com.inkisle.common.TokenVersionStore;
+import com.inkisle.common.UserStatusCache;
+import com.inkisle.service.support.AccountStatusResolver;
 import com.inkisle.util.JwtUtil;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.http.HttpServletRequest;
@@ -13,9 +16,12 @@ import org.springframework.web.servlet.HandlerInterceptor;
 import java.io.IOException;
 
 /**
- * 校验 token 和角色
- * 封禁状态没查库：登录那步已经拦了，签发出去的 token 最多再用 24 小时，
- * 每个请求都去查一次状态没必要
+ * 校验 token、角色、身份版本，还有账号封没封
+ *
+ * 早先这里只校验签名和角色，理由是「登录那步已经拦了」，
+ * 结果封禁只在书籍服务生效：被封的读者照样能签到、改资料、改密码，
+ * 被删掉的管理员还能在 token 到期前接着封别人、过审作者。
+ * 现在和书籍服务用同一份缓存判断，封禁时用户服务删 key，下一个请求就生效。
  */
 @Component
 public class LoginInterceptor implements HandlerInterceptor {
@@ -24,6 +30,15 @@ public class LoginInterceptor implements HandlerInterceptor {
 
     @Autowired
     private JwtUtil jwtUtil;
+
+    @Autowired
+    private UserStatusCache userStatusCache;
+
+    @Autowired
+    private TokenVersionStore tokenVersionStore;
+
+    @Autowired
+    private AccountStatusResolver accountStatusResolver;
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
@@ -46,7 +61,19 @@ public class LoginInterceptor implements HandlerInterceptor {
             return reject(response, ResultCode.FORBIDDEN.getCode(), ResultCode.FORBIDDEN.getMsg());
         }
 
-        request.setAttribute("userId", Long.valueOf(claims.getSubject()));
+        Long userId = Long.valueOf(claims.getSubject());
+        // 登出、改密之后签发的旧 token 一律不认，否则改完密码原会话还能用满 24 小时
+        if (!tokenVersionStore.matches(role, userId, claims.get("ver", String.class))) {
+            return reject(response, ResultCode.UNAUTHORIZED.getCode(), "登录状态已失效，请重新登录");
+        }
+
+        // 0 正常，1 封禁，null 是账号已注销。本服务回源直接查库，不再绕一圈 Feign
+        Integer status = userStatusCache.get(role, userId, () -> accountStatusResolver.resolve(role, userId));
+        if (status == null || status == 1) {
+            return reject(response, ResultCode.FORBIDDEN.getCode(), "账号已被封禁或不存在");
+        }
+
+        request.setAttribute("userId", userId);
         request.setAttribute("role", role);
         return true;
     }
