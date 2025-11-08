@@ -1,15 +1,13 @@
-package com.inkisle.cache;
+package com.inkisle.common;
 
-import com.inkisle.client.UserClient;
-import com.inkisle.common.RedisKeys;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
+import java.util.function.Supplier;
 
 /**
  * 账号封禁状态
@@ -19,7 +17,11 @@ import java.time.Duration;
  * 状态几乎不变，缓存 30 秒足够：封禁最迟半分钟生效，
  * 而正常请求省掉一次 RPC 和一次查库。
  *
- * 封禁动作在用户服务，它改完直接删这个 key，所以实际生效是即时的，30 秒只是兜底
+ * 封禁动作在用户服务，它改完直接删这个 key，所以实际生效是即时的，30 秒只是兜底。
+ *
+ * 放在 common 而不是某一个服务里，是因为两个服务都要用：
+ * 书籍服务回源走 Feign，用户服务回源查自己的库，回源方式由调用方用 loader 传进来，
+ * 这样缓存逻辑只有一份，也不会出现「用户服务调自己的 Feign」这种绕圈
  */
 @Slf4j
 @Component
@@ -30,22 +32,35 @@ public class UserStatusCache {
 
     private static final Duration TTL = Duration.ofSeconds(30);
 
-    @Autowired
-    private StringRedisTemplate stringRedisTemplate;
+    /**
+     * 用 ObjectProvider 而不是直接注入：审核、统计这类服务没有 Redis，
+     * 却和这里在同一个包里被扫描到，硬注入会让它们起不来
+     */
+    private final ObjectProvider<StringRedisTemplate> redisProvider;
 
-    // Feign 客户端和 MVC 配置互相依赖，延迟注入解开
-    @Autowired
-    @Lazy
-    private UserClient userClient;
+    /** 测试环境没有 Redis，关掉后每次回源 */
+    private final boolean cacheEnabled;
 
-    /** 测试环境没有 Redis，关掉后直接走 Feign */
-    @Value("${inkisle.user-status.cache-enabled:true}")
-    private boolean cacheEnabled;
+    public UserStatusCache(ObjectProvider<StringRedisTemplate> redisProvider,
+                           @Value("${inkisle.user-status.cache-enabled:true}") boolean cacheEnabled) {
+        this.redisProvider = redisProvider;
+        this.cacheEnabled = cacheEnabled;
+    }
 
-    /** @return 0 正常、1 封禁、null 账号不存在 */
-    public Integer get(String role, Long id) {
+    private StringRedisTemplate redis() {
+        return redisProvider.getIfAvailable();
+    }
+
+    private boolean usable() {
+        return cacheEnabled && redis() != null;
+    }
+
+    /**
+     * @param loader 缓存没命中时怎么查真实状态，返回 0 正常、1 封禁、null 账号不存在
+     */
+    public Integer get(String role, Long id, Supplier<Integer> loader) {
         String key = RedisKeys.userStatus(role, id);
-        if (cacheEnabled) {
+        if (usable()) {
             String cached = readCache(key);
             // 缓存里躺着的 null 表示「确认过没有这个账号」，不必再问一次
             if (ABSENT.equals(cached)) {
@@ -58,16 +73,28 @@ public class UserStatusCache {
             // 解析不出来说明是脏数据，往下走回源，别把正常账号当成不存在
         }
 
-        Integer status = userClient.status(role, id);
-        if (cacheEnabled) {
+        Integer status = loader.get();
+        if (usable()) {
             writeCache(key, status);
         }
         return status;
     }
 
+    /** 封禁、解封之后调用：删 key 让下一次请求立刻回源 */
+    public void evict(String role, Long id) {
+        if (!usable()) {
+            return;
+        }
+        try {
+            redis().delete(RedisKeys.userStatus(role, id));
+        } catch (Exception e) {
+            log.warn("账号状态缓存清理失败 role={} id={}", role, id, e);
+        }
+    }
+
     private String readCache(String key) {
         try {
-            return stringRedisTemplate.opsForValue().get(key);
+            return redis().opsForValue().get(key);
         } catch (Exception e) {
             // 缓存读不了就当作没命中，不能因此拦下正常用户
             return null;
@@ -85,7 +112,7 @@ public class UserStatusCache {
 
     private void writeCache(String key, Integer status) {
         try {
-            stringRedisTemplate.opsForValue()
+            redis().opsForValue()
                     .set(key, status == null ? ABSENT : String.valueOf(status), TTL);
         } catch (Exception e) {
             log.warn("账号状态写入缓存失败 key={}", key, e);

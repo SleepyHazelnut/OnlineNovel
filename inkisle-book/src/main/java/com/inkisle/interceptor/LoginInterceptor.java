@@ -1,8 +1,10 @@
 package com.inkisle.interceptor;
 
-import com.inkisle.cache.UserStatusCache;
+import com.inkisle.client.UserClient;
 import com.inkisle.common.ResultCode;
 import com.inkisle.common.RoleConstant;
+import com.inkisle.common.TokenVersionStore;
+import com.inkisle.common.UserStatusCache;
 import com.inkisle.util.JwtUtil;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.http.HttpServletRequest;
@@ -30,6 +32,12 @@ public class LoginInterceptor implements HandlerInterceptor {
     @Autowired
     private UserStatusCache userStatusCache;
 
+    @Autowired
+    private TokenVersionStore tokenVersionStore;
+
+    @Autowired
+    private UserClient userClient;
+
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
@@ -52,8 +60,12 @@ public class LoginInterceptor implements HandlerInterceptor {
         }
 
         Long userId = Long.valueOf(claims.getSubject());
-        // 0 正常，1 封禁，null 是账号已注销
-        Integer status = userStatusCache.get(role, userId);
+        // token 是登出/改密之前签的，服务端不认它，否则改完密码旧会话还能用满 24 小时
+        if (!tokenVersionStore.matches(role, userId, claims.get("ver", String.class))) {
+            return reject(response, ResultCode.UNAUTHORIZED.getCode(), "登录状态已失效，请重新登录");
+        }
+        // 0 正常，1 封禁，null 是账号已注销。账号表在用户服务，回源走 Feign
+        Integer status = userStatusCache.get(role, userId, () -> userClient.status(role, userId));
         if (status == null || status == 1) {
             return reject(response, ResultCode.FORBIDDEN.getCode(), "账号已被封禁或不存在");
         }
