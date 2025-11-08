@@ -2,7 +2,9 @@ package com.inkisle.controller;
 
 import com.inkisle.cache.CacheAside;
 import com.inkisle.cache.CacheNames;
+import com.inkisle.common.BookAuditStatus;
 import com.inkisle.common.BusinessException;
+import com.inkisle.common.InternalControllerSupport;
 import com.inkisle.dto.AuditStatusDTO;
 import com.inkisle.entity.BookChapter;
 import com.inkisle.entity.BookContent;
@@ -14,6 +16,7 @@ import com.inkisle.search.BookSearchIndexer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -33,7 +36,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/internal")
-public class InternalBookController {
+public class InternalBookController extends InternalControllerSupport {
 
     @Autowired
     private BookInfoMapper bookInfoMapper;
@@ -80,6 +83,22 @@ public class InternalBookController {
         return rows;
     }
 
+    /**
+     * 审核通过：改状态和整本放行放在一笔事务里
+     *
+     * 审核服务原来是先改状态、再单独调一次「整本放行」，两次远程写，第二次失败就留下
+     * 书已上架但章节全部不可见的中间态。合并成一次调用后，要么都成，要么都没发生
+     */
+    @PostMapping("/book/{id}/approve")
+    @Transactional(rollbackFor = Exception.class)
+    public void approve(@PathVariable Long id) {
+        bookInfoMapper.updateAuditStatus(id, BookAuditStatus.PASSED.getCode(), null, LocalDateTime.now());
+        bookChapterMapper.passAllByBookId(id);
+        evictBookCache(id);
+        cacheAside.evict(CacheNames.CHAPTER_CATALOG, CacheNames.catalogKey(id));
+        bookSearchIndexer.sync(id);
+    }
+
     /** 通过、驳回、下架、恢复上架都走这里，remark 传 null 表示清空 */
     @PostMapping("/book/{id}/audit-status")
     public void updateBookStatus(@PathVariable Long id, @RequestBody AuditStatusDTO dto) {
@@ -101,6 +120,8 @@ public class InternalBookController {
         bookChapterMapper.passAllByBookId(id);
         // 一次放行整本，读者目录会多出全部章节，缓存里的那份立刻过期
         cacheAside.evict(CacheNames.CHAPTER_CATALOG, CacheNames.catalogKey(id));
+        // 详情里带着章节数这类统计，和 updateChapterStatus 的处理保持一致
+        evictBookCache(id);
     }
 
     @GetMapping("/chapter/{id}")

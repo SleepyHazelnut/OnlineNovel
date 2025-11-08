@@ -28,8 +28,10 @@ public class AdminAuditController {
     private BookAuditService bookAuditService;
 
     @GetMapping("/list")
-    public Result<List<BookAuditRecord>> list(@RequestParam(defaultValue = "0") Integer status) {
-        return Result.ok(bookAuditService.listByStatus(status));
+    public Result<Map<String, Object>> list(@RequestParam(defaultValue = "0") Integer status,
+                                            @RequestParam(defaultValue = "1") Integer pageNum,
+                                            @RequestParam(defaultValue = "20") Integer pageSize) {
+        return Result.ok(bookAuditService.pageByStatus(status, pageNum, pageSize));
     }
 
     @PostMapping("/pass")

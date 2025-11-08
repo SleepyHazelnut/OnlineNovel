@@ -1,12 +1,7 @@
 package com.inkisle.controller;
 
-import com.inkisle.common.RoleConstant;
-import com.inkisle.entity.AdminInfo;
-import com.inkisle.entity.AuthorInfo;
-import com.inkisle.entity.UserInfo;
-import com.inkisle.mapper.AdminInfoMapper;
-import com.inkisle.mapper.AuthorInfoMapper;
-import com.inkisle.mapper.UserInfoMapper;
+import com.inkisle.common.InternalControllerSupport;
+import com.inkisle.service.support.AccountStatusResolver;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -20,16 +15,10 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/internal/user")
-public class InternalUserController {
+public class InternalUserController extends InternalControllerSupport {
 
     @Autowired
-    private UserInfoMapper userInfoMapper;
-
-    @Autowired
-    private AuthorInfoMapper authorInfoMapper;
-
-    @Autowired
-    private AdminInfoMapper adminInfoMapper;
+    private AccountStatusResolver accountStatusResolver;
 
     /**
      * 0 正常，1 封禁，账号不存在返回 null
@@ -37,20 +26,7 @@ public class InternalUserController {
      */
     @GetMapping("/status")
     public Integer status(@RequestParam String role, @RequestParam Long id) {
-        if (RoleConstant.USER.equals(role)) {
-            UserInfo user = userInfoMapper.selectById(id);
-            return user == null ? null : user.getStatus();
-        }
-        if (RoleConstant.AUTHOR.equals(role)) {
-            AuthorInfo author = authorInfoMapper.selectById(id);
-            return author == null ? null : author.getStatus();
-        }
-        if (RoleConstant.ADMIN.equals(role)) {
-            // 管理员没有状态列，停用就是删记录，在即视为正常
-            AdminInfo admin = adminInfoMapper.selectById(id);
-            return admin == null ? null : 0;
-        }
-        return null;
+        return accountStatusResolver.resolve(role, id);
     }
 
 }

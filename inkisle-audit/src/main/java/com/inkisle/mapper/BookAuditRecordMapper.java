@@ -20,9 +20,17 @@ public interface BookAuditRecordMapper {
     int insert(BookAuditRecord record);
 
     /**
-     * 仅更新审核结果相关字段，提交人与提交时间保持不变
+     * 仅更新审核结果相关字段，提交人与提交时间保持不变。
+     * 带 status = 0 前置条件，返回 0 表示这条已被别人审过
      */
-    int updateAudit(BookAuditRecord record);
+    int updateAuditIfPending(BookAuditRecord record);
+
+    /** 后台列表分页 */
+    List<BookAuditRecord> selectPageByStatus(@Param("status") Integer status,
+                                             @Param("offset") int offset,
+                                             @Param("limit") int limit);
+
+    int countByStatus(@Param("status") Integer status);
 
     /**
      * 统计该书是否存在待审核记录，用于阻止作者重复提交
