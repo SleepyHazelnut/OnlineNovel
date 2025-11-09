@@ -22,4 +22,13 @@
         WHERE id = #{id}
     </update>
 
+    <!-- 存量密码升级专用，条件里带上旧哈希，影响 0 行就放弃升级 -->
+    <update id="updatePasswordIfMatch">
+        UPDATE admin_info
+        SET password = #{password},
+            update_time = #{updateTime}
+        WHERE id = #{id}
+          AND password = #{oldPassword}
+    </update>
+
 </mapper>

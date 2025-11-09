@@ -26,4 +26,7 @@ public interface UserService {
     /** 要校验原密码，改完清登录态 */
     void changePassword(Long userId, PasswordDTO passwordDTO);
 
+    /** 登出：把身份版本号加一，该账号所有已签发的 token 一起失效 */
+    void logout(Long userId);
+
 }

@@ -3,6 +3,7 @@ package com.inkisle.service.impl;
 import com.inkisle.common.BusinessException;
 import com.inkisle.common.Result;
 import com.inkisle.common.RoleConstant;
+import com.inkisle.common.TokenVersionStore;
 import com.inkisle.dto.AuthorRegisterDTO;
 import com.inkisle.entity.AuthorInfo;
 import com.inkisle.mapper.AuthorInfoMapper;
@@ -31,6 +32,9 @@ public class AuthorServiceImpl implements AuthorService {
 
     @Autowired
     private JwtUtil jwtUtil;
+
+    @Autowired
+    private TokenVersionStore tokenVersionStore;
 
     @Override
     public Result<Void> register(AuthorRegisterDTO registerDTO) {
@@ -66,7 +70,8 @@ public class AuthorServiceImpl implements AuthorService {
 
         upgradeLegacyPassword(author, password);
 
-        String token = jwtUtil.generate(author.getId(), author.getUsername(), RoleConstant.AUTHOR);
+        String token = jwtUtil.generate(author.getId(), author.getUsername(), RoleConstant.AUTHOR,
+                tokenVersionStore.current(RoleConstant.AUTHOR, author.getId()));
 
         author.setPassword(null);
         Map<String, Object> data = new HashMap<>();
@@ -86,7 +91,9 @@ public class AuthorServiceImpl implements AuthorService {
             return;
         }
         try {
-            authorInfoMapper.updatePassword(author.getId(), PasswordUtil.encode(rawPassword), LocalDateTime.now());
+            // 条件更新：本人可能正在别的设备上改密码，无条件覆盖会把新密码改回去
+            authorInfoMapper.updatePasswordIfMatch(author.getId(), PasswordUtil.encode(rawPassword),
+                    author.getPassword(), LocalDateTime.now());
         } catch (Exception e) {
             log.warn("密码格式升级失败，下次登录再试 authorId={}", author.getId(), e);
         }

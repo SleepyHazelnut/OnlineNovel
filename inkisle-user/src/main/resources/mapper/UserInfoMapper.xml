@@ -82,4 +82,16 @@
         WHERE id = #{id}
     </update>
 
+    <!--
+      存量密码升级专用：条件里带上旧哈希，影响 0 行说明这条记录已经被改过，
+      直接放弃升级即可，不能覆盖用户刚设置的新密码
+    -->
+    <update id="updatePasswordIfMatch">
+        UPDATE user_info
+        SET password = #{password},
+            update_time = #{updateTime}
+        WHERE id = #{id}
+          AND password = #{oldPassword}
+    </update>
+
 </mapper>
