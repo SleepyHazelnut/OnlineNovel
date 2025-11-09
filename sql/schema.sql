@@ -16,7 +16,7 @@ CREATE TABLE `user_info` (
   `email` varchar(100) DEFAULT NULL COMMENT '邮箱',
   `avatar` varchar(255) DEFAULT NULL COMMENT '头像地址',
   `status` tinyint DEFAULT '0' COMMENT '状态 0正常 1封禁',
-  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `update_time` datetime DEFAULT NULL COMMENT '更新时间',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_username` (`username`)
@@ -38,7 +38,7 @@ CREATE TABLE `author_info` (
   `audit_status` tinyint DEFAULT '0' COMMENT '资质审核 0待审 1通过 2驳回',
   `audit_remark` varchar(255) DEFAULT NULL COMMENT '资质审核意见',
   `status` tinyint DEFAULT '0' COMMENT '状态 0正常 1禁用',
-  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `update_time` datetime DEFAULT NULL COMMENT '更新时间',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_username` (`username`)
@@ -54,7 +54,7 @@ CREATE TABLE `admin_info` (
   `username` varchar(50) NOT NULL COMMENT '管理员账号',
   `password` varchar(64) NOT NULL COMMENT '密码(MD5)',
   `real_name` varchar(50) DEFAULT NULL COMMENT '姓名',
-  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `update_time` datetime DEFAULT NULL COMMENT '更新时间',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_username` (`username`)
@@ -76,7 +76,8 @@ CREATE TABLE `book_audit_record` (
   `audit_time` datetime DEFAULT NULL COMMENT '审核时间',
   PRIMARY KEY (`id`),
   KEY `idx_book_id` (`book_id`),
-  KEY `idx_status` (`status`)
+  -- 后台按状态筛选并按下发时间倒序，单列 status 还要额外 filesort
+  KEY `idx_status_submit_time` (`status`, `submit_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='书籍审核记录表';
 
 -- ----------------------------
@@ -99,7 +100,7 @@ CREATE TABLE `book_info` (
   `comment_count` int NOT NULL DEFAULT '0' COMMENT '评论数，只统计审核通过的评论',
   `score` decimal(3,1) NOT NULL DEFAULT '0.0' COMMENT '平均评分 0-5，无人评分时为 0',
   `rating_count` int NOT NULL DEFAULT '0' COMMENT '评分人数',
-  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `update_time` datetime DEFAULT NULL COMMENT '更新时间',
   PRIMARY KEY (`id`),
   KEY `idx_author_id` (`author_id`),
@@ -137,7 +138,7 @@ CREATE TABLE `book_chapter` (
   `word_count` int NOT NULL DEFAULT '0' COMMENT '本章字数',
   `audit_status` tinyint NOT NULL DEFAULT '0' COMMENT '审核状态 0待审 1通过 2驳回',
   `reject_reason` varchar(200) DEFAULT NULL COMMENT '驳回原因',
-  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_book_id_chapter_num` (`book_id`, `chapter_num`),
   KEY `idx_audit_status` (`audit_status`)
@@ -168,7 +169,11 @@ CREATE TABLE `user_read_history` (
   `chapter_num` int DEFAULT NULL COMMENT '章节序号',
   `update_time` datetime DEFAULT NULL COMMENT '最近阅读时间',
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_user_book` (`user_id`, `book_id`)
+  UNIQUE KEY `uk_user_book` (`user_id`, `book_id`),
+  -- 作者数据页按 book_id 统计阅读人数，删章节时按 chapter_id 清进度，
+  -- 这两列都不在唯一键的最左边，没有索引就是全表扫
+  KEY `idx_book_id` (`book_id`),
+  KEY `idx_chapter_id` (`chapter_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='阅读记录表';
 
 -- ----------------------------
@@ -183,10 +188,15 @@ CREATE TABLE `book_comment` (
   `parent_id` bigint DEFAULT '0' COMMENT '父评论ID，0 表示一级评论',
   `audit_status` tinyint NOT NULL DEFAULT '0' COMMENT '审核状态 0待审 1通过 2驳回',
   `reject_reason` varchar(200) DEFAULT NULL COMMENT '驳回原因',
-  `create_time` datetime DEFAULT NULL COMMENT '创建时间',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   PRIMARY KEY (`id`),
   KEY `idx_book_id` (`book_id`),
-  KEY `idx_audit_status` (`audit_status`)
+  KEY `idx_audit_status` (`audit_status`),
+  -- 删一级评论要按 parent_id 连带删回复，「我的评论」按 user_id 查
+  KEY `idx_parent_id` (`parent_id`),
+  KEY `idx_user_id` (`user_id`),
+  -- 读者端取「最新一页一级评论」：先按 book_id + parent_id 定位，再按时间倒序
+  KEY `idx_book_parent_time` (`book_id`, `parent_id`, `create_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='书籍评论表';
 
 -- ----------------------------
@@ -233,7 +243,9 @@ CREATE TABLE `user_bookshelf` (
   `book_id` bigint NOT NULL COMMENT '书籍ID',
   `create_time` datetime DEFAULT NULL COMMENT '收藏时间',
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_user_book` (`user_id`, `book_id`)
+  UNIQUE KEY `uk_user_book` (`user_id`, `book_id`),
+  -- 删书时按 book_id 清收藏，唯一键最左列是 user_id，用不上
+  KEY `idx_book_id` (`book_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='书架收藏表';
 
 -- ----------------------------
