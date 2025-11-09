@@ -5,13 +5,17 @@
     <!--
       四个 COUNT 合并在一条 SQL 中，各自一个子查询。
       别名（userTotal 等）即返回 Map 的 key，Java 中按此取值。
+
+      口径要和业务页对齐：book_info.comment_count 只统计审核通过的评论，
+      这里原来是整表 COUNT，连带待审和驳回的一起算，看板 1200 / 作品页 800，
+      运营会当成 bug 提。书也只看已上架的，用户只看未被封禁的
     -->
     <select id="selectTotal" resultType="java.util.Map">
         SELECT
-            (SELECT COUNT(*) FROM user_info) AS userTotal,
+            (SELECT COUNT(*) FROM user_info WHERE status = 0) AS userTotal,
             (SELECT COUNT(*) FROM author_info) AS authorTotal,
-            (SELECT COUNT(*) FROM book_info) AS bookTotal,
-            (SELECT COUNT(*) FROM book_comment) AS commentTotal
+            (SELECT COUNT(*) FROM book_info WHERE audit_status = 2) AS bookTotal,
+            (SELECT COUNT(*) FROM book_comment WHERE audit_status = 1) AS commentTotal
     </select>
 
     <!--
