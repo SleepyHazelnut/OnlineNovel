@@ -38,4 +38,10 @@ public interface AuthorInfoMapper {
                        @Param("password") String password,
                        @Param("updateTime") java.time.LocalDateTime updateTime);
 
+    /** 存量密码升级：只有库里仍是这条旧哈希时才替换，避免覆盖并发改密的结果 */
+    int updatePasswordIfMatch(@Param("id") Long id,
+                              @Param("password") String password,
+                              @Param("oldPassword") String oldPassword,
+                              @Param("updateTime") java.time.LocalDateTime updateTime);
+
 }

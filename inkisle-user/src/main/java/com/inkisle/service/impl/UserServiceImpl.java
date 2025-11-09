@@ -2,9 +2,10 @@ package com.inkisle.service.impl;
 
 import com.inkisle.common.BusinessException;
 import com.inkisle.common.PageUtils;
-import com.inkisle.common.RedisKeys;
 import com.inkisle.common.Result;
 import com.inkisle.common.RoleConstant;
+import com.inkisle.common.TokenVersionStore;
+import com.inkisle.common.UserStatusCache;
 import com.inkisle.dto.PasswordDTO;
 import com.inkisle.dto.UserProfileDTO;
 import com.inkisle.dto.UserRegisterDTO;
@@ -15,20 +16,27 @@ import com.inkisle.util.JwtUtil;
 import com.inkisle.util.PasswordUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
 /**
  * 读者账号
- * 注册时密码存 BCrypt，用户名要查重，登录成功签发一个 USER 角色的 JWT
+ * 注册时密码存 BCrypt，用户名靠唯一索引保证不重，登录成功签发一个 USER 角色的 JWT
  */
 @Slf4j
 @Service
 public class UserServiceImpl implements UserService {
+
+    /** 改密时原密码允许错几次、锁多久 */
+    private static final int MAX_PASSWORD_FAILS = 5;
+
+    private static final Duration PASSWORD_FAIL_TTL = Duration.ofMinutes(15);
 
     @Autowired
     private UserInfoMapper userInfoMapper;
@@ -39,25 +47,37 @@ public class UserServiceImpl implements UserService {
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
 
+    @Autowired
+    private TokenVersionStore tokenVersionStore;
+
+    @Autowired
+    private UserStatusCache userStatusCache;
+
     @Override
     public UserInfo getById(Long id) {
         return userInfoMapper.selectById(id);
     }
 
+    /**
+     * 用户名唯一由 uk_username 保证
+     *
+     * 原来先 count 再 insert，两次请求之间没有任何保护：两个同名注册同时进来，
+     * 都能查到 0 条，然后第二条 insert 抛 DuplicateKeyException，
+     * 落到全局兜底变成「操作失败」，用户根本不知道是重名
+     */
     @Override
     public Result<Void> register(UserRegisterDTO registerDTO) {
-        // 用户名需唯一，插入前先查询是否已存在
-        if (userInfoMapper.countByUsername(registerDTO.getUsername()) > 0) {
-            throw new BusinessException("用户名已存在");
-        }
-
         UserInfo user = new UserInfo();
         user.setUsername(registerDTO.getUsername());
         user.setPassword(PasswordUtil.encode(registerDTO.getPassword()));
         user.setNickName(registerDTO.getUsername());
         user.setStatus(0);
         user.setCreateTime(LocalDateTime.now());
-        userInfoMapper.insert(user);
+        try {
+            userInfoMapper.insert(user);
+        } catch (DuplicateKeyException e) {
+            throw new BusinessException("用户名已存在");
+        }
 
         return Result.ok();
     }
@@ -75,7 +95,9 @@ public class UserServiceImpl implements UserService {
 
         upgradeLegacyPassword(user, password);
 
-        String token = jwtUtil.generate(user.getId(), user.getUsername(), RoleConstant.USER);
+        // 带上当前的身份版本号：以后改密、登出、封禁都靠它让这个 token 提前作废
+        String token = jwtUtil.generate(user.getId(), user.getUsername(), RoleConstant.USER,
+                tokenVersionStore.current(RoleConstant.USER, user.getId()));
 
         // 返回前清空密码字段，避免随响应体返回
         user.setPassword(null);
@@ -89,13 +111,20 @@ public class UserServiceImpl implements UserService {
      * 老记录是无盐 MD5，校验通过了就顺手换成 BCrypt
      * 这里已经确认是本人，改密码不会影响他；失败了也只影响这条记录下次再升级，
      * 不该把登录一起弄挂
+     *
+     * 更新带上旧哈希做条件：本人可能正在另一台设备上改密码，
+     * 无条件覆盖会把刚设好的新密码改回旧的，而用户以为改成功了
      */
     private void upgradeLegacyPassword(UserInfo user, String rawPassword) {
         if (!PasswordUtil.isLegacy(user.getPassword())) {
             return;
         }
         try {
-            userInfoMapper.updatePassword(user.getId(), PasswordUtil.encode(rawPassword), LocalDateTime.now());
+            int rows = userInfoMapper.updatePasswordIfMatch(user.getId(),
+                    PasswordUtil.encode(rawPassword), user.getPassword(), LocalDateTime.now());
+            if (rows == 0) {
+                log.debug("密码已被其他端改过，放弃本次格式升级 userId={}", user.getId());
+            }
         } catch (Exception e) {
             log.warn("密码格式升级失败，下次登录再试 userId={}", user.getId(), e);
         }
@@ -126,16 +155,11 @@ public class UserServiceImpl implements UserService {
         update.setStatus(status);
         update.setUpdateTime(LocalDateTime.now());
         userInfoMapper.updateStatus(update);
-        // 书籍服务的拦截器缓存了这个状态，封禁要立刻生效就得把它删掉。
-        // 删不掉也无妨，那边 TTL 是 30 秒，最多晚半分钟
-        evictStatusCache(userId);
-    }
-
-    private void evictStatusCache(Long userId) {
-        try {
-            stringRedisTemplate.delete(RedisKeys.userStatus(RoleConstant.USER, userId));
-        } catch (Exception e) {
-            log.warn("封禁状态缓存清理失败，最迟 30 秒后自然过期 userId={}", userId, e);
+        // 状态缓存删掉，书籍服务和本服务的拦截器下一个请求就能看到封禁
+        userStatusCache.evict(RoleConstant.USER, userId);
+        if (status == 1) {
+            // 封禁要立刻生效，不能等他手上那个 token 自然过期：直接作废全部已签发的会话
+            tokenVersionStore.bump(RoleConstant.USER, userId);
         }
     }
 
@@ -162,19 +186,79 @@ public class UserServiceImpl implements UserService {
         return userInfoMapper.selectById(userId);
     }
 
+    /**
+     * 改密码
+     *
+     * 这个接口只认 token，不认人脸：token 一旦泄露（共享设备、XSS、localStorage 被读走），
+     * 拿着它无限次猜原密码就能把账号彻底接管，而且改完密码受害者还不掉线，很难察觉。
+     * 所以加两件事：错五次锁十五分钟，改完让所有旧会话失效
+     */
     @Override
     public void changePassword(Long userId, PasswordDTO passwordDTO) {
+        String failKey = passwordFailKey(userId);
+        int fails = currentPasswordFails(failKey);
+        if (fails >= MAX_PASSWORD_FAILS) {
+            throw new BusinessException("原密码错误次数过多，请 "
+                    + PASSWORD_FAIL_TTL.toMinutes() + " 分钟后再试");
+        }
+
         String stored = userInfoMapper.selectPasswordById(userId);
         if (stored == null) {
             throw new BusinessException("用户不存在");
         }
         if (!PasswordUtil.matches(passwordDTO.getOldPassword(), stored)) {
+            recordPasswordFail(failKey, fails);
             throw new BusinessException("原密码不对");
         }
         if (passwordDTO.getOldPassword().equals(passwordDTO.getNewPassword())) {
             throw new BusinessException("新密码不能与原密码相同");
         }
-        userInfoMapper.updatePassword(userId, PasswordUtil.encode(passwordDTO.getNewPassword()), LocalDateTime.now());
+        userInfoMapper.updatePassword(userId, PasswordUtil.encode(passwordDTO.getNewPassword()),
+                LocalDateTime.now());
+        clearPasswordFail(failKey);
+        // 改完密码，之前签出去的 token 全部作废，攻击者拿到的那份也就没用了
+        tokenVersionStore.bump(RoleConstant.USER, userId);
+        log.info("用户修改密码，已作废旧会话 userId={}", userId);
+    }
+
+    @Override
+    public void logout(Long userId) {
+        // 没有 jti 黑名单，登出就是把版本号加一，所有端一起下线
+        tokenVersionStore.bump(RoleConstant.USER, userId);
+    }
+
+    private String passwordFailKey(Long userId) {
+        return "pwd:fail:" + RoleConstant.USER + ":" + userId;
+    }
+
+    private int currentPasswordFails(String key) {
+        try {
+            String value = stringRedisTemplate.opsForValue().get(key);
+            return value == null ? 0 : Integer.parseInt(value);
+        } catch (Exception e) {
+            // 计数读不到就当没失败过：宁可少拦一次，不能把正常用户锁死
+            return 0;
+        }
+    }
+
+    private void recordPasswordFail(String key, int current) {
+        try {
+            stringRedisTemplate.opsForValue().increment(key);
+            // 第一次失败时挂上 TTL，之后每次错误不续期，锁定期从第一次失败开始算
+            if (current == 0) {
+                stringRedisTemplate.expire(key, PASSWORD_FAIL_TTL);
+            }
+        } catch (Exception e) {
+            log.warn("原密码错误计数写入失败 key={}", key, e);
+        }
+    }
+
+    private void clearPasswordFail(String key) {
+        try {
+            stringRedisTemplate.delete(key);
+        } catch (Exception e) {
+            log.warn("原密码错误计数清理失败 key={}", key, e);
+        }
     }
 
     private String blankToNull(String value) {

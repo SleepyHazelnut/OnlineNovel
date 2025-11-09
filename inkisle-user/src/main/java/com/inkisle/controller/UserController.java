@@ -55,6 +55,12 @@ public class UserController {
         return Result.ok(userService.updateProfile(userId, profileDTO));
     }
 
+    @PostMapping("/logout")
+    public Result<Void> logout(HttpServletRequest request) {
+        userService.logout(CurrentUser.id(request));
+        return Result.ok();
+    }
+
     @PutMapping("/password")
     public Result<Void> changePassword(@Valid @RequestBody PasswordDTO passwordDTO,
                                        HttpServletRequest request) {

@@ -3,6 +3,7 @@ package com.inkisle.service.impl;
 import com.inkisle.common.BusinessException;
 import com.inkisle.common.Result;
 import com.inkisle.common.RoleConstant;
+import com.inkisle.common.TokenVersionStore;
 import com.inkisle.entity.AdminInfo;
 import com.inkisle.mapper.AdminInfoMapper;
 import com.inkisle.service.AdminService;
@@ -30,6 +31,9 @@ public class AdminServiceImpl implements AdminService {
     @Autowired
     private JwtUtil jwtUtil;
 
+    @Autowired
+    private TokenVersionStore tokenVersionStore;
+
     @Override
     public Result<Map<String, Object>> login(String username, String password) {
         AdminInfo admin = adminInfoMapper.selectByUsername(username);
@@ -40,7 +44,8 @@ public class AdminServiceImpl implements AdminService {
 
         upgradeLegacyPassword(admin, password);
 
-        String token = jwtUtil.generate(admin.getId(), admin.getUsername(), RoleConstant.ADMIN);
+        String token = jwtUtil.generate(admin.getId(), admin.getUsername(), RoleConstant.ADMIN,
+                tokenVersionStore.current(RoleConstant.ADMIN, admin.getId()));
 
         // 返回前端前清空密码字段
         admin.setPassword(null);
@@ -61,7 +66,9 @@ public class AdminServiceImpl implements AdminService {
             return;
         }
         try {
-            adminInfoMapper.updatePassword(admin.getId(), PasswordUtil.encode(rawPassword), LocalDateTime.now());
+            // 条件更新：并发改密时不能把刚设好的新密码覆盖回旧值
+            adminInfoMapper.updatePasswordIfMatch(admin.getId(), PasswordUtil.encode(rawPassword),
+                    admin.getPassword(), LocalDateTime.now());
         } catch (Exception e) {
             log.warn("密码格式升级失败，下次登录再试 adminId={}", admin.getId(), e);
         }

@@ -48,4 +48,13 @@ public interface UserInfoMapper {
                        @Param("password") String password,
                        @Param("updateTime") LocalDateTime updateTime);
 
+    /**
+     * 只在库里还是这条旧哈希时才替换。存量密码升级用：
+     * 无条件 UPDATE 会和本人改密并发，把刚设好的新密码覆盖回旧的
+     */
+    int updatePasswordIfMatch(@Param("id") Long id,
+                              @Param("password") String password,
+                              @Param("oldPassword") String oldPassword,
+                              @Param("updateTime") java.time.LocalDateTime updateTime);
+
 }
