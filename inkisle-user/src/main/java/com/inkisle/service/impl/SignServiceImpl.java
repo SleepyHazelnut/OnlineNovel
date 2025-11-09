@@ -4,9 +4,11 @@ import com.inkisle.mapper.UserSignMapper;
 import com.inkisle.service.SignService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.connection.RedisStringCommands;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.data.redis.core.types.Expiration;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
@@ -32,8 +34,11 @@ public class SignServiceImpl implements SignService {
 
     private static final String KEY_PREFIX = "sign:";
 
-    /** 某个用户某年的位图已经跟库对过一次，避免每个新用户每次读都查一遍库 */
-    private static final String READY_PREFIX = "sign:ready:";
+    /**
+     * 库里确实没有签到记录时，往 Redis 写一个 0 字节占位。
+     * 它本身就是「查过了，这一年没有记录」的负缓存，key 在就不必再问库
+     */
+    private static final byte[] EMPTY_BITMAP = new byte[]{0};
 
     /** 跨年那几天还要读上一年的位图，所以多留一个多月 */
     private static final Duration EXPIRE = Duration.ofDays(400);
@@ -60,6 +65,11 @@ public class SignServiceImpl implements SignService {
     public boolean sign(Long userId) {
         LocalDate today = LocalDate.now();
         String key = buildKey(userId, today);
+
+        // 先把位图准备好再去置位。反过来的话，位图不在时 Lua 的 SETBIT 会新建一个
+        // 「只有今天一个 bit」的 key，之后 readBitmap 认为有数据、不再回库，
+        // 这一年的历史签到就永久读不出来了
+        readBitmap(userId, today.getYear());
 
         Long result = stringRedisTemplate.execute(SIGN_SCRIPT,
                 Collections.singletonList(key),
@@ -154,23 +164,27 @@ public class SignServiceImpl implements SignService {
 
     /**
      * Redis 里没有这张位图：可能是新用户，也可能是缓存被清过或换了实例。
-     * 两种都只能问库 —— 但新用户会一直问，所以对过一次就打个标记，一年内不再查
+     * 两种都只能问库。
+     *
+     * 库里没有记录时不能只是「什么都不写」：那样每次读都要再问一次库，
+     * 而新用户恰恰是最常打开签到页的那批人。写一个 0 字节占位当负缓存，
+     * key 存在就说明「对过了，这一年没有记录」，读的时候走 readBitmap 的提前返回
      */
     private byte[] rebuildFromDb(Long userId, int year) {
-        String readyKey = READY_PREFIX + userId + ":" + year;
-        if (Boolean.TRUE.equals(stringRedisTemplate.hasKey(readyKey))) {
-            return new byte[0];
-        }
+        String key = KEY_PREFIX + userId + ":" + year;
+        byte[] keyBytes = key.getBytes(StandardCharsets.UTF_8);
 
         List<LocalDate> dates = userSignMapper.selectDates(userId,
                 LocalDate.of(year, 1, 1), LocalDate.of(year, 12, 31));
         if (dates.isEmpty()) {
-            stringRedisTemplate.opsForValue().set(readyKey, "1", EXPIRE);
-            return new byte[0];
+            stringRedisTemplate.execute((RedisCallback<Object>) connection -> {
+                connection.stringCommands().set(keyBytes, EMPTY_BITMAP,
+                        Expiration.seconds(EXPIRE.toSeconds()), RedisStringCommands.SetOption.upsert());
+                return null;
+            });
+            return EMPTY_BITMAP;
         }
 
-        String key = KEY_PREFIX + userId + ":" + year;
-        byte[] keyBytes = key.getBytes(StandardCharsets.UTF_8);
         // 一天一次 SETBIT 要跑几百个往返，攒成一批发出去
         stringRedisTemplate.executePipelined((RedisCallback<Object>) connection -> {
             for (LocalDate date : dates) {
@@ -179,7 +193,6 @@ public class SignServiceImpl implements SignService {
             return null;
         });
         stringRedisTemplate.expire(key, EXPIRE);
-        stringRedisTemplate.opsForValue().set(readyKey, "1", EXPIRE);
         log.info("签到位图已从库里重建 userId={} year={} 共 {} 天", userId, year, dates.size());
         return readRaw(key);
     }
