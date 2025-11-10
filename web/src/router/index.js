@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { auth, setRole, roleOf } from '@/api/client'
+import { session } from '@/stores/session'
 import { useToast } from '@/composables/useToast'
 
 const routes = [
@@ -40,10 +40,13 @@ const routes = [
   }
 ]
 
+/* 网关构建的 base 是 /app/，必须传给 history，否则 /app/ 下的路径全部会被兜底成 404 */
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes,
   scrollBehavior(to, from, saved) {
+    /* 列表页自己缓存了数据和滚动位置：路由恢复时组件还没长到原高度，位置会被裁掉 */
+    if (['home', 'library', 'rank'].includes(to.name)) return false
     if (saved) return saved
     if (to.name === from.name) {
       /* 阅读页翻章由页面自己控制滚动，其余同页跳转只在换页或换筛选条件时回顶 */
@@ -56,10 +59,9 @@ const router = createRouter({
 })
 
 router.beforeEach((to) => {
-  setRole(roleOf(to.path))
   document.title = to.meta.title ? `${to.meta.title} · 墨屿小说` : '墨屿小说'
 
-  if (to.meta.auth && !auth.token()) {
+  if (to.meta.auth && !session.token) {
     useToast().error('请先登录')
     return { name: 'login', query: { redirect: to.fullPath } }
   }

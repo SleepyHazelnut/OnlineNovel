@@ -12,7 +12,8 @@ export const bookApi = {
 
 export const chapterApi = {
   list: (bookId) => get(`/chapter/list/${bookId}`),
-  read: (id) => get(`/chapter/${id}`)
+  /* 透传 signal，翻章时把上一章的请求 abort 掉，慢响应不会盖住新章节 */
+  read: (id, options) => get(`/chapter/${id}`, null, options)
 }
 
 export const categoryApi = {
@@ -23,7 +24,7 @@ export const commentApi = {
   list: (bookId) => get('/comment/list', { bookId }),
   add: (payload) => post('/comment/add', payload),
   remove: (id) => del(`/comment/${id}`),
-  mine: () => get('/comment/mine')
+  mine: ({ pageNum = 1, pageSize = 10 } = {}) => get('/comment/mine', { pageNum, pageSize })
 }
 
 export const ratingApi = {
