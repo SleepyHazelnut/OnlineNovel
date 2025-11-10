@@ -10,6 +10,7 @@ public enum ResultCode {
     UNAUTHORIZED(401, "请先登录"),
     FORBIDDEN(403, "没有访问权限"),
     NOT_FOUND(404, "资源不存在"),
+    CONFLICT(409, "记录已存在"),
     FAIL(500, "操作失败");
 
     private final Integer code;
