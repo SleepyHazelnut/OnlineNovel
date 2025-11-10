@@ -1,12 +1,16 @@
 <script setup>
-import { computed, onMounted, reactive } from 'vue'
+import { computed, nextTick, onMounted, reactive } from 'vue'
+import { onBeforeRouteLeave } from 'vue-router'
 import { homeApi, rankApi } from '@/api'
 import { fmtCount, scoreText, bookStatusText } from '@/utils/format'
 import { useCategories } from '@/composables/useCategories'
+import { readList, writeList, rememberScroll } from '@/utils/listCache'
 import BookGrid from '@/components/BookGrid.vue'
 import BookCover from '@/components/BookCover.vue'
 
 const { state: categoryState, nameOf, ensure: ensureCategories } = useCategories()
+
+const CACHE_KEY = 'home'
 
 const state = reactive({
   loading: true,
@@ -45,6 +49,14 @@ async function load() {
     state.categories = categoryState.list
     state.rank = (rank || []).slice(0, 8)
     state.update = update || []
+    writeList(CACHE_KEY, {
+      hot: state.hot,
+      quality: state.quality,
+      newest: state.newest,
+      update: state.update,
+      categories: state.categories,
+      rank: state.rank
+    })
   } catch (err) {
     state.error = err.message || '加载失败'
   } finally {
@@ -52,7 +64,24 @@ async function load() {
   }
 }
 
-onMounted(load)
+onMounted(() => {
+  ensureCategories()
+  const cached = readList(CACHE_KEY)
+  if (cached) {
+    /* 数据直接铺回来，组件一挂载就有完整高度，滚动位置才落得准 */
+    Object.assign(state, cached.data)
+    state.loading = false
+    nextTick(() => window.scrollTo({ top: cached.scrollY || 0, behavior: 'auto' }))
+    return
+  }
+  /* 路由层对这页关了自动回顶，首次进入得自己落位 */
+  window.scrollTo({ top: 0, behavior: 'auto' })
+  load()
+})
+
+onBeforeRouteLeave(() => {
+  rememberScroll(CACHE_KEY)
+})
 </script>
 
 <template>
@@ -73,12 +102,16 @@ onMounted(load)
     <section class="banner container">
       <div v-if="featured" class="spot">
         <RouterLink :to="`/books/${featuredId}`" class="spot__cover">
-          <BookCover :book="featured" :category="featuredCat" size="lg" />
+          <BookCover :book="featured" :category="featuredCat" size="lg" priority />
         </RouterLink>
         <div class="spot__info">
           <div class="spot__tags">
             <span v-if="featuredCat" class="chip chip--soft">{{ featuredCat }}</span>
-            <span class="chip" :class="{ 'chip--done': Number(featured.status) === 1 }">
+            <span
+              v-if="featured.status !== undefined && featured.status !== null"
+              class="chip"
+              :class="{ 'chip--done': Number(featured.status) === 1 }"
+            >
               {{ bookStatusText(featured.status) }}
             </span>
             <span class="spot__label">编辑推荐</span>
@@ -120,7 +153,7 @@ onMounted(load)
             <RouterLink :to="`/books/${item.id ?? item.bookId}`">
               <em :class="{ 'is-top': i < 3 }">{{ i + 1 }}</em>
               <span class="bname">{{ item.bookName }}</span>
-              <span class="bcat">{{ nameOf(item.categoryId) }}</span>
+              <span v-if="nameOf(item.categoryId)" class="bcat">{{ nameOf(item.categoryId) }}</span>
             </RouterLink>
           </li>
         </ol>

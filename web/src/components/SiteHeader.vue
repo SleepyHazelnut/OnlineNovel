@@ -1,17 +1,18 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { auth } from '@/api/client'
+import { session, clearSession } from '@/stores/session'
 
 const route = useRoute()
 const router = useRouter()
 
-const user = ref(auth.user())
 const menu = ref(false)
 const sheet = ref(false)
 const scrolled = ref(false)
 
-const logged = computed(() => Boolean(auth.token() && user.value))
+/* 直接读 store，资料页改完昵称头像首字立刻跟着变，不再等下一次路由变化 */
+const user = computed(() => session.user)
+const logged = computed(() => Boolean(session.token && user.value))
 const initial = computed(() => (user.value?.nickName || user.value?.username || '读').slice(0, 1))
 const navs = [
   { label: '书库', to: '/library' },
@@ -38,7 +39,6 @@ watch(
   () => {
     menu.value = false
     sheet.value = false
-    user.value = auth.user()
   }
 )
 
@@ -51,8 +51,7 @@ function isActive(to) {
 }
 
 function logout() {
-  auth.clear()
-  user.value = null
+  clearSession()
   menu.value = false
   router.push('/')
 }

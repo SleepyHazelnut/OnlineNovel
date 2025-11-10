@@ -2,7 +2,8 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { bookApi, chapterApi, historyApi } from '@/api'
-import { auth } from '@/api/client'
+import { session } from '@/stores/session'
+import { isAuthError } from '@/api/client'
 import { useToast } from '@/composables/useToast'
 
 const route = useRoute()
@@ -29,6 +30,8 @@ function loadPrefs() {
 const prefs = reactive(loadPrefs())
 const state = reactive({
   loading: true,
+  /* 翻章期间的过渡态：锁住翻页按钮，同时给顶部的不确定进度条一个开关 */
+  switching: false,
   error: '',
   book: null,
   chapters: [],
@@ -63,7 +66,12 @@ watch(
   { deep: true }
 )
 
+let bookSeq = 0
+let chapterSeq = 0
+let chapterRequest = null
+
 async function loadBook() {
+  const current = ++bookSeq
   state.loading = true
   state.error = ''
   try {
@@ -71,6 +79,7 @@ async function loadBook() {
       chapterApi.list(bookId.value),
       bookApi.detail(bookId.value).catch(() => null)
     ])
+    if (current !== bookSeq) return
     state.book = book
     state.chapters = chapters || []
     if (!state.chapters.length) {
@@ -80,19 +89,29 @@ async function loadBook() {
     const target = Number(route.params.chapterId) || state.chapters[0].id
     await loadChapter(target)
   } catch (err) {
+    if (current !== bookSeq) return
+    if (isAuthError(err)) return
     state.error = err.message || '加载失败'
   } finally {
-    state.loading = false
+    if (current === bookSeq) state.loading = false
   }
 }
 
 async function loadChapter(id) {
+  const current = ++chapterSeq
+  /* 上一次翻章还没回来就切了，先取消，避免慢响应把新章节盖回旧的 */
+  chapterRequest?.abort()
+  const controller = new AbortController()
+  chapterRequest = controller
+
   /* 只有第一次拿章节时才铺骨架，翻章期间保留当前章节，避免闪一下占位 */
   const firstLoad = !state.chapter
   if (firstLoad) state.loading = true
+  state.switching = true
   state.error = ''
   try {
-    const data = await chapterApi.read(id)
+    const data = await chapterApi.read(id, { signal: controller.signal })
+    if (current !== chapterSeq) return
     state.chapter = data?.chapter || null
     state.prevId = data?.prevId || null
     state.nextId = data?.nextId || null
@@ -102,9 +121,14 @@ async function loadChapter(id) {
       .filter(Boolean)
     saveHistory()
   } catch (err) {
+    if (current !== chapterSeq || controller.signal.aborted) return
+    if (isAuthError(err)) return
     state.error = err.message || '这一章打不开'
   } finally {
-    state.loading = false
+    if (current === chapterSeq) {
+      state.loading = false
+      state.switching = false
+    }
   }
 }
 
@@ -114,7 +138,7 @@ function resetScroll() {
 }
 
 function saveHistory() {
-  if (!state.chapter || !auth.token()) return
+  if (!state.chapter || !session.token) return
   historyApi
     .save({
       bookId: bookId.value,
@@ -125,10 +149,22 @@ function saveHistory() {
 }
 
 function goChapter(id, direction = 0) {
-  if (!id) return
+  if (!id || state.switching) return
+  /* 已经在读这一章就什么都不做，push 同一 URL 会被路由去重，用户只会觉得点击失灵 */
+  if (state.chapter && Number(id) === state.chapter.id) return
   turn.value = direction < 0 ? 'back' : direction > 0 ? 'next' : 'jump'
   catalogOpen.value = false
-  router.push(`/read/${bookId.value}/${id}`)
+  /* 同步锁住按钮：等路由 watcher 触发再锁就晚了，第二次点击会落到还没更新的 nextId 上 */
+  state.switching = true
+  router
+    .push(`/read/${bookId.value}/${id}`)
+    .then((failure) => {
+      /* 路由被判重/取消时不会有 watcher 来解锁，得自己放开 */
+      if (failure) state.switching = false
+    })
+    .catch(() => {
+      state.switching = false
+    })
 }
 
 function step(direction) {
@@ -166,8 +202,14 @@ watch(
 watch(
   () => route.params.bookId,
   () => {
+    chapterRequest?.abort()
+    chapterSeq += 1
     state.chapter = null
     state.chapters = []
+    state.paragraphs = []
+    state.prevId = null
+    state.nextId = null
+    state.switching = false
     loadBook()
   }
 )
@@ -184,6 +226,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKey)
   document.body.style.overflow = ''
+  chapterRequest?.abort()
 })
 </script>
 
@@ -206,6 +249,7 @@ onBeforeUnmount(() => {
         <button class="icon-btn" type="button" @click="catalogOpen = true">目录</button>
       </div>
       <div class="progress" aria-hidden="true"><span :style="{ width: `${progress}%` }" /></div>
+      <div v-if="state.switching && !state.loading" class="busybar" aria-hidden="true"><span /></div>
     </header>
 
     <main class="page">
@@ -235,10 +279,10 @@ onBeforeUnmount(() => {
           </div>
 
           <div class="endnav">
-            <button class="pill-btn is-ghost" type="button" :disabled="!state.prevId" @click="step(-1)">
+            <button class="pill-btn is-ghost" type="button" :disabled="!state.prevId || state.switching" @click="step(-1)">
               ← 上一章
             </button>
-            <button class="pill-btn" type="button" :disabled="!state.nextId" @click="step(1)">
+            <button class="pill-btn" type="button" :disabled="!state.nextId || state.switching" @click="step(1)">
               {{ state.nextId ? '下一章' : '已是最后一章' }}
               <span class="pill-icon" aria-hidden="true">↗</span>
             </button>
@@ -248,13 +292,13 @@ onBeforeUnmount(() => {
     </main>
 
     <div class="island" :class="{ 'is-lifted': fontOpen }">
-      <button class="island-btn" type="button" :disabled="!state.prevId" @click="step(-1)">上一章</button>
+      <button class="island-btn" type="button" :disabled="!state.prevId || state.switching" @click="step(-1)">上一章</button>
       <button class="island-btn" type="button" @click="catalogOpen = true">目录</button>
       <button class="island-btn" type="button" :aria-expanded="fontOpen" @click="fontOpen = !fontOpen">
         字号 <span class="mono">{{ prefs.size }}</span>
       </button>
       <button class="island-btn" type="button" @click="cycleTheme">{{ themeLabel }}</button>
-      <button class="island-btn" type="button" :disabled="!state.nextId" @click="step(1)">下一章</button>
+      <button class="island-btn" type="button" :disabled="!state.nextId || state.switching" @click="step(1)">下一章</button>
     </div>
 
     <Transition name="panel">
@@ -303,7 +347,7 @@ onBeforeUnmount(() => {
               class="drawer-item"
               :class="{ 'is-on': item.id === state.chapter?.id }"
               type="button"
-              :style="{ '--d': `${Math.min(i, 8) * 12}ms` }"
+              :style="{ '--d': `${(i % 8) * 12}ms` }"
               @click="goChapter(item.id)"
             >
               <span class="mono idx">{{ String(item.chapterNum).padStart(2, '0') }}</span>
@@ -438,6 +482,39 @@ onBeforeUnmount(() => {
   height: 1px;
   background: var(--ri);
   transition: width var(--dur-3) var(--ease);
+}
+
+/* 翻章等待时贴一条 2px 的不确定进度条，比骨架屏更不打断阅读 */
+.busybar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  overflow: hidden;
+}
+
+.busybar span {
+  display: block;
+  width: 40%;
+  height: 100%;
+  background: var(--ri);
+  animation: busy-slide 1s var(--ease) infinite;
+}
+
+@keyframes busy-slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(350%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .busybar span {
+    animation-duration: 2.4s;
+  }
 }
 
 .page {
@@ -783,6 +860,9 @@ onBeforeUnmount(() => {
   color: var(--rm);
   transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease),
     opacity var(--dur-2) var(--ease), transform var(--dur-2) var(--ease-swift);
+  /* 目录上千条时只布局视口附近，条目高度先按实测值占位 */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 42px;
 }
 
 /* 目录展开时条目依次落位，延迟只在这段过渡里生效 */

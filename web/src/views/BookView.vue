@@ -1,7 +1,8 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { auth } from '@/api/client'
+import { session } from '@/stores/session'
+import { isAuthError } from '@/api/client'
 import { bookApi, chapterApi, commentApi, ratingApi, shelfApi, historyApi } from '@/api'
 import { useToast } from '@/composables/useToast'
 import { useCategories } from '@/composables/useCategories'
@@ -14,8 +15,8 @@ const toast = useToast()
 const { nameOf, ensure: ensureCategories } = useCategories()
 
 const bookId = computed(() => Number(route.params.id))
-const logged = computed(() => Boolean(auth.token()))
-const myId = computed(() => auth.user()?.id ?? null)
+const logged = computed(() => Boolean(session.token))
+const myId = computed(() => session.user?.id ?? null)
 
 const state = reactive({
   loading: true,
@@ -35,7 +36,14 @@ const submitting = ref(false)
 const shelfBusy = ref(false)
 
 const categoryName = computed(() => nameOf(state.book?.categoryId))
-const starValue = computed(() => Math.min(5, Math.round(Number(state.rating.score || 0) / 2)))
+/* 后端 score 已经是 0–5 的均分，不要再除 2 */
+const ratingScore = computed(() => Math.max(0, Math.min(5, Number(state.rating.score || 0))))
+
+/* 整星保底 floor，剩下的 0.5 及以上补半星 */
+function starLevel(n) {
+  if (n <= Math.floor(ratingScore.value)) return 'full'
+  return ratingScore.value - (n - 1) >= 0.5 ? 'half' : 'empty'
+}
 const chapters = computed(() => state.chapters)
 const commentTotal = computed(() =>
   state.comments.reduce((sum, item) => sum + 1 + (item.children?.length || 0), 0)
@@ -50,11 +58,15 @@ const readLabel = computed(() => {
   return chapters.value.length ? '从第一章开始读' : '暂无章节'
 })
 
+let seq = 0
+
 async function load() {
+  const current = ++seq
   state.loading = true
   state.error = ''
   try {
     const book = await bookApi.detail(bookId.value)
+    if (current !== seq) return
     state.book = book
     state.rating = { score: Number(book.score || 0), count: Number(book.ratingCount || 0), myScore: 0 }
 
@@ -62,6 +74,7 @@ async function load() {
       chapterApi.list(bookId.value).catch(() => []),
       commentApi.list(bookId.value).catch(() => [])
     ])
+    if (current !== seq) return
     state.chapters = chapterList || []
     state.comments = commentList || []
 
@@ -71,6 +84,7 @@ async function load() {
         shelfApi.check(bookId.value).catch(() => false),
         historyApi.last(bookId.value).catch(() => null)
       ])
+      if (current !== seq) return
       if (summary) {
         state.rating = {
           score: Number(summary.score || 0),
@@ -82,11 +96,36 @@ async function load() {
       state.last = last || null
     }
   } catch (err) {
+    if (current !== seq) return
+    if (isAuthError(err)) return
     state.error = err.message || '加载失败'
   } finally {
-    state.loading = false
+    if (current === seq) state.loading = false
   }
 }
+
+/* 组件被复用时不重建，换书得手动清掉上一本的痕迹，否则会先闪一下旧数据 */
+function reset() {
+  state.book = null
+  state.chapters = []
+  state.comments = []
+  state.rating = { score: 0, count: 0, myScore: 0 }
+  state.collected = false
+  state.last = null
+  state.error = ''
+  tab.value = 'catalog'
+  expanded.value = false
+  commentText.value = ''
+}
+
+watch(
+  () => route.params.id,
+  (value, old) => {
+    if (!value || value === old) return
+    reset()
+    load()
+  }
+)
 
 async function toggleShelf() {
   if (!logged.value) {
@@ -106,6 +145,7 @@ async function toggleShelf() {
       toast.success('已加入书架')
     }
   } catch (err) {
+    if (isAuthError(err)) return
     toast.error(err.message || '操作失败')
   } finally {
     shelfBusy.value = false
@@ -126,6 +166,7 @@ async function rate(score) {
     }
     toast.success(`已评 ${score} 分`)
   } catch (err) {
+    if (isAuthError(err)) return
     toast.error(err.message || '评分失败')
   }
 }
@@ -144,6 +185,7 @@ async function submitComment() {
     toast.success('评论已提交，待审核通过后展示')
     state.comments = (await commentApi.list(bookId.value)) || []
   } catch (err) {
+    if (isAuthError(err)) return
     toast.error(err.message || '评论失败')
   } finally {
     submitting.value = false
@@ -156,6 +198,7 @@ async function removeComment(id) {
     state.comments = (await commentApi.list(bookId.value)) || []
     toast.info('评论已删除')
   } catch (err) {
+    if (isAuthError(err)) return
     toast.error(err.message || '删除失败')
   }
 }
@@ -186,7 +229,7 @@ onMounted(() => {
     <template v-else-if="state.book">
       <section class="top">
         <div class="cover-col">
-          <BookCover :book="state.book" :category="categoryName" size="lg" class="cover" />
+          <BookCover :book="state.book" :category="categoryName" size="lg" class="cover" priority />
 
           <div class="rating">
             <div class="score serif">{{ scoreText(state.rating.score) }}</div>
@@ -195,7 +238,7 @@ onMounted(() => {
                 v-for="n in 5"
                 :key="n"
                 class="star"
-                :class="{ 'is-on': n <= starValue }"
+                :class="`is-${starLevel(n)}`"
                 type="button"
                 :aria-label="`评 ${n} 分`"
                 @click="rate(n)"
@@ -438,8 +481,16 @@ onMounted(() => {
   transform: scale(1.12);
 }
 
-.star.is-on {
+.star.is-full {
   color: #b98a3c;
+}
+
+/* 半星用两段渐变裁在字面上，比额外套一层 span 少一半节点 */
+.star.is-half {
+  color: transparent;
+  background-image: linear-gradient(90deg, #b98a3c 50%, var(--line-strong) 50%);
+  -webkit-background-clip: text;
+  background-clip: text;
 }
 
 .rating-meta {
@@ -553,6 +604,9 @@ onMounted(() => {
   padding: 12px 4px;
   border-bottom: 1px solid var(--line);
   transition: background var(--dur-1) var(--ease);
+  /* 目录动辄上千条，先让浏览器跳过视口外的布局，高度按实测值占位避免滚动条跳动 */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 48px;
 }
 
 .chapter:hover {

@@ -1,10 +1,12 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
-import { auth } from '@/api/client'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { session, saveSession } from '@/stores/session'
+import { isAuthError } from '@/api/client'
 import { userApi, signApi, historyApi, commentApi } from '@/api'
 import { useToast } from '@/composables/useToast'
 import { auditStatusText, fmtRelative, fmtDate } from '@/utils/format'
 import EmptyState from '@/components/EmptyState.vue'
+import Pager from '@/components/Pager.vue'
 
 const toast = useToast()
 
@@ -15,6 +17,8 @@ const TABS = [
   { key: 'comments', label: '我的评论' }
 ]
 
+const COMMENT_PAGE_SIZE = 10
+
 const tab = ref('profile')
 const state = reactive({
   loading: true,
@@ -23,8 +27,12 @@ const state = reactive({
   sign: { year: 0, month: 0, days: [], count: 0, todaySigned: false },
   continuous: 0,
   history: [],
-  comments: []
+  /* 后端 pageByUser 返回 {list, total}，用数组接会把空态判断做废 */
+  comments: { list: [], total: 0 }
 })
+
+const commentsPage = ref(1)
+const commentsLoading = ref(false)
 
 const profile = reactive({ nickName: '', phone: '', email: '' })
 const password = reactive({ oldPassword: '', newPassword: '', confirm: '' })
@@ -32,6 +40,7 @@ const profileBusy = ref(false)
 /* 刚签到的日期，用来给那个格子一个落章动画 */
 const justSigned = ref(0)
 const passwordBusy = ref(false)
+let signTimer = 0
 
 const avatarText = computed(() => (state.user?.nickName || state.user?.username || '读').slice(0, 1))
 
@@ -50,6 +59,26 @@ const calendar = computed(() => {
 
 const monthTitle = computed(() => (state.sign.year ? `${state.sign.year} 年 ${state.sign.month} 月` : '本月'))
 
+function applyComments(data) {
+  state.comments = {
+    list: Array.isArray(data?.list) ? data.list : [],
+    total: Number(data?.total || 0)
+  }
+}
+
+async function loadComments(page = 1) {
+  commentsPage.value = page
+  commentsLoading.value = true
+  try {
+    applyComments(await commentApi.mine({ pageNum: page, pageSize: COMMENT_PAGE_SIZE }))
+  } catch (err) {
+    if (isAuthError(err)) return
+    toast.error(err.message || '评论加载失败')
+  } finally {
+    commentsLoading.value = false
+  }
+}
+
 async function load() {
   state.loading = true
   state.error = ''
@@ -59,9 +88,11 @@ async function load() {
       signApi.month().catch(() => null),
       signApi.continuous().catch(() => 0),
       historyApi.list().catch(() => []),
-      commentApi.mine().catch(() => [])
+      commentApi.mine({ pageNum: 1, pageSize: COMMENT_PAGE_SIZE }).catch(() => null)
     ])
     state.user = user
+    /* 拉到的资料同步回 store，头部昵称和头像首字跟着更新 */
+    if (user) saveSession(session.token, user)
     Object.assign(profile, {
       nickName: user?.nickName || '',
       phone: user?.phone || '',
@@ -70,8 +101,11 @@ async function load() {
     if (sign) state.sign = sign
     state.continuous = Number(continuous || 0)
     state.history = history || []
-    state.comments = comments || []
+    commentsPage.value = 1
+    applyComments(comments)
   } catch (err) {
+    /* 401 已经由请求层统一清登录态并跳转，这里再报一次只会出现两条提示 */
+    if (isAuthError(err)) return
     state.error = err.message || '加载失败'
   } finally {
     state.loading = false
@@ -92,9 +126,10 @@ async function saveProfile() {
       avatar: state.user?.avatar || ''
     })
     state.user = updated
-    auth.save(auth.token(), updated)
+    saveSession(session.token, updated)
     toast.success('资料已更新')
   } catch (err) {
+    if (isAuthError(err)) return
     toast.error(err.message || '保存失败')
   } finally {
     profileBusy.value = false
@@ -121,6 +156,7 @@ async function savePassword() {
     password.confirm = ''
     toast.success('密码已修改')
   } catch (err) {
+    if (isAuthError(err)) return
     toast.error(err.message || '修改失败')
   } finally {
     passwordBusy.value = false
@@ -140,16 +176,24 @@ async function doSign() {
     if (month) state.sign = month
     if (!data?.repeat) {
       justSigned.value = new Date().getDate()
-      window.setTimeout(() => {
+      /* 重新盖章前先清掉上一个定时器，否则快速连签会留下几个待触发的回调 */
+      if (signTimer) window.clearTimeout(signTimer)
+      signTimer = window.setTimeout(() => {
         justSigned.value = 0
+        signTimer = 0
       }, 1400)
     }
   } catch (err) {
+    if (isAuthError(err)) return
     toast.error(err.message || '签到失败')
   }
 }
 
 onMounted(load)
+
+onBeforeUnmount(() => {
+  if (signTimer) window.clearTimeout(signTimer)
+})
 </script>
 
 <template>
@@ -312,10 +356,10 @@ onMounted(load)
           <p class="hint">待审核的评论只有自己可见</p>
         </div>
 
-        <EmptyState v-if="!state.comments.length" title="还没有发过评论" desc="在作品页可以留下第一句。" />
+        <EmptyState v-if="!state.comments.list.length" title="还没有发过评论" desc="在作品页可以留下第一句。" />
 
         <ul v-else class="rows">
-          <li v-for="item in state.comments" :key="item.id" class="comment">
+          <li v-for="item in state.comments.list" :key="item.id" class="comment">
             <div class="row-head">
               <RouterLink :to="`/books/${item.bookId}`" class="rname">{{ item.bookName || `作品 ${item.bookId}` }}</RouterLink>
               <span class="tag" :class="`tag--${item.auditStatus === 2 ? 'green' : item.auditStatus === 3 ? 'red' : 'yellow'}`">
@@ -327,6 +371,15 @@ onMounted(load)
             <p v-if="item.rejectReason" class="reject">驳回原因：{{ item.rejectReason }}</p>
           </li>
         </ul>
+
+        <div class="comments-pager" :class="{ 'is-loading': commentsLoading }">
+          <Pager
+            :page="commentsPage"
+            :page-size="COMMENT_PAGE_SIZE"
+            :total="state.comments.total"
+            @change="loadComments"
+          />
+        </div>
       </section>
     </template>
   </div>
@@ -581,6 +634,12 @@ onMounted(load)
   margin-top: 6px;
   font-size: var(--t-xs);
   color: var(--pale-red-ink);
+}
+
+/* 翻页请求还在路上时先挡住第二次点击，避免两个响应互相覆盖 */
+.comments-pager.is-loading {
+  opacity: 0.6;
+  pointer-events: none;
 }
 
 .loading {

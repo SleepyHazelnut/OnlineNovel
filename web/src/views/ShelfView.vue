@@ -1,6 +1,7 @@
 <script setup>
 import { onMounted, reactive } from 'vue'
 import { shelfApi } from '@/api'
+import { isAuthError } from '@/api/client'
 import { useToast } from '@/composables/useToast'
 import { useCategories } from '@/composables/useCategories'
 import { fmtRelative } from '@/utils/format'
@@ -17,6 +18,7 @@ async function load() {
   try {
     state.items = (await shelfApi.list()) || []
   } catch (err) {
+    if (isAuthError(err)) return
     state.error = err.message || '加载失败'
   } finally {
     state.loading = false
@@ -30,6 +32,7 @@ async function remove(item) {
     state.items = state.items.filter((row) => row.bookId !== item.bookId)
     toast.info('已移出书架')
   } catch (err) {
+    if (isAuthError(err)) return
     toast.error(err.message || '操作失败')
   } finally {
     state.busyId = null

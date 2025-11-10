@@ -1,8 +1,9 @@
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { bookApi } from '@/api'
 import { useCategories } from '@/composables/useCategories'
+import { readList, writeList, rememberScroll } from '@/utils/listCache'
 import BookGrid from '@/components/BookGrid.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import Pager from '@/components/Pager.vue'
@@ -12,6 +13,7 @@ const router = useRouter()
 const { state: categoryState, ensure: ensureCategories } = useCategories()
 
 const PAGE_SIZE = 20
+const CACHE_KEY = 'library'
 
 const state = reactive({
   loading: true,
@@ -29,6 +31,9 @@ const keyword = computed(() => String(route.query.keyword || '').trim())
 const categoryId = computed(() => (route.query.categoryId ? Number(route.query.categoryId) : null))
 const page = computed(() => Math.max(1, Number(route.query.page) || 1))
 
+/* 缓存只对“同一组筛选条件”有效，页码/关键词/分类变了就得重新请求 */
+const signature = () => JSON.stringify([keyword.value, categoryId.value, page.value])
+
 let seq = 0
 
 async function load() {
@@ -42,6 +47,7 @@ async function load() {
     if (current !== seq) return
     state.books = data?.list || []
     state.total = Number(data?.total || 0)
+    writeList(CACHE_KEY, { books: state.books, total: state.total }, signature())
   } catch (err) {
     if (current !== seq) return
     state.error = err.message || '加载失败'
@@ -77,14 +83,32 @@ function reset() {
 watch(
   () => route.query,
   () => {
+    /* 离开书库时 route 已经指向新页面，别再拿新 query 发一次列表请求 */
+    if (route.name !== 'library') return
     keywordInput.value = route.query.keyword || ''
+    /* 列表页的滚动交给页面自己管，换页/换筛选时手动回顶 */
+    window.scrollTo({ top: 0, behavior: 'auto' })
     load()
   }
 )
 
 onMounted(() => {
   ensureCategories()
+  const cached = readList(CACHE_KEY)
+  if (cached && cached.signature === signature()) {
+    state.books = cached.data.books || []
+    state.total = Number(cached.data.total || 0)
+    state.loading = false
+    nextTick(() => window.scrollTo({ top: cached.scrollY || 0, behavior: 'auto' }))
+    return
+  }
+  /* 路由层对这页关了自动回顶，首次进入得自己落位 */
+  window.scrollTo({ top: 0, behavior: 'auto' })
   load()
+})
+
+onBeforeRouteLeave(() => {
+  rememberScroll(CACHE_KEY)
 })
 </script>
 
