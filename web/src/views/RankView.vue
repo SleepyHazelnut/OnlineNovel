@@ -1,15 +1,18 @@
 <script setup>
-import { computed, onMounted, reactive, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { computed, nextTick, onMounted, reactive, watch } from 'vue'
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { rankApi } from '@/api'
 import { fmtCount, scoreText, fmtRelative } from '@/utils/format'
 import { useCategories } from '@/composables/useCategories'
+import { readList, writeList, rememberScroll } from '@/utils/listCache'
 import BookCover from '@/components/BookCover.vue'
 import EmptyState from '@/components/EmptyState.vue'
 
 const route = useRoute()
 const router = useRouter()
 const { nameOf, ensure: ensureCategories } = useCategories()
+
+const CACHE_KEY = 'rank'
 
 const TABS = [
   { key: 'hot', label: '人气榜', title: '人气榜', desc: '按阅读热度实时累加', api: 'hot' },
@@ -21,19 +24,27 @@ const TABS = [
 const active = computed(() => TABS.find((t) => t.key === route.query.tab) || TABS[0])
 const state = reactive({ loading: true, ready: false, error: '', list: [] })
 
+let seq = 0
+
 async function load() {
+  const current = ++seq
   /* 换榜时保留当前列表，只有首次进入才铺骨架 */
   if (!state.ready) state.loading = true
   state.error = ''
   try {
     const data = await rankApi[active.value.api](20)
+    if (current !== seq) return
     state.list = data || []
+    writeList(CACHE_KEY, { list: state.list }, active.value.key)
   } catch (err) {
+    if (current !== seq) return
     state.error = err.message || '加载失败'
     state.list = []
   } finally {
-    state.loading = false
-    state.ready = true
+    if (current === seq) {
+      state.loading = false
+      state.ready = true
+    }
   }
 }
 
@@ -42,10 +53,34 @@ function switchTab(key) {
   router.push({ query: { tab: key } })
 }
 
-watch(() => route.query.tab, load)
+watch(
+  () => route.query.tab,
+  () => {
+    /* 离开榜单时 route 已经指向新页面，别再触发一次换榜请求 */
+    if (route.name !== 'rank') return
+    /* 榜单由页面自己恢复滚动位置，换榜得手动回顶 */
+    window.scrollTo({ top: 0, behavior: 'auto' })
+    load()
+  }
+)
+
 onMounted(() => {
   ensureCategories()
+  const cached = readList(CACHE_KEY)
+  if (cached && cached.signature === active.value.key) {
+    state.list = cached.data.list || []
+    state.loading = false
+    state.ready = true
+    nextTick(() => window.scrollTo({ top: cached.scrollY || 0, behavior: 'auto' }))
+    return
+  }
+  /* 路由层对这页关了自动回顶，换榜或首次进入得自己落位 */
+  window.scrollTo({ top: 0, behavior: 'auto' })
   load()
+})
+
+onBeforeRouteLeave(() => {
+  rememberScroll(CACHE_KEY)
 })
 </script>
 

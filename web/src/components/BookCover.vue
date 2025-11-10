@@ -1,17 +1,27 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { coverTone } from '@/utils/format'
 
 const props = defineProps({
   book: { type: Object, required: true },
   category: { type: String, default: '' },
-  size: { type: String, default: 'md' }
+  size: { type: String, default: 'md' },
+  /* 首屏大图标记为 priority：不做懒加载，否则 LCP 要等布局完成才开始下载 */
+  priority: { type: Boolean, default: false }
 })
 
 const tone = computed(() => coverTone(props.book?.bookName, props.category))
 const name = computed(() => props.book?.bookName || '未命名')
 const cover = computed(() => props.book?.coverUrl || '')
 const dense = computed(() => name.value.length >= 7)
+
+/* 封面 404 时回退到组件自己的文字封面，而不是让浏览器露出破图 */
+const failed = ref(false)
+const showImage = computed(() => Boolean(cover.value) && !failed.value)
+
+watch(cover, () => {
+  failed.value = false
+})
 
 const titleStyle = computed(() => {
   const base = props.size === 'lg' ? 16 : props.size === 'sm' ? 11 : 12
@@ -32,7 +42,16 @@ const vars = computed(() => ({
 
 <template>
   <div class="bcover" :class="[`v${tone.variant}`, size, { 'is-light': !tone.deep, 'is-dense': dense }]" :style="vars">
-    <img v-if="cover" class="shot" :src="cover" :alt="name" loading="lazy" />
+    <img
+      v-if="showImage"
+      class="shot"
+      :src="cover"
+      :alt="name"
+      :loading="priority ? 'eager' : 'lazy'"
+      :fetchpriority="priority ? 'high' : 'auto'"
+      decoding="async"
+      @error="failed = true"
+    />
     <template v-else>
       <span class="deco-a" aria-hidden="true" />
       <span class="deco-b" aria-hidden="true" />

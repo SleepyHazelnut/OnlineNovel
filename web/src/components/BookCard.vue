@@ -15,6 +15,8 @@ const id = computed(() => props.book.id ?? props.book.bookId)
 const name = computed(() => props.book.bookName || '未命名')
 const category = computed(() => props.book.categoryName || nameOf(props.book.categoryId))
 const finished = computed(() => Number(props.book.status) === 1)
+/* 榜单接口的条目不一定带 status，缺失时宁可不显示，也别一律标成「连载中」 */
+const hasStatus = computed(() => props.book.status !== undefined && props.book.status !== null && props.book.status !== '')
 </script>
 
 <template>
@@ -22,7 +24,7 @@ const finished = computed(() => Number(props.book.status) === 1)
     <div class="frame">
       <BookCover :book="book" :category="category" />
       <span v-if="rank && rank <= 3" class="badge mono">{{ String(rank).padStart(2, '0') }}</span>
-      <span class="state" :class="{ done: finished }">{{ bookStatusText(book.status) }}</span>
+      <span v-if="hasStatus" class="state" :class="{ done: finished }">{{ bookStatusText(book.status) }}</span>
     </div>
     <div class="body">
       <h3 class="name">{{ name }}</h3>

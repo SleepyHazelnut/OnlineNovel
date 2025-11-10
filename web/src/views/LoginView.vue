@@ -1,7 +1,8 @@
 <script setup>
 import { reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { auth } from '@/api/client'
+import { saveSession } from '@/stores/session'
+import { stripBase } from '@/api/client'
 import { userApi, captchaUrl } from '@/api'
 import { useToast } from '@/composables/useToast'
 
@@ -9,7 +10,12 @@ const route = useRoute()
 const router = useRouter()
 const toast = useToast()
 
-const form = reactive({ username: '', password: '', captcha: '' })
+const form = reactive({
+  /* 注册成功后会带着 username 过来，直接填好省一次输入 */
+  username: typeof route.query.username === 'string' ? route.query.username : '',
+  password: '',
+  captcha: ''
+})
 const captcha = ref(captchaUrl())
 const loading = ref(false)
 const error = ref('')
@@ -36,9 +42,11 @@ async function submit() {
       password: form.password,
       captcha: form.captcha.trim()
     })
-    auth.save(data?.token, data?.user)
+    saveSession(data?.token, data?.user)
     toast.success('登录成功')
-    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/'
+    const raw = typeof route.query.redirect === 'string' ? route.query.redirect : '/'
+    /* redirect 可能来自整页跳转（带 /app 前缀），交给 router 前先剥掉 base */
+    const redirect = stripBase(raw)
     router.replace(redirect.startsWith('/') ? redirect : '/')
   } catch (err) {
     error.value = err.message || '登录失败'
