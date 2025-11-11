@@ -95,6 +95,15 @@ public abstract class BaseIntegrationTest {
             return null;
         }).when(bookClient).passAllChapters(Mockito.anyLong());
 
+        // 通过作品：改状态和整本放行在 book 服务里是一笔事务，这里也用一次模拟对齐，
+        // 顺带保证没人再把这条链路拆回两次远程写
+        Mockito.doAnswer(inv -> {
+            Long id = inv.getArgument(0);
+            jdbcTemplate.update("UPDATE book_info SET audit_status = 2, audit_remark = NULL WHERE id = ?", id);
+            jdbcTemplate.update("UPDATE book_chapter SET audit_status = 1 WHERE book_id = ? AND audit_status = 0", id);
+            return null;
+        }).when(bookClient).approveBook(Mockito.anyLong());
+
         // 读章节
         Mockito.when(bookClient.getChapter(Mockito.anyLong())).thenAnswer(inv -> {
             Long id = inv.getArgument(0);
