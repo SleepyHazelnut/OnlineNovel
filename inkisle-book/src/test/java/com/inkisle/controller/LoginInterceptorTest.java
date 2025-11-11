@@ -56,6 +56,8 @@ class LoginInterceptorTest extends BaseIntegrationTest {
         long bookId = insertBook(authorId, 0, 2);
         long userId = insertUser("itc-reader", 0);
         String token = "Bearer " + jwtUtil.generate(userId, "itc-reader", "user");
+        // 拦截器现在每个受保护请求都会问一次账号状态，不 stub 就是「账号不存在」
+        Mockito.when(userClient.status("user", userId)).thenReturn(0);
 
         mockMvc.perform(post("/comment/add")
                         .header("Authorization", token)

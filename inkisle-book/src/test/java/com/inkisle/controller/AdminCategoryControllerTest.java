@@ -101,7 +101,8 @@ class AdminCategoryControllerTest extends BaseIntegrationTest {
                         .header("Authorization", adminToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"categoryName\":\"   \"}"))
-                .andExpect(status().isOk())
+                // 参数校验失败现在给的是 HTTP 400，不再混在 200 里
+                .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(400));
     }
 

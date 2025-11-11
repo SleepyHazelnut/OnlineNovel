@@ -92,7 +92,8 @@ class CommentControllerTest extends BaseIntegrationTest {
                         .header("Authorization", bearer(userId, "ctrl-cmt-blank"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"content\":\"   \"}"))
-                .andExpect(status().isOk())
+                // 参数校验失败现在给的是 HTTP 400
+                .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(400));
     }
 

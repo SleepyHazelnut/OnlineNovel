@@ -6,6 +6,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestInstance;
 import org.mockito.Mockito;
+import org.redisson.api.RBucket;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -86,9 +87,19 @@ public abstract class BaseIntegrationTest {
         Mockito.when(userClient.status(Mockito.anyString(), Mockito.anyLong())).thenReturn(0);
     }
 
-    /** 防重复提交切面直接放行，测试要验的是接口本身 */
+    /**
+     * 两处都靠 Redis，测试里统一换成 mock：
+     * 防重复提交切面走占坑令牌（getBucket + trySet），要直接放行；
+     * 缓存回源走互斥锁（getLock），要能抢到并且能重入释放。
+     * 漏掉任何一处，接口都会在执行到 Redis 那行时空指针
+     */
     @BeforeEach
     void allowRepeatSubmit() throws InterruptedException {
+        RBucket<String> bucket = Mockito.mock(RBucket.class);
+        Mockito.when(bucket.trySet(Mockito.any(), Mockito.anyLong(), Mockito.any())).thenReturn(true);
+        // getBucket 声明成 RBucket<V>，按字符串取值时泛型对不上，这里按擦除后的类型塞进去
+        Mockito.when(redissonClient.<String>getBucket(Mockito.anyString())).thenReturn(bucket);
+
         RLock lock = Mockito.mock(RLock.class);
         Mockito.when(lock.tryLock(Mockito.anyLong(), Mockito.anyLong(), Mockito.any())).thenReturn(true);
         Mockito.when(lock.isHeldByCurrentThread()).thenReturn(true);
