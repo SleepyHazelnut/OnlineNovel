@@ -31,11 +31,18 @@ import java.util.concurrent.atomic.AtomicLong;
 @Component
 public class RateLimitFilter implements GlobalFilter, Ordered {
 
-    /** 只限制需要打库的接口前缀，图片、静态页、上传不在此列 */
+    /**
+     * 要限流的接口前缀
+     *
+     * 原先漏了登录、注册、验证码和上传：注册每次都要跑一次 BCrypt（cost 10，单次几十毫秒 CPU），
+     * 不限的话等于给了个 CPU 放大器；验证码每次新建 session 并渲染 PNG；上传最贵却没有名额。
+     * 静态页和图片不在此列，那些走的是资源回退
+     */
     private static final String[] LIMITED_PREFIXES = {
             "/book/", "/chapter/", "/rank/", "/home/", "/category/",
             "/comment/", "/rating/", "/history/", "/bookshelf/",
-            "/sign/", "/author/", "/admin/"
+            "/sign/", "/author/", "/admin/",
+            "/user/", "/captcha/", "/file/"
     };
 
     /** 每个 IP 每秒补充多少令牌 */
@@ -82,12 +89,15 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
         return false;
     }
 
-    /** 经过网关的请求 remoteAddress 就是真实来源；反向代理再套一层时取 XFF 第一段 */
+    /**
+     * 只认 remoteAddress
+     *
+     * 原来优先取 X-Forwarded-For 的第一段，而那一整段都是客户端自己填的：
+     * 循环换一个假 IP 就等于每次都拿到一只满桶，限流形同虚设。
+     * 网关是链路最外侧，remoteAddress 才是可信来源；真放在负载均衡后面时，
+     * 应该由负载均衡重写这个头，再在网关这里按可信网段决定是否采信
+     */
     private String clientIp(ServerHttpRequest request) {
-        String forwarded = request.getHeaders().getFirst("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            return forwarded.split(",")[0].trim();
-        }
         return request.getRemoteAddress() == null
                 ? "unknown"
                 : request.getRemoteAddress().getAddress().getHostAddress();

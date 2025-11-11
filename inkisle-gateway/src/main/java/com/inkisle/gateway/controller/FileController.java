@@ -2,6 +2,7 @@ package com.inkisle.gateway.controller;
 
 import com.inkisle.common.Result;
 import com.inkisle.util.Md5Util;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferUtils;
@@ -29,12 +30,21 @@ import java.util.Set;
  * 放在同一进程内少一次转发，挂载目录也只需挂一处
  * 网关是 WebFlux，参数用 FilePart 不是 MultipartFile，整条链走 Mono 不 block
  */
+@Slf4j
 @RestController
 @RequestMapping("/file")
 public class FileController {
 
     /** 后缀名白名单，不在名单内直接拒绝 */
     private static final Set<String> ALLOWED_SUFFIX = Set.of("jpg", "jpeg", "png", "gif", "webp");
+
+    /**
+     * 单张图上限
+     *
+     * max-in-memory-size 只决定「超过就落临时文件」，不是拒绝；下面的 join 仍会把整份内容
+     * 读回一个 byte[]，所以一个几百兆的「图片」足够把网关堆打满。入口先卡住长度
+     */
+    private static final long MAX_BYTES = 5L * 1024 * 1024;
 
     /** 按天分目录存放，避免单目录文件过多 */
     private static final DateTimeFormatter DATE_DIR = DateTimeFormatter.ofPattern("yyyy/MM/dd");
@@ -52,14 +62,23 @@ public class FileController {
         if (!ALLOWED_SUFFIX.contains(suffix)) {
             return Mono.just(Result.fail("只支持 jpg / jpeg / png / gif / webp 格式的图片"));
         }
+        // 声明长度只是个提示，客户端可以撒谎，所以读完之后还会再按实际字节数判一次
+        if (file.headers().getContentLength() > MAX_BYTES) {
+            return Mono.just(Result.fail("图片不能超过 5MB"));
+        }
 
         // 内容要读全才能算 MD5 与校验文件头，读完之后再切到弹性线程池写盘，
         // 磁盘 IO 是阻塞的，不能留在 Netty 的事件循环上
         return DataBufferUtils.join(file.content())
                 .map(FileController::toBytes)
                 .defaultIfEmpty(new byte[0])
-                .flatMap(bytes -> Mono.fromCallable(() -> store(bytes, suffix))
-                        .subscribeOn(Schedulers.boundedElastic()));
+                .flatMap(bytes -> {
+                    if (bytes.length > MAX_BYTES) {
+                        return Mono.just(Result.<Map<String, Object>>fail("图片不能超过 5MB"));
+                    }
+                    return Mono.fromCallable(() -> store(bytes, suffix))
+                            .subscribeOn(Schedulers.boundedElastic());
+                });
     }
 
     /**
@@ -91,7 +110,9 @@ public class FileController {
             data.put("repeat", exists);
             return Result.ok(data);
         } catch (IOException e) {
-            return Result.fail("文件保存失败：" + e.getMessage());
+            // 异常信息里带的是服务端绝对路径，不该回给前端
+            log.error("上传落盘失败 md5={}", md5, e);
+            return Result.fail("文件保存失败，请稍后重试");
         }
     }
 
