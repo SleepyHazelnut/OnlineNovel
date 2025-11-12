@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.inkisle.mapper.UserPointAccountMapper">
+
+    <select id="selectByUserId" resultType="com.inkisle.entity.UserPointAccount">
+        SELECT user_id, balance, total_earned, update_time
+        FROM user_point_account
+        WHERE user_id = #{userId}
+    </select>
+
+    <!-- 首次进账时把行建出来，之后只做增量 -->
+    <insert id="earn">
+        INSERT INTO user_point_account (user_id, balance, total_earned, update_time)
+        VALUES (#{userId}, #{points}, #{points}, NOW())
+        ON DUPLICATE KEY UPDATE
+            balance      = balance + #{points},
+            total_earned = total_earned + #{points},
+            update_time  = NOW()
+    </insert>
+
+    <!--
+      余额判断写在 WHERE 里，让「够不够」和「扣没扣」在同一个原子操作里完成。
+      拆成先查后扣的话，两个请求都能读到够用，最后扣成负数
+    -->
+    <update id="deduct">
+        UPDATE user_point_account
+        SET balance = balance - #{points},
+            update_time = NOW()
+        WHERE user_id = #{userId}
+          AND balance &gt;= #{points}
+    </update>
+
+</mapper>

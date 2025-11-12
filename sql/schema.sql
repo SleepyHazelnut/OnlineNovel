@@ -265,6 +265,61 @@ CREATE TABLE `user_sign` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='签到记录表';
 
 -- ----------------------------
+-- 积分流水表
+-- 只增不改：积分怎么来的、怎么花的，全在流水里，出了问题能一眼追回去。
+-- (user_id, biz_type, biz_id) 唯一：一条业务只记一次账。
+-- 幂等不靠「先查再插」，那个写法在并发下必漏（书架收藏踩过），交给唯一键更实在
+-- ----------------------------
+DROP TABLE IF EXISTS `user_point_ledger`;
+CREATE TABLE `user_point_ledger` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `user_id` bigint NOT NULL COMMENT '用户ID',
+  `biz_type` varchar(32) NOT NULL COMMENT '来源类型，取值见 PointBizType',
+  `biz_id` bigint NOT NULL COMMENT '来源业务ID，同一来源只记一次',
+  `points` int NOT NULL COMMENT '本次变动，正为赚负为花',
+  `remark` varchar(100) DEFAULT NULL COMMENT '说明，直接展示给用户',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '发生时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_user_biz` (`user_id`, `biz_type`, `biz_id`),
+  -- 明细列表按时间倒序翻页
+  KEY `idx_user_time` (`user_id`, `create_time`),
+  -- 每日上限要数「今天这个类型记了几条」，前两列等值、第三列范围
+  KEY `idx_user_type_time` (`user_id`, `biz_type`, `create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='积分流水表';
+
+-- ----------------------------
+-- 积分账户表
+-- 余额不该由流水实时求和：明细越多越慢，而且首页一进来就要显示。
+-- 这张表是流水的物化结果，两者由对账任务比对；对不上说明有一边丢了写
+-- ----------------------------
+DROP TABLE IF EXISTS `user_point_account`;
+CREATE TABLE `user_point_account` (
+  `user_id` bigint NOT NULL COMMENT '用户ID，与读者账号一一对应',
+  `balance` int NOT NULL DEFAULT '0' COMMENT '可用余额，等于流水求和',
+  `total_earned` int NOT NULL DEFAULT '0' COMMENT '累计获得，只增不减，等级看它',
+  `update_time` datetime DEFAULT NULL COMMENT '更新时间',
+  PRIMARY KEY (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='积分账户表';
+
+-- ----------------------------
+-- 读者荐书票
+-- 积分唯一的出口：花分给一本书投票，票数进首页「读者荐书」板块。
+-- 一人一本一票，靠唯一键拦；改票不退还也不重复扣，所以不需要更新路径
+-- ----------------------------
+DROP TABLE IF EXISTS `user_recommend_vote`;
+CREATE TABLE `user_recommend_vote` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `user_id` bigint NOT NULL COMMENT '投票人',
+  `book_id` bigint NOT NULL COMMENT '被推荐的作品',
+  `cost` int NOT NULL DEFAULT '20' COMMENT '投票时扣的分，规则改动后老票仍能对账',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '投票时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_user_book` (`user_id`, `book_id`),
+  -- 榜单按 book_id 聚合票数，唯一键最左列是 user_id，用不上
+  KEY `idx_book_id` (`book_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='读者荐书票表';
+
+-- ----------------------------
 -- 初始化数据
 -- 分类与账号是系统能跑起来的前提：没有分类，作者新建作品时无处可选；
 -- 没有管理员，后台登录页无人可登。故随建表脚本一并写入，空库导入后即可使用
