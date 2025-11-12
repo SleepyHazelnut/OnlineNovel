@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.inkisle.mapper.UserPointLedgerMapper">
+
+    <!--
+      幂等靠唯一键，命中就返回 0 行，Service 据此判断「这条业务已经记过账」。
+
+      这里用 INSERT IGNORE 而不是 ON DUPLICATE KEY UPDATE id = id：
+      驱动默认带 CLIENT_FOUND_ROWS，ODKU 在「命中但值没变」时返回的是 1 不是 0，
+      判据直接失效（试过，两笔重复流水都记上了）。INSERT IGNORE 才是稳定返回 0。
+      代价是别的错误也会被一起吞掉，所以入库前值都已校验过，列也不允许空
+    -->
+    <insert id="insertIgnore">
+        INSERT IGNORE INTO user_point_ledger (user_id, biz_type, biz_id, points, remark, create_time)
+        VALUES (#{userId}, #{bizType}, #{bizId}, #{points}, #{remark}, #{createTime})
+    </insert>
+
+    <!-- 同一天的流水按 id 兜底排序：create_time 是秒级，同一秒内的先后靠自增主键 -->
+    <select id="selectPage" resultType="com.inkisle.entity.UserPointLedger">
+        SELECT id, user_id, biz_type, biz_id, points, remark, create_time
+        FROM user_point_ledger
+        WHERE user_id = #{userId}
+        ORDER BY create_time DESC, id DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countByUser" resultType="int">
+        SELECT COUNT(*) FROM user_point_ledger WHERE user_id = #{userId}
+    </select>
+
+    <select id="countByTypeSince" resultType="int">
+        SELECT COUNT(*)
+        FROM user_point_ledger
+        WHERE user_id = #{userId}
+          AND biz_type = #{bizType}
+          AND create_time &gt;= #{from}
+    </select>
+
+    <select id="sumEarnedSince" resultType="int">
+        SELECT COALESCE(SUM(points), 0)
+        FROM user_point_ledger
+        WHERE user_id = #{userId}
+          AND create_time &gt;= #{from}
+          AND points &gt; 0
+    </select>
+
+    <!--
+      对账。以流水为准去比账户：流水是事实，账户只是它的物化结果。
+      账户余额偏小说明有一次扣减没配到流水，偏大说明有一次加分漏了流水
+    -->
+    <select id="selectMismatch" resultType="java.util.Map">
+        SELECT l.user_id      AS userId,
+               l.total        AS ledgerSum,
+               l.earned       AS ledgerEarned,
+               COALESCE(a.balance, 0)      AS balance,
+               COALESCE(a.total_earned, 0) AS totalEarned
+        FROM (SELECT user_id,
+                     SUM(points) AS total,
+                     SUM(CASE WHEN points &gt; 0 THEN points ELSE 0 END) AS earned
+              FROM user_point_ledger
+              GROUP BY user_id) l
+        LEFT JOIN user_point_account a ON a.user_id = l.user_id
+        WHERE COALESCE(a.balance, 0) &lt;&gt; l.total
+           OR COALESCE(a.total_earned, 0) &lt;&gt; l.earned
+        LIMIT #{limit}
+    </select>
+
+</mapper>

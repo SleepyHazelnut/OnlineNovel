@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.inkisle.mapper.UserRecommendVoteMapper">
+
+    <!-- 一人一本一票，靠 uk_user_book 拦，命中唯一键返回 0 行 -->
+    <insert id="insertIgnore">
+        INSERT IGNORE INTO user_recommend_vote (user_id, book_id, cost, create_time)
+        VALUES (#{userId}, #{bookId}, #{cost}, #{createTime})
+    </insert>
+
+    <select id="countByBook" resultType="int">
+        SELECT COUNT(*) FROM user_recommend_vote WHERE book_id = #{bookId}
+    </select>
+
+    <!-- 同票数按最早一张票的 id 排，否则首页板块每次刷新顺序都在变 -->
+    <select id="selectTop" resultType="com.inkisle.dto.BookVotesDTO">
+        SELECT book_id AS bookId, COUNT(*) AS votes
+        FROM user_recommend_vote
+        GROUP BY book_id
+        ORDER BY COUNT(*) DESC, MIN(id) ASC
+        LIMIT #{limit}
+    </select>
+
+</mapper>
