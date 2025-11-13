@@ -23,6 +23,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/admin/login",
                         // 图形验证码
                         "/captcha/**",
+                        // 积分规则是公开的：不登录也该知道怎么攒分
+                        "/point/rules",
                         // 内部接口由服务间调用，不带用户 token
                         "/internal/**"
                 );

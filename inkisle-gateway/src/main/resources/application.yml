@@ -41,7 +41,8 @@ spring:
           order: 4
           predicates:
             # /admin/info 是管理员自己的信息，之前漏了，走网关必然 404
-            - Path=/user/**,/sign/**,/captcha/**,/author/**,/admin/login,/admin/info,/admin/author/**,/admin/user/**
+            # /point/** 是积分，/admin/point/** 是积分对账，漏了就是 404
+            - Path=/user/**,/sign/**,/captcha/**,/author/**,/point/**,/admin/login,/admin/info,/admin/author/**,/admin/user/**,/admin/point/**
         - id: stat
           uri: lb://inkisle-stat
           order: 5
