@@ -1,5 +1,7 @@
 package com.inkisle.service;
 
+import com.inkisle.dto.SignResult;
+
 import java.util.Map;
 
 /**
@@ -8,9 +10,9 @@ import java.util.Map;
 public interface SignService {
 
     /**
-     * 签到，今天签过了返回 false
+     * 签到。返回本次拿到的积分，「今天已经签过」与「签上了但没给分」靠 repeat 区分
      */
-    boolean sign(Long userId);
+    SignResult sign(Long userId);
 
     /**
      * 本月签到情况，已签的日期、总天数、今天签没签

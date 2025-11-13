@@ -1,6 +1,10 @@
 package com.inkisle.service.impl;
 
+import com.inkisle.common.AppClock;
+import com.inkisle.common.PointBizType;
+import com.inkisle.dto.SignResult;
 import com.inkisle.mapper.UserSignMapper;
+import com.inkisle.service.PointService;
 import com.inkisle.service.SignService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,6 +49,12 @@ public class SignServiceImpl implements SignService {
 
     private static final int MAX_CONTINUOUS_DAYS = 366;
 
+    /** 连签里程碑：签满这些天当天额外给分，只给一次，不重复给 */
+    private static final int[] STREAK_MILESTONES = {3, 7, 30};
+
+    /** 与里程碑一一对应 */
+    private static final int[] STREAK_BONUS = {3, 8, 20};
+
     /** 判断与置位放一条脚本里，否则并发请求会都读到未签到，同一天签两次 */
     private static final DefaultRedisScript<Long> SIGN_SCRIPT = new DefaultRedisScript<>(
             "if redis.call('GETBIT', KEYS[1], ARGV[1]) == 1 then "
@@ -61,9 +71,20 @@ public class SignServiceImpl implements SignService {
     @Autowired
     private UserSignMapper userSignMapper;
 
+    @Autowired
+    private PointService pointService;
+
+    /**
+     * 签到日期一律取业务时区，不用 LocalDate.now()：
+     * 容器默认 UTC，改一次 TZ 就能在北京时间 00:00 和 08:01 各签一次，
+     * 一天拿两天的分，连签天数也跟着虚高
+     */
+    @Autowired
+    private AppClock clock;
+
     @Override
-    public boolean sign(Long userId) {
-        LocalDate today = LocalDate.now();
+    public SignResult sign(Long userId) {
+        LocalDate today = clock.today();
         String key = buildKey(userId, today);
 
         // 先把位图准备好再去置位。反过来的话，位图不在时 Lua 的 SETBIT 会新建一个
@@ -76,10 +97,34 @@ public class SignServiceImpl implements SignService {
                 String.valueOf(offsetOf(today)),
                 String.valueOf(EXPIRE.toSeconds()));
         boolean signed = result != null && result == 1L;
-        if (signed) {
-            persist(userId, today);
+        if (!signed) {
+            return SignResult.repeated();
         }
-        return signed;
+        persist(userId, today);
+
+        int points = 0;
+        // 基础分和连签奖励分成两条流水：明细里才看得出「多出来的 8 分是哪来的」
+        if (pointService.award(userId, PointBizType.SIGN.getCode(), today.toEpochDay(), null, "每日签到")) {
+            points += PointBizType.SIGN.getPoints();
+        }
+        int continuous = continuousDays(userId);
+        int bonus = streakBonus(continuous);
+        if (bonus > 0
+                && pointService.award(userId, PointBizType.SIGN_STREAK.getCode(),
+                        today.toEpochDay(), bonus, "连签 " + continuous + " 天")) {
+            points += bonus;
+        }
+        return SignResult.signed(points);
+    }
+
+    /** 只有刚好签满 3/7/30 天那次才给，第 4 天不给、第 8 天也不重复给第 7 天的 */
+    static int streakBonus(int continuousDays) {
+        for (int i = 0; i < STREAK_MILESTONES.length; i++) {
+            if (continuousDays == STREAK_MILESTONES[i]) {
+                return STREAK_BONUS[i];
+            }
+        }
+        return 0;
     }
 
     /**
@@ -89,7 +134,7 @@ public class SignServiceImpl implements SignService {
      */
     private void persist(Long userId, LocalDate date) {
         try {
-            userSignMapper.insertIgnore(userId, date, LocalDateTime.now());
+            userSignMapper.insertIgnore(userId, date, clock.now());
         } catch (Exception e) {
             log.warn("签到落库失败，位图已写入 userId={} date={}", userId, date, e);
         }
@@ -97,7 +142,7 @@ public class SignServiceImpl implements SignService {
 
     @Override
     public Map<String, Object> monthStatus(Long userId) {
-        LocalDate today = LocalDate.now();
+        LocalDate today = clock.today();
         // 整张位图一次取回来，一天一个 GETBIT 一个月得跑 30 趟
         byte[] bitmap = readBitmap(userId, today.getYear());
 
@@ -121,7 +166,7 @@ public class SignServiceImpl implements SignService {
 
     @Override
     public int continuousDays(Long userId) {
-        LocalDate today = LocalDate.now();
+        LocalDate today = clock.today();
         return countContinuous(readBitmap(userId, today.getYear()),
                 readBitmap(userId, today.minusYears(1).getYear()),
                 today);
