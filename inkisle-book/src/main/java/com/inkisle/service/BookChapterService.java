@@ -15,6 +15,12 @@ public interface BookChapterService {
 
     Map<String, Object> read(Long id);
 
+    /**
+     * 取一章可见的正文目录信息，校验「属于这本书 + 已过审」
+     * 阅读进度上报走它：请求体里的 chapterId 是客户端给的，不能直接信
+     */
+    BookChapter getVisibleChapter(Long bookId, Long chapterId);
+
     /** 作者预览自己的稿子，只校验归属，不看审核状态 */
     Map<String, Object> readForAuthor(Long id, Long authorId);
 
