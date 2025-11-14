@@ -115,9 +115,28 @@ public class BookChapterServiceImpl implements BookChapterService {
         return buildReadData(chapter);
     }
 
+    /**
+     * 阅读进度上报时的章节校验
+     * 请求体里的 chapterId、chapterNum 都来自客户端：不校验就能给任意 bookId 编一个章节，
+     * 顺手把热榜刷起来（addHot 只看 bookId）
+     */
     @Override
-    public Map<String, Object> readForAuthor(Long id, Long authorId) {
-        BookChapter chapter = bookChapterMapper.selectById(id);
+    public BookChapter getVisibleChapter(Long bookId, Long chapterId) {
+        if (bookId == null || chapterId == null) {
+            throw new BusinessException("参数不对");
+        }
+        BookChapter chapter = bookChapterMapper.selectById(chapterId);
+        if (chapter == null || !bookId.equals(chapter.getBookId())) {
+            throw new BusinessException("章节不属于这本书");
+        }
+        if (!ContentAuditStatus.isVisible(chapter.getAuditStatus())) {
+            throw new BusinessException("这一章还没通过审核");
+        }
+        return chapter;
+    }
+
+    @Override
+    public Map<String, Object> readForAuthor(Long id, Long authorId) {        BookChapter chapter = bookChapterMapper.selectById(id);
         if (chapter == null) {
             throw new BusinessException("章节不存在");
         }
