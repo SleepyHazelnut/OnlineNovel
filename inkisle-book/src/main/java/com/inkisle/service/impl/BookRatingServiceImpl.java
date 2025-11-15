@@ -3,11 +3,13 @@ package com.inkisle.service.impl;
 import com.inkisle.cache.CacheInvalidator;
 import com.inkisle.cache.CacheNames;
 import com.inkisle.common.BusinessException;
+import com.inkisle.common.PointBizType;
 import com.inkisle.entity.BookRating;
 import com.inkisle.mapper.BookInfoMapper;
 import com.inkisle.mapper.BookRatingMapper;
 import com.inkisle.service.BookRatingService;
 import com.inkisle.service.BookService;
+import com.inkisle.service.support.PointReporter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,6 +40,9 @@ public class BookRatingServiceImpl implements BookRatingService {
     @Autowired
     private CacheInvalidator cacheInvalidator;
 
+    @Autowired
+    private PointReporter pointReporter;
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Map<String, Object> rate(Long bookId, Long userId, Integer score) {
@@ -50,6 +55,10 @@ public class BookRatingServiceImpl implements BookRatingService {
         }
 
         LocalDateTime now = LocalDateTime.now();
+        // 改分不算新的一次评价，所以先看有没有打过分。
+        // 并发首评时两个请求都会看到 null，两个都上报，最后靠唯一键只留一条
+        boolean firstTime = bookRatingMapper.selectByBookAndUser(bookId, userId) == null;
+
         BookRating rating = new BookRating();
         rating.setBookId(bookId);
         rating.setUserId(userId);
@@ -57,6 +66,11 @@ public class BookRatingServiceImpl implements BookRatingService {
         rating.setCreateTime(now);
         rating.setUpdateTime(now);
         bookRatingMapper.upsert(rating);
+
+        if (firstTime) {
+            // afterCommit：别在事务里发同步调用，持锁时间等于一次 HTTP 往返
+            pointReporter.awardAfterCommit(userId, PointBizType.RATING, bookId, null, "评了个分");
+        }
 
         Map<String, Object> data = refreshBookScore(bookId);
         data.put("myScore", score);
