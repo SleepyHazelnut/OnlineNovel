@@ -1,5 +1,6 @@
 package com.inkisle.controller;
 
+import com.inkisle.annotation.RepeatSubmit;
 import com.inkisle.common.CurrentUser;
 import com.inkisle.common.Result;
 import com.inkisle.dto.RatingDTO;
@@ -31,6 +32,7 @@ public class RatingController {
     /**
      * 提交或修改自己的评分，1-5 星
      */
+    @RepeatSubmit(expire = 2, message = "点得太快了，稍等一下")
     @PostMapping("/{bookId}")
     public Result<Map<String, Object>> rate(@PathVariable Long bookId,
                                             @Valid @RequestBody RatingDTO ratingDTO,
