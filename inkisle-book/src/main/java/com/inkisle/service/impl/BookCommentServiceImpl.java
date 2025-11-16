@@ -4,11 +4,13 @@ import com.inkisle.cache.CacheInvalidator;
 import com.inkisle.cache.CacheNames;
 import com.inkisle.common.BusinessException;
 import com.inkisle.common.ContentAuditStatus;
+import com.inkisle.common.PointBizType;
 import com.inkisle.common.PageUtils;
 import com.inkisle.entity.BookComment;
 import com.inkisle.mapper.BookCommentMapper;
 import com.inkisle.mapper.BookInfoMapper;
 import com.inkisle.service.BookCommentService;
+import com.inkisle.service.support.PointReporter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,6 +47,9 @@ public class BookCommentServiceImpl implements BookCommentService {
 
     @Autowired
     private CacheInvalidator cacheInvalidator;
+
+    @Autowired
+    private PointReporter pointReporter;
 
     @Override
     public List<BookComment> listByBookId(Long bookId, Long viewerId) {
@@ -153,6 +158,9 @@ public class BookCommentServiceImpl implements BookCommentService {
             throw new BusinessException("这条评论已经审过了");
         }
         refreshCommentCount(exist.getBookId());
+        // 过审才给分：待审、驳回都不算，评论真被人看到才有价值。
+        // 重复审核过不了 updateAuditStatusIfPending 这一关，所以不会重复给
+        pointReporter.awardAfterCommit(exist.getUserId(), PointBizType.COMMENT_PASS, id, null, "评论过审");
         log.info("评论审核通过 commentId={} adminId={}", id, adminId);
     }
 
