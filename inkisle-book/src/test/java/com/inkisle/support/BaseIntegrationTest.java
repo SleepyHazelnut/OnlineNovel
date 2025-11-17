@@ -1,6 +1,7 @@
 package com.inkisle.support;
 
 import com.inkisle.client.AuditClient;
+import com.inkisle.client.PointClient;
 import com.inkisle.client.UserClient;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -81,6 +82,13 @@ public abstract class BaseIntegrationTest {
      */
     @MockBean
     protected UserClient userClient;
+
+    /**
+     * 积分上报走的是别的服务，测试里没有那个进程。
+     * 不 mock 的话每次调用都要等一次 DNS 解析失败，六个用例能跑出二十秒
+     */
+    @MockBean
+    protected PointClient pointClient;
 
     @BeforeEach
     void stubAccountStatus() {
