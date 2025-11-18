@@ -5,7 +5,8 @@ const TOKEN_KEY = 'inkisle_token'
 const USER_KEY = 'inkisle_user'
 
 /* 全站唯一的一份登录态。组件直接读这里，改昵称后头部不用等路由变化就能刷新 */
-export const session = reactive({ token: '', user: null })
+/* points 只放内存：余额随时会被签到、投票改掉，落 localStorage 反而容易和接口对不上 */
+export const session = reactive({ token: '', user: null, points: null })
 
 function read(key) {
   try {

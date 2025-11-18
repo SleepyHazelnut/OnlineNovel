@@ -18,6 +18,8 @@ const state = reactive({
   hot: [],
   quality: [],
   newest: [],
+  /* 读者花积分投出来的板块，可能为空，空的时候整块不渲染 */
+  spotlight: [],
   update: [],
   categories: [],
   rank: []
@@ -46,6 +48,7 @@ async function load() {
     state.hot = recommend?.hot || []
     state.quality = recommend?.quality || []
     state.newest = recommend?.newest || []
+    state.spotlight = recommend?.spotlight || []
     state.categories = categoryState.list
     state.rank = (rank || []).slice(0, 8)
     state.update = update || []
@@ -53,6 +56,7 @@ async function load() {
       hot: state.hot,
       quality: state.quality,
       newest: state.newest,
+      spotlight: state.spotlight,
       update: state.update,
       categories: state.categories,
       rank: state.rank
@@ -178,6 +182,14 @@ onBeforeRouteLeave(() => {
         <RouterLink :to="section.to" class="section__more">全部 →</RouterLink>
       </div>
       <BookGrid :books="section.books" :loading="state.loading" :skeleton-count="6" />
+    </section>
+
+    <section v-if="state.spotlight.length" class="section container">
+      <div class="section__head">
+        <h2>读者荐书</h2>
+        <span class="section__hint">读者花积分投出来的，一人一本一票</span>
+      </div>
+      <BookGrid :books="state.spotlight" :loading="false" :skeleton-count="6" />
     </section>
   </div>
 </template>
