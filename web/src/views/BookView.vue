@@ -3,7 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { session } from '@/stores/session'
 import { isAuthError } from '@/api/client'
-import { bookApi, chapterApi, commentApi, ratingApi, shelfApi, historyApi } from '@/api'
+import { bookApi, chapterApi, commentApi, ratingApi, shelfApi, historyApi, pointApi } from '@/api'
 import { useToast } from '@/composables/useToast'
 import { useCategories } from '@/composables/useCategories'
 import { fmtCount, fmtRelative, scoreText, bookStatusText } from '@/utils/format'
@@ -34,6 +34,9 @@ const expanded = ref(false)
 const commentText = ref('')
 const submitting = ref(false)
 const shelfBusy = ref(false)
+const recommendBusy = ref(false)
+/* 投过票之后才知道这本书现在有几票，投之前不显示，避免多一次请求 */
+const recommendVotes = ref(0)
 
 const categoryName = computed(() => nameOf(state.book?.categoryId))
 /* 后端 score 已经是 0–5 的均分，不要再除 2 */
@@ -171,6 +174,30 @@ async function rate(score) {
   }
 }
 
+/**
+ * 投荐书票，花 20 积分
+ * 一人一本一票，投出去不退，所以点之前必须明确确认一次
+ */
+async function recommend() {
+  if (!logged.value) {
+    toast.error('登录后才能投票')
+    return
+  }
+  if (!window.confirm('用 20 积分给这本书投一票？同一本书只能投一次，投出后不退还。')) return
+  recommendBusy.value = true
+  try {
+    const data = await pointApi.recommend(bookId.value)
+    recommendVotes.value = Number(data?.votes || 1)
+    if (data && data.balance !== undefined && data.balance !== null) session.points = Number(data.balance)
+    toast.success(`投票成功，这本书现在有 ${recommendVotes.value} 票`)
+  } catch (err) {
+    if (isAuthError(err)) return
+    toast.error(err.message || '投票失败')
+  } finally {
+    recommendBusy.value = false
+  }
+}
+
 async function submitComment() {
   const content = commentText.value.trim()
   if (!content) return
@@ -289,6 +316,17 @@ onMounted(() => {
 
             <button class="btn" type="button" :disabled="shelfBusy" @click="toggleShelf">
               {{ state.collected ? '已在书架' : '加入书架' }}
+            </button>
+
+            <!-- 积分唯一的出口：投一票，票数进首页的读者荐书板块 -->
+            <button
+              v-if="logged"
+              class="btn"
+              type="button"
+              :disabled="recommendBusy"
+              @click="recommend"
+            >
+              {{ recommendBusy ? '投票中' : recommendVotes ? `已有 ${recommendVotes} 票` : '投荐书票 · 20 积分' }}
             </button>
 
             <span class="update hint">更新于 {{ fmtRelative(state.book.updateTime) }}</span>

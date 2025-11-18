@@ -66,4 +66,11 @@ export const signApi = {
   continuous: () => get('/sign/continuous')
 }
 
+export const pointApi = {
+  summary: () => get('/point/summary'),
+  ledger: ({ pageNum = 1, pageSize = 20 } = {}) => get('/point/ledger', { pageNum, pageSize }),
+  rules: () => get('/point/rules'),
+  recommend: (bookId) => post(`/point/recommend/${bookId}`)
+}
+
 export const captchaUrl = () => `/captcha/image?t=${Date.now()}`

@@ -1,8 +1,8 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { session, saveSession } from '@/stores/session'
 import { isAuthError } from '@/api/client'
-import { userApi, signApi, historyApi, commentApi } from '@/api'
+import { userApi, signApi, historyApi, commentApi, pointApi } from '@/api'
 import { useToast } from '@/composables/useToast'
 import { auditStatusText, fmtRelative, fmtDate } from '@/utils/format'
 import EmptyState from '@/components/EmptyState.vue'
@@ -13,11 +13,13 @@ const toast = useToast()
 const TABS = [
   { key: 'profile', label: '资料' },
   { key: 'sign', label: '签到' },
+  { key: 'points', label: '积分' },
   { key: 'history', label: '阅读记录' },
   { key: 'comments', label: '我的评论' }
 ]
 
 const COMMENT_PAGE_SIZE = 10
+const LEDGER_PAGE_SIZE = 10
 
 const tab = ref('profile')
 const state = reactive({
@@ -28,11 +30,40 @@ const state = reactive({
   continuous: 0,
   history: [],
   /* 后端 pageByUser 返回 {list, total}，用数组接会把空态判断做废 */
-  comments: { list: [], total: 0 }
+  comments: { list: [], total: 0 },
+  points: {
+    balance: 0,
+    totalEarned: 0,
+    level: 1,
+    levelName: '',
+    nextLevelAt: null,
+    nextLevelName: '',
+    todayEarned: 0
+  },
+  ledger: { list: [], total: 0 },
+  rules: []
 })
 
 const commentsPage = ref(1)
 const commentsLoading = ref(false)
+const ledgerPage = ref(1)
+const ledgerLoading = ref(false)
+/* 明细翻页请求的序号，切页太快时只认最后一次的响应 */
+let ledgerSeq = 0
+
+const points = computed(() => state.points)
+
+/* 满级时 nextLevelAt 是 null，进度条按满格显示 */
+const levelProgress = computed(() => {
+  const { totalEarned, nextLevelAt } = state.points
+  if (!nextLevelAt) return 100
+  return Math.min(100, Math.round((Number(totalEarned || 0) / nextLevelAt) * 100))
+})
+
+const toNextLevel = computed(() => {
+  const { totalEarned, nextLevelAt } = state.points
+  return nextLevelAt ? Math.max(0, nextLevelAt - Number(totalEarned || 0)) : 0
+})
 
 const profile = reactive({ nickName: '', phone: '', email: '' })
 const password = reactive({ oldPassword: '', newPassword: '', confirm: '' })
@@ -79,16 +110,70 @@ async function loadComments(page = 1) {
   }
 }
 
+function applyPoints(data) {
+  if (!data) return
+  state.points = { ...state.points, ...data }
+  /* 余额顺手同步到 store，书籍页投票后头部不用等刷新 */
+  session.points = Number(data.balance || 0)
+}
+
+async function loadPoints() {
+  try {
+    applyPoints(await pointApi.summary())
+  } catch (err) {
+    if (isAuthError(err)) return
+    toast.error(err.message || '积分加载失败')
+  }
+}
+
+async function loadLedger(page = 1) {
+  ledgerPage.value = page
+  ledgerLoading.value = true
+  const seq = (ledgerSeq += 1)
+  try {
+    const data = await pointApi.ledger({ pageNum: page, pageSize: LEDGER_PAGE_SIZE })
+    /* 快速翻页时旧响应可能后到，直接丢掉，否则页码和内容会对不上 */
+    if (seq !== ledgerSeq) return
+    state.ledger = {
+      list: Array.isArray(data?.list) ? data.list : [],
+      total: Number(data?.total || 0)
+    }
+  } catch (err) {
+    if (seq !== ledgerSeq || isAuthError(err)) return
+    toast.error(err.message || '明细加载失败')
+  } finally {
+    if (seq === ledgerSeq) ledgerLoading.value = false
+  }
+}
+
+async function loadRules() {
+  if (state.rules.length) return
+  try {
+    state.rules = (await pointApi.rules()) || []
+  } catch {
+    /* 规则表只是说明性内容，拿不到就不显示，不打断页面 */
+    state.rules = []
+  }
+}
+
+/* 积分页第一次打开才拉明细，进个人中心就请求一堆数据是白费流量 */
+watch(tab, (key) => {
+  if (key !== 'points') return
+  if (!state.ledger.list.length) loadLedger(1)
+  loadRules()
+})
+
 async function load() {
   state.loading = true
   state.error = ''
   try {
-    const [user, sign, continuous, history, comments] = await Promise.all([
+    const [user, sign, continuous, history, comments, points] = await Promise.all([
       userApi.info(),
       signApi.month().catch(() => null),
       signApi.continuous().catch(() => 0),
       historyApi.list().catch(() => []),
-      commentApi.mine({ pageNum: 1, pageSize: COMMENT_PAGE_SIZE }).catch(() => null)
+      commentApi.mine({ pageNum: 1, pageSize: COMMENT_PAGE_SIZE }).catch(() => null),
+      pointApi.summary().catch(() => null)
     ])
     state.user = user
     /* 拉到的资料同步回 store，头部昵称和头像首字跟着更新 */
@@ -103,6 +188,7 @@ async function load() {
     state.history = history || []
     commentsPage.value = 1
     applyComments(comments)
+    applyPoints(points)
   } catch (err) {
     /* 401 已经由请求层统一清登录态并跳转，这里再报一次只会出现两条提示 */
     if (isAuthError(err)) return
@@ -169,11 +255,18 @@ async function doSign() {
     if (data?.repeat) {
       toast.info('今天已经签过了')
     } else {
-      toast.success(`签到成功，连续 ${data?.continuousDays || 0} 天`)
+      toast.success(`签到成功 +${data?.points || 0} 分，连续 ${data?.continuousDays || 0} 天`)
     }
     state.continuous = Number(data?.continuousDays || state.continuous)
+    /* 接口已经带回了最新余额，先用它，避免提示里出现旧数字 */
+    if (typeof data?.balance === 'number') {
+      state.points.balance = data.balance
+      session.points = data.balance
+    }
     const month = await signApi.month().catch(() => null)
     if (month) state.sign = month
+    /* 连签奖励和今日所得要重新算一次，签到响应里只有总分没有等级 */
+    if (!data?.repeat) loadPoints()
     if (!data?.repeat) {
       justSigned.value = new Date().getDate()
       /* 重新盖章前先清掉上一个定时器，否则快速连签会留下几个待触发的回调 */
@@ -206,9 +299,15 @@ onBeforeUnmount(() => {
           <p class="joined">加入于 {{ fmtDate(state.user?.createTime) }}</p>
         </div>
       </div>
-      <div class="streak">
-        <span class="mono num">{{ state.continuous }}</span>
-        <span class="hint">连续签到</span>
+      <div class="stats">
+        <button class="stat" type="button" @click="tab = 'points'">
+          <span class="mono num">{{ points.balance }}</span>
+          <span class="hint">积分 · {{ points.levelName }}</span>
+        </button>
+        <div class="stat">
+          <span class="mono num">{{ state.continuous }}</span>
+          <span class="hint">连续签到</span>
+        </div>
       </div>
     </header>
 
@@ -329,6 +428,67 @@ onBeforeUnmount(() => {
         </div>
       </section>
 
+      <section v-else-if="tab === 'points'" class="panel">
+        <div class="point-card">
+          <div class="point-main">
+            <span class="mono pnum">{{ points.balance }}</span>
+            <span class="hint">可用积分</span>
+          </div>
+          <div class="point-side">
+            <span class="tag tag--green">{{ points.levelName || '初读' }}</span>
+            <span class="hint">今日已得 {{ points.todayEarned || 0 }} 分</span>
+          </div>
+        </div>
+
+        <div class="level">
+          <div class="level-bar"><span :style="{ width: `${levelProgress}%` }" /></div>
+          <p class="hint">
+            <template v-if="points.nextLevelAt">再得 {{ toNextLevel }} 分升到「{{ points.nextLevelName }}」</template>
+            <template v-else>已经是最高等级</template>
+            <span class="sep">·</span>
+            等级看累计获得 {{ points.totalEarned || 0 }} 分，花掉不会掉级
+          </p>
+        </div>
+
+        <div class="panel-head ledger-head">
+          <h2 class="serif">积分明细</h2>
+          <p class="hint">每一条行为只记一次账，反复翻同一章不会重复加。</p>
+        </div>
+
+        <EmptyState v-if="!state.ledger.list.length" title="还没有积分记录" desc="签到、读完一章、评论过审都会加分。" />
+
+        <ul v-else class="rows">
+          <li v-for="item in state.ledger.list" :key="item.id" class="lrow">
+            <span class="ltype">{{ item.bizLabel }}</span>
+            <span class="lremark">{{ item.remark }}</span>
+            <span class="lpoints mono" :class="item.points >= 0 ? 'is-plus' : 'is-minus'">
+              {{ item.points >= 0 ? `+${item.points}` : item.points }}
+            </span>
+            <span class="rtime">{{ fmtRelative(item.createTime) }}</span>
+          </li>
+        </ul>
+
+        <div class="ledger-pager" :class="{ 'is-loading': ledgerLoading }">
+          <Pager
+            :page="ledgerPage"
+            :page-size="LEDGER_PAGE_SIZE"
+            :total="state.ledger.total"
+            @change="loadLedger"
+          />
+        </div>
+
+        <details v-if="state.rules.length" class="rules">
+          <summary>怎么赚分</summary>
+          <ul>
+            <li v-for="rule in state.rules" :key="rule.code">
+              <span class="rlabel">{{ rule.label }}</span>
+              <span class="mono rpoints">{{ rule.points }} 分</span>
+              <span class="hint">{{ rule.dailyCap ? `每天最多 ${rule.dailyCap} 次` : '' }}</span>
+            </li>
+          </ul>
+        </details>
+      </section>
+
       <section v-else-if="tab === 'history'" class="panel">
         <div class="panel-head">
           <h2 class="serif">阅读记录</h2>
@@ -429,15 +589,26 @@ onBeforeUnmount(() => {
   color: var(--ink-3);
 }
 
-.streak {
+.stats {
+  display: flex;
+  align-items: center;
+  gap: var(--s-6);
+}
+
+.stat {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
 }
 
-.streak .num {
+.stat .num {
   font-size: var(--t-xl);
   line-height: 1.2;
+}
+
+/* 积分那块可以点，点进去看明细；只给数字加悬停反馈，不用整块变色 */
+button.stat:hover .num {
+  color: var(--sage-deep);
 }
 
 .tabs {
@@ -576,6 +747,145 @@ onBeforeUnmount(() => {
 
 .rows {
   max-width: 620px;
+}
+
+.point-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-5);
+  max-width: 620px;
+  padding: var(--s-5);
+  border: 1px solid var(--line);
+  border-radius: var(--r-l);
+  background: var(--paper-warm);
+}
+
+.point-main {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+}
+
+.pnum {
+  font-size: var(--t-2xl);
+  line-height: 1.1;
+}
+
+.point-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--s-2);
+}
+
+.level {
+  max-width: 620px;
+  margin-top: var(--s-4);
+}
+
+.level-bar {
+  height: 4px;
+  border-radius: var(--r-pill);
+  background: var(--surface-sunken);
+  overflow: hidden;
+}
+
+.level-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--sage);
+  transition: width var(--dur-2) var(--ease);
+}
+
+.level .hint {
+  margin-top: var(--s-2);
+}
+
+.sep {
+  margin: 0 6px;
+  color: var(--line-strong);
+}
+
+.ledger-head {
+  margin-top: var(--s-7);
+}
+
+/* 明细一行四项：来源、说明、分值、时间。说明占伸缩位，长了截断 */
+.lrow {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  padding: 11px 2px;
+  border-bottom: 1px solid var(--line);
+}
+
+.ltype {
+  font-size: var(--t-sm);
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.lremark {
+  min-width: 0;
+  font-size: var(--t-sm);
+  color: var(--ink-3);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.lpoints {
+  margin-left: auto;
+  font-size: var(--t-base);
+  white-space: nowrap;
+}
+
+.lpoints.is-plus {
+  color: var(--sage-deep);
+}
+
+.lpoints.is-minus {
+  color: var(--pale-red-ink);
+}
+
+.ledger-pager.is-loading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.rules {
+  max-width: 620px;
+  margin-top: var(--s-6);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--line);
+}
+
+.rules summary {
+  cursor: pointer;
+  font-size: var(--t-sm);
+  color: var(--ink-2);
+}
+
+.rules ul {
+  margin-top: var(--s-3);
+}
+
+.rules li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  padding: 6px 0;
+  font-size: var(--t-sm);
+}
+
+.rlabel {
+  min-width: 96px;
+  color: var(--ink-2);
+}
+
+.rpoints {
+  color: var(--ink);
 }
 
 .row {
